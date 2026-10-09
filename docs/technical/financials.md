@@ -305,10 +305,21 @@ INCOME    = amount_settled of paid money-in rows, by paid date
 
 Gig rows **with** a `purchase_id` are skipped, because the line already counts.
 
-The three reports, each for one tax year with a CSV download:
+The reports, each for one tax year with a CSV download:
 - **Income:** every payment received (date received, gig, from, description, reference, amount).
 - **Expenses:** totals by Schedule C line, then category, then every expense. A purchase line takes its line from its expense category (`expense_categories.schedule_c_line`); a gig row from its `fin_category` (`FIN_CATEGORY_LINE`). A category that isn't on the organization's list (an older equipment-style value) has no line and is flagged. Mileage shows its miles.
 - **Assets:** depreciated lines bought in the year, with cost (the basis: the line's cost including its share of tax and shipping), category, recovery period (a missing one links to the equipment form), totals by period, and **de minimis candidates** (per-item cost of $2,500 or less). Then **disposals**: depreciated equipment with `retired_on` in the year, whenever it was bought, with sale proceeds (`liquidation_amt`), and its own CSV.
+- **Grey zone:** equipment lines costing $200 to $2,500 each, with the treatment chosen and a **Change…** link to the purchase editor (none in a filed year).
+- **Schedule C** (`src/utils/taxSummaryReports.ts`, `ScheduleCView`): gross receipts (the Income report's total); one row per Schedule C line (the Expenses report's roll-up); **No category (no Schedule C line)** when there is any; **Total expenses**; and **Net (before depreciation)** = receipts − total expenses. A category on the list with no line (Reimbursable (not deducted)) is shown below the net and left out of the total. Depreciation and Section 179 come from the tax program, using the Assets report.
+  - **Mileage** is counted once. A mileage row is a gig money-out row, so the Expenses report already counts it, on the line of its `fin_category` (Car and truck expenses → line 9). Line 9 shows the miles on it and, beside them, miles × the IRS rate on each trip's date (`gig_financials.date`, `calculateMileageAmount`); a warning appears if that differs from what the rows record. Mileage filed under another category stays on that line, with a note; it is never added to line 9 again.
+- **Needs attention** (`NeedsAttentionView`): rows that would leave the year's reports wrong or incomplete, by group with a count, each linked to its fix (purchase editor, or the equipment form):
+  - expensed purchase lines in the year with no category on the list (the Expenses report's flagged purchase rows);
+  - depreciated equipment bought in the year with no recovery period, unit by unit (`assets.purchase_line_id` or the line's `asset_id`), plus depreciated lines with no equipment record;
+  - equipment bought in the year (`acquisition_date`) with no `item_cost` (null or 0);
+  - equipment **Disposed** or **Returned** with no `retired_on`, any year;
+  - invoices dated in the year whose lines don't add up to `total_inv_amount` (the purchase list's Mismatch rule, `getDiscrepancy`, to the cent).
+
+  Nothing to fix: "Nothing needs attention for {year}."
 
 ---
 

@@ -1,0 +1,95 @@
+import { useEffect, useState } from 'react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { getEquipmentNeeded } from '../../services/conflictDetection.service';
+import type { ItemNeedRow } from '../../utils/equipmentNeeds';
+import { formatDateDisplay } from '../../utils/dateUtils';
+
+interface EquipmentNeededTableProps {
+  gigId: string;
+  gigStart: string;
+  gigEnd: string;
+  gigTimezone?: string;
+  /** The viewing organization: only its kits count. */
+  organizationId?: string;
+  /** Change it to reload, e.g. after the gig's kits are saved. */
+  refreshKey?: number;
+}
+
+function Status({ row }: { row: ItemNeedRow }) {
+  if (row.status === 'short') return <span className="font-medium text-red-700">{row.short} short</span>;
+  if (row.status === 'none-spare') {
+    return (
+      <span className="text-amber-700">
+        {row.inContainers ? `none spare · ${row.inContainers} are in container kits` : 'none spare'}
+      </span>
+    );
+  }
+  return <span className="text-green-700">Enough</span>;
+}
+
+/**
+ * "Equipment needed on {day}" (#184, mockup screen 10): units per item, for
+ * this gig and the gigs that overlap it, against what's free. Specific units
+ * and "any" lines both count; container contents travel in their container.
+ */
+export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimezone, organizationId, refreshKey }: EquipmentNeededTableProps) {
+  const [result, setResult] = useState<{ overlapping: number; rows: ItemNeedRow[] } | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    getEquipmentNeeded(gigId, gigStart, gigEnd, gigTimezone, organizationId)
+      .then((r) => { if (live) { setResult(r); setFailed(false); } })
+      .catch(() => { if (live) { setResult(null); setFailed(true); } });
+    return () => { live = false; };
+  }, [gigId, gigStart, gigEnd, gigTimezone, organizationId, refreshKey]);
+
+  if (failed) return <p className="text-xs text-gray-500">Couldn't load equipment counts.</p>;
+  if (!result || result.rows.length === 0) return null;
+  const others = result.overlapping;
+
+  return (
+    <section aria-labelledby="equipment-needed" className="space-y-2">
+      <div>
+        <h3 id="equipment-needed" className="text-sm font-semibold text-gray-900">Equipment needed on {formatDateDisplay(gigStart, gigTimezone)}</h3>
+        <p className="text-xs text-gray-500">
+          {others ? `this gig and the ${others} that ${others === 1 ? 'overlaps' : 'overlap'} it` : 'no other gig overlaps this one'}
+        </p>
+      </div>
+      <div className="border rounded-lg overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Item</TableHead>
+              <TableHead className="text-right">This gig</TableHead>
+              <TableHead className="text-right">Overlapping</TableHead>
+              <TableHead className="text-right">Needed</TableHead>
+              <TableHead className="text-right">Owned</TableHead>
+              <TableHead className="text-right">In maintenance</TableHead>
+              <TableHead className="text-right">Free</TableHead>
+              <TableHead><span className="sr-only">Status</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {result.rows.map((row) => (
+              <TableRow key={row.itemId}>
+                <TableCell>{row.name}</TableCell>
+                <TableCell className="text-right">{row.thisGig}</TableCell>
+                <TableCell className="text-right">{row.overlapping}</TableCell>
+                <TableCell className="text-right">{row.needed}</TableCell>
+                <TableCell className="text-right">{row.owned}</TableCell>
+                <TableCell className="text-right">{row.inMaintenance}</TableCell>
+                <TableCell className="text-right">{row.free}</TableCell>
+                <TableCell className="text-xs"> <Status row={row} /></TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <p className="text-xs text-gray-500">
+        Counts units per item, whichever kits ask for them. A specific unit also conflicts if the same unit is booked twice.
+        Pieces inside a container kit travel in it, and are never free for other kits.
+      </p>
+    </section>
+  );
+}

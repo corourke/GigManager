@@ -3,6 +3,8 @@ import { handleApiError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
 import type { OrganizationRole } from '../utils/supabase/types';
 import { assetLabel } from './kit.service';
+import { loadEquipmentNeeds, needsOf } from './equipmentNeeds.service';
+import { itemNeedRows, type GigNeeds, type ItemNeed, type ItemNeedRow } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
 
@@ -79,6 +81,54 @@ function classifyOverlap(
     return 'warning';
   }
   return null;
+}
+
+/** An item that gigs running at the same time together need more of than are free (#184). */
+export interface ItemShort {
+  item_id: string;
+  item_name: string;
+  /** The peak: what this gig and the gigs running with it need at the same moment. */
+  needed: number;
+  available: number;
+  short: number;
+  /** When the peak starts, and this gig's timezone, to say the day. */
+  peak_at: string;
+  timezone?: string;
+  this_gig: ItemNeed;
+  /** Every other gig that adds to the peak. */
+  others: { gig_title: string; need: ItemNeed }[];
+}
+
+/** Items short on `rows` (one gig's view) where the other gig adds to the peak. */
+function itemsShort(rows: readonly ItemNeedRow[], thisNeeds: ReadonlyMap<string, ItemNeed>, otherId: string, timezone?: string): ItemShort[] {
+  return rows
+    .filter((r) => r.short > 0 && r.peakGigs.some((g) => g.id === otherId))
+    .map((r) => ({
+      item_id: r.itemId, item_name: r.name, needed: r.needed, available: r.free, short: r.short,
+      peak_at: new Date(r.peakAt).toISOString(), timezone,
+      this_gig: thisNeeds.get(r.itemId)!,
+      others: r.peakGigs.map((g) => ({ gig_title: g.title, need: g.need })),
+    }));
+}
+
+/** A gig's needs with its effective time range, for the peak. */
+function timedNeeds(gig: { id: string; title?: string; start: string; end: string; timezone?: string }, needs: ReadonlyMap<string, ItemNeed>): GigNeeds {
+  const { effectiveStart, effectiveEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
+  return { id: gig.id, title: gig.title ?? 'This gig', start: effectiveStart.getTime(), end: effectiveEnd.getTime(), needs };
+}
+
+/** Kit assignment rows of the given organization only (all when none is given). */
+const ofOrg = <T extends { organization_id?: string | null }>(rows: readonly T[], organizationId?: string) =>
+  organizationId ? rows.filter((r) => r.organization_id === organizationId) : [...rows];
+
+/** Per-item counts, or none if they can't be loaded: the other checks still run. */
+async function loadNeedsSafely(kitIds: string[], organizationId?: string) {
+  try {
+    return await loadEquipmentNeeds(kitIds, organizationId);
+  } catch (err) {
+    console.error('Error loading equipment needs:', err);
+    return { ctx: { kits: new Map(), lines: new Map(), assetItem: new Map() }, counts: new Map() };
+  }
 }
 
 function widenedQueryRange(effectiveStart: Date, effectiveEnd: Date) {
@@ -232,26 +282,28 @@ export async function checkParticipantConflicts(gigId: string, startTime: string
   }
 }
 
-export async function checkEquipmentConflicts(gigId: string, startTime: string, endTime: string, timezone?: string): Promise<ConflictResult> {
+export async function checkEquipmentConflicts(gigId: string, startTime: string, endTime: string, timezone?: string, organizationId?: string): Promise<ConflictResult> {
   const supabase = getSupabase();
   try {
-    const { data: currentGigKits, error: currentError } = await supabase
+    const { data: assigned, error: currentError } = await supabase
       .from('gig_kit_assignments')
-      .select('kit_id')
+      .select('kit_id, organization_id')
       .eq('gig_id', gigId);
 
     if (currentError) throw currentError;
-    if (!currentGigKits || currentGigKits.length === 0) return { conflicts: [], warnings: [] };
+    // Only the viewing organization's kits: another participant's equipment isn't ours to count.
+    const currentGigKits = ofOrg((assigned ?? []) as any[], organizationId);
+    if (currentGigKits.length === 0) return { conflicts: [], warnings: [] };
 
     const kitIds = currentGigKits.map((a: any) => a.kit_id);
     const { effectiveStart: currentStart, effectiveEnd: currentEnd } = getEffectiveRange(startTime, endTime, timezone);
     const { queryStart, queryEnd } = widenedQueryRange(currentStart, currentEnd);
 
-    const { data: candidateGigs, error: candidateError } = await supabase
+    const { data: candidates, error: candidateError } = await supabase
       .from('gigs')
       .select(`
         id, title, start, end, timezone,
-        kit_assignments:gig_kit_assignments!inner(kit_id, kit:kits!inner(id, name))
+        kit_assignments:gig_kit_assignments!inner(kit_id, organization_id, kit:kits!inner(id, name))
       `)
       .neq('id', gigId)
       .neq('status', 'Cancelled')
@@ -259,7 +311,10 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
       .gte('end', queryStart);
 
     if (candidateError) throw candidateError;
-    if (!candidateGigs || candidateGigs.length === 0) return { conflicts: [], warnings: [] };
+    const candidateGigs = (candidates ?? [])
+      .map((g: any) => ({ ...g, kit_assignments: ofOrg(g.kit_assignments ?? [], organizationId) }))
+      .filter((g: any) => g.kit_assignments.length > 0);
+    if (candidateGigs.length === 0) return { conflicts: [], warnings: [] };
 
     // Resolve every kit involved — current gig's and every candidate's — to its
     // flattened asset set in one query, then compare at the asset level, not
@@ -287,12 +342,26 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
       for (const assetId of assetsByKit.get(kitId) ?? []) currentAssetIds.add(assetId);
     }
 
+    // Per item (#184): what this gig and the gigs overlapping it need, against what's free.
+    const levels = new Map(candidateGigs.map((gig: any) => {
+      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
+      return [gig.id, classifyOverlap(currentStart, currentEnd, gigStart, gigEnd)];
+    }));
+    const needsData = await loadNeedsSafely(allKitIds, organizationId);
+    const thisNeeds = needsOf(kitIds, needsData);
+    const gigKitIds = (gig: any) => (gig.kit_assignments || []).map((a: any) => a.kit_id as string);
+    const overlapping = candidateGigs.filter((gig: any) => levels.get(gig.id) === 'conflict');
+    const rows = itemNeedRows(
+      timedNeeds({ id: gigId, start: startTime, end: endTime, timezone }, thisNeeds),
+      overlapping.map((gig: any) => timedNeeds(gig, needsOf(gigKitIds(gig), needsData))),
+      needsData.counts,
+    );
+
     const conflicts: Conflict[] = [];
     const warnings: Conflict[] = [];
 
     for (const gig of candidateGigs) {
-      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
-      const level = classifyOverlap(currentStart, currentEnd, gigStart, gigEnd);
+      const level = levels.get(gig.id);
       if (!level) continue;
 
       const matching = (gig.kit_assignments || [])
@@ -306,7 +375,8 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
             .sort(),
         }))
         .filter((k: any) => k.shared_assets.length > 0);
-      if (matching.length === 0) continue;
+      const short = level === 'conflict' ? itemsShort(rows, thisNeeds, gig.id, timezone) : [];
+      if (matching.length === 0 && short.length === 0) continue;
 
       const entry: Conflict = {
         level,
@@ -315,7 +385,7 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
         gig_title: gig.title,
         start: gig.start,
         end: gig.end,
-        details: { conflicting_kits: matching }
+        details: { conflicting_kits: matching, items_short: short }
       };
       (level === 'conflict' ? conflicts : warnings).push(entry);
     }
@@ -326,12 +396,57 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
   }
 }
 
-export async function checkAllConflicts(gigId: string, startTime: string, endTime: string, timezone?: string): Promise<ConflictResult> {
+const STATUS_ORDER = { short: 0, 'none-spare': 1, enough: 2 } as const;
+
+/**
+ * What a gig needs per item, against what's free when it and the gigs
+ * overlapping it all happen (#184, the gig's "Equipment needed" table).
+ */
+export async function getEquipmentNeeded(gigId: string, startTime: string, endTime: string, timezone?: string, organizationId?: string): Promise<{ overlapping: number; rows: ItemNeedRow[] }> {
+  const supabase = getSupabase();
+  try {
+    const { data: currentGigKits, error: currentError } = await supabase.from('gig_kit_assignments').select('kit_id, organization_id').eq('gig_id', gigId);
+    if (currentError) throw currentError;
+    const kitIds = ofOrg((currentGigKits ?? []) as any[], organizationId).map((a: any) => a.kit_id as string);
+    if (kitIds.length === 0) return { overlapping: 0, rows: [] };
+
+    const { effectiveStart, effectiveEnd } = getEffectiveRange(startTime, endTime, timezone);
+    const { queryStart, queryEnd } = widenedQueryRange(effectiveStart, effectiveEnd);
+    const { data: candidateGigs, error: candidateError } = await supabase
+      .from('gigs')
+      .select('id, title, start, end, timezone, kit_assignments:gig_kit_assignments!inner(kit_id, organization_id)')
+      .neq('id', gigId)
+      .neq('status', 'Cancelled')
+      .lte('start', queryEnd)
+      .gte('end', queryStart);
+    if (candidateError) throw candidateError;
+    const overlapping = (candidateGigs ?? [])
+      .map((gig: any) => ({ ...gig, kit_ids: ofOrg(gig.kit_assignments ?? [], organizationId).map((a: any) => a.kit_id as string) }))
+      .filter((gig: any) => {
+        if (gig.kit_ids.length === 0) return false;
+        const r = getEffectiveRange(gig.start, gig.end, gig.timezone);
+        return rangesOverlap(effectiveStart, effectiveEnd, r.effectiveStart, r.effectiveEnd);
+      });
+
+    const data = await loadEquipmentNeeds(Array.from(new Set([...kitIds, ...overlapping.flatMap((g: any) => g.kit_ids)])), organizationId);
+    const rows = itemNeedRows(
+      timedNeeds({ id: gigId, start: startTime, end: endTime, timezone }, needsOf(kitIds, data)),
+      overlapping.map((gig: any) => timedNeeds(gig, needsOf(gig.kit_ids, data))),
+      data.counts,
+    )
+      .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
+    return { overlapping: overlapping.length, rows };
+  } catch (err) {
+    return handleApiError(err, 'work out the equipment needed');
+  }
+}
+
+export async function checkAllConflicts(gigId: string, startTime: string, endTime: string, timezone?: string, organizationId?: string): Promise<ConflictResult> {
   try {
     const [staffResult, participantResult, equipmentResult] = await Promise.all([
       checkStaffConflicts(gigId, startTime, endTime, timezone),
       checkParticipantConflicts(gigId, startTime, endTime, timezone),
-      checkEquipmentConflicts(gigId, startTime, endTime, timezone)
+      checkEquipmentConflicts(gigId, startTime, endTime, timezone, organizationId)
     ]);
 
     return {
@@ -362,7 +477,7 @@ interface GigForConflictCheck {
   status?: string;
 }
 
-export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Promise<Conflict[]> {
+export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], organizationId?: string): Promise<Conflict[]> {
   const activeGigs = gigs.filter(g => !g.status || !EXCLUDED_STATUSES.includes(g.status));
   if (activeGigs.length === 0) return [];
 
@@ -382,7 +497,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
         .in('role', PARTICIPANT_CONFLICT_ROLES),
       supabase
         .from('gig_kit_assignments')
-        .select('gig_id, kit_id, kit:kits(id, name)')
+        .select('gig_id, kit_id, organization_id, kit:kits(id, name)')
         .in('gig_id', gigIds),
     ]);
 
@@ -459,6 +574,19 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
         }))
         .filter((k) => k.shared_assets.length > 0);
 
+    // Per item (#184): each gig's needs, and its rows against every gig overlapping it.
+    // Only the viewing organization's kits count per item (#184 review).
+    const ownKitIds = (gigId: string) => ofOrg(((kitData.data || []) as any[]).filter((k) => k.gig_id === gigId), organizationId).map((k) => k.kit_id as string);
+    const needsData = await loadNeedsSafely(Array.from(new Set(activeGigs.flatMap((g) => ownKitIds(g.id)))), organizationId);
+    const timed = new Map(activeGigs.map((g) => [g.id, timedNeeds(g, needsOf(ownKitIds(g.id), needsData))]));
+    const rowsByGig = new Map(activeGigs.map((g) => {
+      const t = timed.get(g.id)!;
+      const others = activeGigs.filter((o) => o.id !== g.id).map((o) => timed.get(o.id)!).filter((o) => o.start <= t.end && o.end >= t.start);
+      return [g.id, itemNeedRows(t, others, needsData.counts)];
+    }));
+    const shortFor = (gigId: string, otherId: string) =>
+      itemsShort(rowsByGig.get(gigId)!, timed.get(gigId)!.needs, otherId, activeGigs.find((g) => g.id === gigId)?.timezone);
+
     const conflicts: Conflict[] = [];
 
     for (let i = 0; i < activeGigs.length; i++) {
@@ -513,19 +641,24 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[]): Pro
         }
 
         const overlappingAssetIds = [...assetsA].filter(id => assetsB.has(id));
-        if (overlappingAssetIds.length > 0) {
-          const shared = new Set(overlappingAssetIds);
+        const shortA = shortFor(gigA.id, gigB.id);
+        const shortB = shortFor(gigB.id, gigA.id);
+        // Each side gets an entry only for its own shortage, or the units both book.
+        const shared = new Set(overlappingAssetIds);
+        if (overlappingAssetIds.length > 0 || shortB.length > 0) {
           conflicts.push({
             level: 'conflict', type: 'equipment',
             gig_id: gigB.id, gig_title: gigB.title,
             start: gigB.start, end: gigB.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigB.id, shared), other_gig_id: gigA.id, other_gig_title: gigA.title }
+            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigB.id, shared), items_short: shortB, other_gig_id: gigA.id, other_gig_title: gigA.title }
           });
+        }
+        if (overlappingAssetIds.length > 0 || shortA.length > 0) {
           conflicts.push({
             level: 'conflict', type: 'equipment',
             gig_id: gigA.id, gig_title: gigA.title,
             start: gigA.start, end: gigA.end,
-            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigA.id, shared), other_gig_id: gigB.id, other_gig_title: gigB.title }
+            details: { conflicting_asset_ids: overlappingAssetIds, conflicting_kits: kitsSharing(gigA.id, shared), items_short: shortA, other_gig_id: gigB.id, other_gig_title: gigB.title }
           });
         }
       }

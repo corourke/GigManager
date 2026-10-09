@@ -17,10 +17,9 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 | # | Item | State | Next / owner |
 |---|---|---|---|
-| [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Categories, recovery periods, Income / Expenses / Assets (+ Disposals) / Grey zone reports and mileage rates done and in prod | Last two reports (Schedule C summary, Needs attention) building (coordinator, §3c); then close. F4–F6 moved to #135 |
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
 | [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
-| [#183](https://github.com/corourke/GigManager/issues/183)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | #182 done; #183 A, B, C merged (PRs #216, #221) and **in prod 10-09**; #183 D (CSV import) off the critical path; follow-ups in [#226](https://github.com/corourke/GigManager/issues/226) | Equipment Lead: **#184 next**; D by a coordinator sub-agent when the Lead says it's clear |
+| [#183](https://github.com/corourke/GigManager/issues/183)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | #182 done; #183 A, B, C merged (PRs #216, #221) and **in prod 10-09**; #183 D (CSV import) off the critical path; follow-ups in [#226](https://github.com/corourke/GigManager/issues/226). #184 PR 1 merged (#225); **PR 2 (per-item overlap check) is [#230](https://github.com/corourke/GigManager/pull/230), in coordinator review 10-09** | Equipment Lead: after #230, **#186 split (Cameron, 10-09)**: a Locations PR first (shared "N from a lot" scan helper with tests, back-home statuses from workflow config, moves per unit/lot), with #185 built alongside on that helper; override and maintenance stay in a later #186 PR. D by a coordinator sub-agent when the Lead says it's clear |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c) |
@@ -59,7 +58,6 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. **Item 5, $0 invoice total.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. **Item 6, tracked expensed line needs a category.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
-**[#125](https://github.com/corourke/GigManager/issues/125): Schedule C summary and Needs attention reports** (Cameron 10-09: build both, then close #125; plan on the issue). Coordinator, by sub-agent: building. No migration. Data fixes F4–F6 moved to #135.
 
 **PAUSED (Cameron, 10-08): don't start any #20 batch until #186 merges.** Batches 3–7 collide with #183–#186 and #175. Triage: skip #20 and do a `docs/` pass instead.
 
@@ -108,7 +106,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 **Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. Cameron (10-08 evening): sub-agents do the coordinator's builds; the coordinator reviews, merges and may deploy to **dev** with `./deploy_dev.sh` (never prod). The coordinator checks in at least every 4 hours (Routine `trig_013iEPNzrK1NR8j2Qih9jzJy`, bound to coordinator session `session_01XTmXKhviMSkyy5PqcRAfUn` in the Supabase Prod environment; it disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
 
-**Equipment Lead** (next: #183; PR #192 (#182) merged 10-08) (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
+**Equipment Lead** (next: #186 Locations and #185 in parallel, after #230) (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
 
 **Docs Lead** ("GigWrangler Docs Lead", Supabase Dev environment, no prod access) owns the user guide (`website/docs/`) and its screenshots, from the demo organization in dev. It may create GitHub issues. Its decisions so far: visual style A (app match); the demo data and seed (`scripts/seed-demo.sql`, logins in `scripts/README.md`; dev holds only demo data since 10-07); screenshots from `scripts/screenshots/` at a pinned date, refreshed at each production release.
 
@@ -144,7 +142,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 | `equipment/location-explorer.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/overview.md` | published | — | held: equipment rework (#162/#180) |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
-| `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: #125 money-type rework |
+| `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
 | `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #220) | projected staff estimate documented |
 | `financials/overview.md` | published | 2026-10-09 (Docs Lead, PR #227) | Upload Invoice is on the Items tab |
 | `financials/purchases.md` | published | 2026-10-09 (Docs Lead, PR #227) | Track as equipment makes a lot |

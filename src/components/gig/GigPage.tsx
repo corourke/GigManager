@@ -15,6 +15,7 @@ import { PageHeader } from '../layout/PageHeader';
 import { PageTabsList, PageTabsTrigger } from '../layout/PageTabs';
 import GigFinancialsSection from './GigFinancialsSection';
 import GigKitAssignmentsSection from './GigKitAssignmentsSection';
+import EquipmentNeededTable from './EquipmentNeededTable';
 import GigParticipantsSection from './GigParticipantsSection';
 import GigStaffSlotsSection from './GigStaffSlotsSection';
 import GigEquipmentTable from './view/GigEquipmentTable';
@@ -103,11 +104,11 @@ export default function GigPage({
     try {
       const data = await getGig(gigId);
       setGig(data);
-      checkAllConflicts(gigId, data.start, data.end).then((r) => setConflicts(r.conflicts)).catch(() => {});
+      checkAllConflicts(gigId, data.start, data.end, data.timezone, organization.id).then((r) => setConflicts(r.conflicts)).catch(() => {});
     } catch (error: any) {
       setLoadError(error.message || 'Failed to load this gig.');
     }
-  }, [gigId]);
+  }, [gigId, organization.id]);
 
   useEffect(() => { loadGig(); }, [loadGig]);
 
@@ -341,6 +342,7 @@ export default function GigPage({
             ) : (
               <div className="space-y-4">
                 <GigEquipmentTable gigId={gigId} organizationId={organization.id} showAmounts={canEdit} />
+                <EquipmentNeededTable gigId={gigId} gigStart={gig.start} gigEnd={gig.end} gigTimezone={gig.timezone} organizationId={organization.id} />
                 {/* The packing list moved here from Equipment › Inventory › Reports (#39). */}
                 <GigSection title="Packing list">
                   <PackingList

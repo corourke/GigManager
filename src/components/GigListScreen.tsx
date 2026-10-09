@@ -178,7 +178,7 @@ export default function GigListScreen({
       setGigs(data || []);
 
       if (data && data.length > 0) {
-        const detected = await checkAllConflictsForGigs(data);
+        const detected = await checkAllConflictsForGigs(data, organization.id);
         setConflicts(detected);
       }
     } catch (err: any) {
@@ -258,14 +258,14 @@ export default function GigListScreen({
       // Strip view-model fields; inline edit only changes gig columns
       const { venue, act, participants, financials, staff_slots, ...gigFields } = updates;
       await updateGig(id, gigFields);
-      const detected = await checkAllConflictsForGigs(updatedGigs);
+      const detected = await checkAllConflictsForGigs(updatedGigs, organization.id);
       setConflicts(detected);
     } catch (err: any) {
       setGigs(prev => prev.map(g => (g.id === id ? gig : g)));
       console.error('Error updating gig:', err);
       toast.error(err.message || 'Failed to update gig');
     }
-  }, [gigs]);
+  }, [gigs, organization.id]);
 
   const getGigFinancials = useCallback(
     (gigId: string) => financialsByGigId.get(gigId) ?? ZERO_GIG_EXPORT_AGGREGATES,

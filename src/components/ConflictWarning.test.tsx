@@ -108,3 +108,48 @@ describe('ConflictWarning', () => {
     });
   });
 });
+// #184 (mockup screen 10): not enough of an item at the same time across gigs.
+describe('ConflictWarning: items short (#184)', () => {
+  const need = (total: number, kit = 'Club Lighting Package') => ({ total, kits: [{ kit_name: kit, quantity: total }] });
+  const short = (over: Record<string, any> = {}): Conflict => ({
+    level: 'conflict', type: 'equipment', gig_id: 'gig-2', gig_title: 'Saturday Club Night',
+    start: '2026-10-11T03:00:00Z', end: '2026-10-11T08:00:00Z',
+    details: {
+      conflicting_kits: [],
+      items_short: [{
+        item_id: 'trio', item_name: 'Chauvet Intimidator Trio', needed: 8, available: 6, short: 2,
+        // 23:00 on Oct 10 in Los Angeles is already Oct 11 in UTC.
+        peak_at: '2026-10-11T06:00:00Z', timezone: 'America/Los_Angeles',
+        this_gig: need(4), others: [{ gig_title: 'Saturday Club Night', need: need(4) }],
+      }],
+      ...over,
+    },
+  });
+
+  it('the compact alert says what is short', () => {
+    render(<ConflictWarning conflicts={[short()]} />);
+    expect(screen.getByText(/Not enough equipment: Chauvet Intimidator Trio \(8 needed, 6 available\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/Equipment conflict with kits/)).not.toBeInTheDocument();
+  });
+
+  it('the card says how many short on the day, in the gig\'s timezone, and which kits ask for them', () => {
+    render(<ConflictWarning conflicts={[short()]} showAsCard />);
+    const item = screen.getByText('Chauvet Intimidator Trio').closest('p')!;
+    expect(item).toHaveTextContent('Chauvet Intimidator Trio: 8 needed on Oct 10, 2026, 6 available. 2 short.');
+    expect(screen.getByText('This gig: 4 (Club Lighting Package × 4) · Saturday Club Night: 4 (Club Lighting Package × 4)')).toBeInTheDocument();
+  });
+
+  it('lists every gig that adds to the peak, so the numbers add up', () => {
+    const three = short();
+    three.details.items_short[0] = { ...three.details.items_short[0], needed: 6, short: 0,
+      this_gig: need(2), others: [{ gig_title: 'A', need: need(2, 'Kit A') }, { gig_title: 'B', need: need(2, 'Kit B') }] };
+    render(<ConflictWarning conflicts={[three]} showAsCard />);
+    expect(screen.getByText('This gig: 2 (Club Lighting Package × 2) · A: 2 (Kit A × 2) · B: 2 (Kit B × 2)')).toBeInTheDocument();
+  });
+
+  it('never says "Equipment conflict with kits:" with nothing after it', () => {
+    render(<ConflictWarning conflicts={[short({ items_short: [], conflicting_kits: [] })]} />);
+    expect(screen.queryByText(/with kits:\s*$/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Equipment conflict$/)).toBeInTheDocument();
+  });
+});

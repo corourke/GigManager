@@ -27,6 +27,13 @@ vi.mock('../components/GigListScreen', () => ({
   default: () => <div>GigListScreen stub</div>,
 }));
 
+vi.mock('../components/AssetScreen', () => ({
+  default: () => <div>AssetScreen stub</div>,
+}));
+vi.mock('../components/FinancialsScreen', () => ({
+  default: () => <div>FinancialsScreen stub</div>,
+}));
+
 // Reading the module's default export throws, like a chunk that failed to fetch
 vi.mock('../components/TeamScreen', () => ({
   get default(): never {
@@ -82,4 +89,48 @@ describe('AppRoutes lazy screens', () => {
     consoleError.mockRestore();
     window.removeEventListener('error', swallow);
   });
+});
+
+// #226 item 8: Staff and Viewer opening a manage-only URL are sent to their
+// landing page (the same canManage rule the menus use), never shown the form.
+describe('AppRoutes manage-only URLs', () => {
+  const paths: [string, string][] = [
+    ['/assets/new', 'AssetScreen stub'],
+    ['/assets/a1/edit', 'AssetScreen stub'],
+    ['/financials', 'FinancialsScreen stub'],
+  ];
+  const landing: Record<string, string> = { Staff: 'Dashboard stub', Viewer: 'GigListScreen stub' };
+
+  function signInAs(role: string) {
+    mockUseAuth.mockReturnValue({
+      isLoading: false,
+      user: { id: 'u1', first_name: 'A', last_name: 'B', email: 'a@b.c' },
+      organizations: [{ organization: org, role }],
+      selectedOrganization: org,
+      userRole: role,
+      selectOrganization: vi.fn(),
+      logout: vi.fn(),
+      setUser: vi.fn(),
+      setOrganizations: vi.fn(),
+      refreshProfile: vi.fn(),
+    });
+  }
+
+  for (const [path, stub] of paths) {
+    for (const role of ['Staff', 'Viewer']) {
+      it(`sends ${role} away from ${path} to their landing page`, async () => {
+        signInAs(role);
+        renderAt(path);
+        expect(await screen.findByText(landing[role])).toBeInTheDocument();
+        expect(screen.queryByText(stub)).not.toBeInTheDocument();
+      });
+    }
+    for (const role of ['Admin', 'Manager']) {
+      it(`lets ${role} open ${path}`, async () => {
+        signInAs(role);
+        renderAt(path);
+        expect(await screen.findByText(stub)).toBeInTheDocument();
+      });
+    }
+  }
 });

@@ -5,6 +5,10 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#125 closed: Schedule C summary and Needs attention, PR #232** (coordinator's sub-agent, merged 10-09): Schedule C rolls the Income and Expenses reports up by line (line 9 mileage shown in miles and at the IRS rate on each trip's date, counted once; Reimbursable shown below the net and not in the total); Needs attention lists missing categories, recovery periods, costs, disposal dates and invoices that don't add up, with edit links. Both have CSVs. No migration. Future: `isReconciled` compares unrounded numbers (an exact 1-cent difference reads as a mismatch).
+
+- **User guide screenshot refresh, PR #229** (Docs Lead, merged 10-09): all 38 shots retaken for the 10-09 prod release, 14 changed.
+
 - **User guide, PRs #224 and #227** (Docs Lead, merged 10-09): #219 follow-ups (print staff costs, Staffing-card footer shot); Financials pages caught up with the purchase rework in prod (#216, #221). TEST-221 records cleared from dev by reseeding.
 
 - **Code-splitting PR 1, PR #228** (coordinator's sub-agent, merged 10-09): 18 remaining screens lazy-loaded; ChunkLoadBoundary ("This screen couldn't load… Reload"); landing-screen prefetch after sign-in; `npm run check:bundle` in CI (entry chunk ≤ 1.2 MB, built with a dummy Sentry DSN). Main chunk 2,043,871 → 838,807 bytes prod-shaped. Also fixes a `useAutoSave` timer leak (the 2 s "saved" reset was never cleared on unmount), which surfaced as an unhandled "window is not defined" in CI.

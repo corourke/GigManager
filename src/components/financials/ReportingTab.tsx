@@ -2,6 +2,9 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Download, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '../ui/card';
+import { Metric, Empty } from './ReportParts';
+import ScheduleCView from './ScheduleCView';
+import NeedsAttentionView from './NeedsAttentionView';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -11,35 +14,23 @@ import {
   buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
   incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename, downloadCsv, dayOf,
 } from '../../utils/taxReports';
+import { buildScheduleCSummary, buildNeedsAttentionReport, scheduleCCsv, needsAttentionCsv, usd } from '../../utils/taxSummaryReports';
 import { recoveryPeriodLabel } from '../../utils/recoveryPeriod';
 import { taxTreatmentLabel } from '../../utils/taxTreatment';
 
 // The purchase editor, where a line's treatment is changed; loaded when first opened.
 const ReviewScannedDataDialog = lazy(() => import('../ReviewScannedDataDialog'));
 
-export type ReportKind = 'income' | 'expenses' | 'assets' | 'grey-zone';
+export type ReportKind = 'income' | 'expenses' | 'assets' | 'grey-zone' | 'schedule-c' | 'needs-attention';
 
 const REPORTS: { kind: ReportKind; label: string }[] = [
   { kind: 'income', label: 'Income' },
   { kind: 'expenses', label: 'Expenses' },
   { kind: 'assets', label: 'Assets' },
   { kind: 'grey-zone', label: 'Grey zone' },
+  { kind: 'schedule-c', label: 'Schedule C' },
+  { kind: 'needs-attention', label: 'Needs attention' },
 ];
-
-const usd = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-
-function Metric({ label, value, tone }: { label: string; value: string; tone?: 'warn' }) {
-  return (
-    <Card className="flex-1 min-w-[150px] p-4 gap-1">
-      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
-      <p className={`text-xl font-semibold ${tone === 'warn' ? 'text-amber-600' : 'text-foreground'}`}>{value}</p>
-    </Card>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm text-muted-foreground py-6 text-center">{children}</p>;
-}
 
 interface ReportingTabProps {
   organizationId: string;
@@ -49,8 +40,9 @@ interface ReportingTabProps {
 }
 
 /**
- * Tax-year reports (#125): Income, Expenses, Assets and Grey zone, cash basis,
- * each with a CSV download for the tax program. The counting is in utils/taxReports.
+ * Tax-year reports (#125): Income, Expenses, Assets, Grey zone, Schedule C and
+ * Needs attention, cash basis, each with a CSV download for the tax program. The
+ * counting is in utils/taxReports and utils/taxSummaryReports.
  */
 export default function ReportingTab({ organizationId, organizationName, onEditAsset }: ReportingTabProps) {
   const thisYear = new Date().getFullYear();
@@ -69,7 +61,7 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
       .then(d => { if (!cancelled) setData(d); })
       .catch(err => {
         console.error('Error loading report data:', err);
-        if (!cancelled) { toast.error('Failed to load the reports'); setData({ lines: [], gigRows: [], categories: [], scheduleC: [], equipmentCategories: [] }); }
+        if (!cancelled) { toast.error('Failed to load the reports'); setData({ lines: [], gigRows: [], categories: [], scheduleC: [], equipmentCategories: [], assets: [], invoices: [] }); }
       });
     getLockedTaxYears(organizationId).then(y => { if (!cancelled) setLocked(y); }).catch(() => {});
     return () => { cancelled = true; };
@@ -90,11 +82,15 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
   const expenses = useMemo(() => data && buildExpenseReport(data.lines, data.gigRows, data.categories, data.scheduleC, year), [data, year]);
   const assets = useMemo(() => data && buildAssetReport(data.lines, year), [data, year]);
   const greyZone = useMemo(() => data && buildGreyZoneReport(data.lines, data.equipmentCategories ?? [], year), [data, year]);
+  const scheduleC = useMemo(() => data && buildScheduleCSummary(income!, expenses!, data.gigRows, data.scheduleC), [data, income, expenses]);
+  const attention = useMemo(() => data && buildNeedsAttentionReport(
+    { lines: data.lines, assets: data.assets ?? [], invoices: data.invoices ?? [], expenses: expenses! }, year), [data, expenses, year]);
 
   const download = () => {
     if (!data) return;
     const csv = kind === 'income' ? incomeCsv(income!) : kind === 'expenses' ? expensesCsv(expenses!, data.scheduleC)
-      : kind === 'assets' ? assetsCsv(assets!) : greyZoneCsv(greyZone!);
+      : kind === 'assets' ? assetsCsv(assets!) : kind === 'grey-zone' ? greyZoneCsv(greyZone!)
+      : kind === 'schedule-c' ? scheduleCCsv(scheduleC!) : needsAttentionCsv(attention!);
     downloadCsv(csv, reportFilename(organizationName, kind, year));
   };
 
@@ -108,10 +104,10 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
-        <div role="group" aria-label="Report" className="inline-flex rounded-md border border-input overflow-hidden h-9">
+        <div role="group" aria-label="Report" className="inline-flex max-w-full rounded-md border border-input overflow-x-auto h-9">
           {REPORTS.map(r => (
             <button key={r.kind} type="button" aria-pressed={kind === r.kind} onClick={() => setKind(r.kind)}
-              className={`px-4 text-sm font-medium border-r last:border-r-0 border-input ${kind === r.kind ? 'bg-sky-700 text-white' : 'bg-background text-foreground hover:bg-muted'}`}>
+              className={`px-4 text-sm font-medium whitespace-nowrap border-r last:border-r-0 border-input ${kind === r.kind ? 'bg-sky-700 text-white' : 'bg-background text-foreground hover:bg-muted'}`}>
               {r.label}
             </button>
           ))}
@@ -137,8 +133,13 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
       ) : kind === 'assets' ? (
         <AssetsView report={assets!} year={year} onEditAsset={onEditAsset}
           onDownloadDisposals={() => downloadCsv(disposalsCsv(assets!), reportFilename(organizationName, 'disposals', year))} />
-      ) : (
+      ) : kind === 'grey-zone' ? (
         <GreyZoneView report={greyZone!} year={year} onEditPurchase={locked.has(year) ? undefined : setEditPurchaseId} />
+      ) : kind === 'schedule-c' ? (
+        <ScheduleCView report={scheduleC!} year={year} />
+      ) : (
+        <NeedsAttentionView report={attention!} year={year} onEditAsset={onEditAsset}
+          onEditPurchase={locked.has(year) ? undefined : setEditPurchaseId} />
       )}
 
       {editPurchaseId && (

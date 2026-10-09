@@ -15,6 +15,7 @@ import {
   RequireAuth,
   RequireOrg,
   LandingRedirect,
+  RequireManager,
   ResetPasswordRoute,
   AcceptInvitationRoute,
   CalendarCallbackRoute,
@@ -750,9 +751,12 @@ function RouteTable() {
             <Route path="/team" element={<TeamRoute />} />
             <Route path="/team/:memberId" element={<TeamMemberDetailRoute />} />
             <Route path="/assets" element={<AssetListRoute />} />
-            <Route path="/assets/new" element={<AssetEditorRoute create />} />
+            <Route element={<RequireManager />}>
+              <Route path="/assets/new" element={<AssetEditorRoute create />} />
+              <Route path="/assets/:assetId/edit" element={<AssetEditorRoute create={false} />} />
+              <Route path="/financials/:tab?/:sub?" element={<FinancialsRoute />} />
+            </Route>
             <Route path="/assets/:assetId" element={<AssetDetailRoute />} />
-            <Route path="/assets/:assetId/edit" element={<AssetEditorRoute create={false} />} />
             <Route path="/items/:itemId" element={<ItemDetailRoute />} />
             <Route path="/kits" element={<KitListRoute />} />
             <Route path="/kits/new" element={<KitEditorRoute create />} />
@@ -762,7 +766,6 @@ function RouteTable() {
             <Route path="/equipment/:tab?" element={<InventoryRoute />} />
             <Route path="/settings/:tab?" element={<SettingsRoute />} />
             <Route path="/import" element={<ImportRoute />} />
-            <Route path="/financials/:tab?/:sub?" element={<FinancialsRoute />} />
           </Route>
         </Route>
 
