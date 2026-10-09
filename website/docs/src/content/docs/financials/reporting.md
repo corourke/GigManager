@@ -95,7 +95,7 @@ Depreciation isn't included: "Depreciation and Section 179 are worked out by you
 
 The CSV has the columns **Line**, **Description**, **Amount** and **Miles**.
 
-<!-- 📸 schedule-c -->
+![The Schedule C report for 2026: gross receipts, expenses and net before depreciation, then a table from Gross receipts through Line 9 with 124 miles at the IRS rate, Lines 11, 20a, 22 and 27b, an amber No category row, Total expenses and Net, with the depreciation note below](../../../assets/screenshots/financials/reporting-schedule-c.png)
 
 ## The Needs attention report
 
@@ -113,7 +113,7 @@ If there's nothing to fix, you'll see "Nothing needs attention for {year}."
 
 The CSV has the columns **Group**, **Item**, **Date**, **Amount** and **Problem**.
 
-<!-- 📸 needs-attention -->
+![The Needs attention report for 2026: an AA batteries receipt line with No category, and a Harbor Truck Rental invoice whose lines total $378.40 against an invoice total of $423.40, each with Edit purchase…](../../../assets/screenshots/financials/reporting-needs-attention.png)
 
 ## Filing a year
 
