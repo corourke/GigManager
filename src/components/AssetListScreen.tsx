@@ -3,7 +3,7 @@ import {Package, Plus, Search, Loader2, AlertCircle, Upload, FileText, X } from 
 import { toast } from 'sonner';
 import { deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
 import { getItems, getContainerPieces, type EquipmentItemWithRecords } from '../services/equipmentItem.service';
-import { availableRecordItems, itemMatchesSearch } from '../utils/equipmentItems';
+import { itemMatchesSearch, type ContainerPieces } from '../utils/equipmentItems';
 import ItemsTable from './equipment/ItemsTable';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
@@ -63,7 +63,7 @@ export default function AssetListScreen({
 }: AssetListScreenProps) {
   // Items (what it is), each with its units and lots (what we own) — #182
   const [items, setItems] = useState<EquipmentItemWithRecords[]>([]);
-  const [containerPieces, setContainerPieces] = useState<Map<string, number>>(new Map());
+  const [containerPieces, setContainerPieces] = useState<ContainerPieces>({ all: new Map(), active: new Map() });
   const [view, setView] = useState<'items' | 'records'>('items');
   const allAssets = useMemo<DbAsset[]>(() => items.flatMap((i) => i.records), [items]);
   const [filteredAssets, setFilteredAssets] = useState<DbAsset[]>([]);
@@ -88,7 +88,7 @@ export default function AssetListScreen({
       ]);
       setItems(loadedItems);
       setAssetTrackingSummary(trackingSummary);
-      setContainerPieces(await getContainerPieces(organization.id, availableRecordItems(loadedItems)));
+      setContainerPieces(await getContainerPieces(organization.id, loadedItems));
     } catch (err: any) {
       setError(err.message || 'Failed to load equipment');
     } finally {

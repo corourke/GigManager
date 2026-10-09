@@ -4,7 +4,7 @@ import { isNoonUTC } from '../utils/dateUtils';
 import type { OrganizationRole } from '../utils/supabase/types';
 import { assetLabel } from './kit.service';
 import { loadEquipmentNeeds, needsOf } from './equipmentNeeds.service';
-import { itemNeedRows, type GigNeeds, type ItemNeed, type ItemNeedRow } from '../utils/equipmentNeeds';
+import { itemNeedRows, type GigNeeds, type ItemNeed, type ItemNeedRow, type ShortMoment } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
 
@@ -99,16 +99,22 @@ export interface ItemShort {
   others: { gig_title: string; need: ItemNeed }[];
 }
 
-/** Items short on `rows` (one gig's view) where the other gig adds to the peak. */
+/** Items short on `rows` (one gig's view) while the other gig is running: the
+ *  worst such moment for each, not only the peak's gigs (#230 follow-up). */
 function itemsShort(rows: readonly ItemNeedRow[], thisNeeds: ReadonlyMap<string, ItemNeed>, otherId: string, timezone?: string): ItemShort[] {
-  return rows
-    .filter((r) => r.short > 0 && r.peakGigs.some((g) => g.id === otherId))
-    .map((r) => ({
-      item_id: r.itemId, item_name: r.name, needed: r.needed, available: r.free, short: r.short,
-      peak_at: new Date(r.peakAt).toISOString(), timezone,
+  const out: ItemShort[] = [];
+  for (const r of rows) {
+    let worst: ShortMoment | undefined;
+    for (const m of r.shortMoments) if (m.gigs.some((g) => g.id === otherId) && (!worst || m.short > worst.short)) worst = m;
+    if (!worst) continue;
+    out.push({
+      item_id: r.itemId, item_name: r.name, needed: worst.needed, available: r.free, short: worst.short,
+      peak_at: new Date(worst.at).toISOString(), timezone,
       this_gig: thisNeeds.get(r.itemId)!,
-      others: r.peakGigs.map((g) => ({ gig_title: g.title, need: g.need })),
-    }));
+      others: worst.gigs.map((g) => ({ gig_title: g.title, need: g.need })),
+    });
+  }
+  return out;
 }
 
 /** A gig's needs with its effective time range, for the peak. */
@@ -504,11 +510,13 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
     if (staffData.error) throw staffData.error;
     if (participantData.error) throw participantData.error;
     if (kitData.error) throw kitData.error;
+    // Only the viewing organization's kits count, for units and per item (org scoping).
+    const ownKits = ofOrg((kitData.data || []) as any[], organizationId);
 
     // Resolve every assigned kit to its flattened asset set in one query, so
     // "the same equipment" means shared assets, not shared kit rows — two
     // different kits sharing a physical asset must conflict.
-    const allKitIds = Array.from(new Set((kitData.data || []).map((k: any) => k.kit_id)));
+    const allKitIds = Array.from(new Set(ownKits.map((k) => k.kit_id)));
     const assetsByKit = new Map<string, Set<string>>();
     const labels = new Map<string, string>();
     if (allKitIds.length > 0) {
@@ -552,7 +560,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
     // Per gig, the union of flattened asset IDs across all of its assigned kits.
     const assetsByGig = new Map<string, Set<string>>();
     const kitsByGig = new Map<string, { kit_id: string; kit_name: string }[]>();
-    for (const k of (kitData.data || []) as any[]) {
+    for (const k of ownKits) {
       const gigAssets = assetsByGig.get(k.gig_id) ?? new Set<string>();
       for (const assetId of assetsByKit.get(k.kit_id) ?? []) gigAssets.add(assetId);
       assetsByGig.set(k.gig_id, gigAssets);
@@ -575,8 +583,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
         .filter((k) => k.shared_assets.length > 0);
 
     // Per item (#184): each gig's needs, and its rows against every gig overlapping it.
-    // Only the viewing organization's kits count per item (#184 review).
-    const ownKitIds = (gigId: string) => ofOrg(((kitData.data || []) as any[]).filter((k) => k.gig_id === gigId), organizationId).map((k) => k.kit_id as string);
+    const ownKitIds = (gigId: string) => ownKits.filter((k) => k.gig_id === gigId).map((k) => k.kit_id as string);
     const needsData = await loadNeedsSafely(Array.from(new Set(activeGigs.flatMap((g) => ownKitIds(g.id)))), organizationId);
     const timed = new Map(activeGigs.map((g) => [g.id, timedNeeds(g, needsOf(ownKitIds(g.id), needsData))]));
     const rowsByGig = new Map(activeGigs.map((g) => {

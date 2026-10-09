@@ -920,9 +920,33 @@ describe('per-item conflicts: review fixes (#184)', () => {
     expect(needs.load).toHaveBeenLastCalledWith(['mine'], 'org-1');
   });
 
-  it('batch: only the side that is short gets an entry (no empty "conflict with kits")', async () => {
-    // X (10-13) needs 2 and Y (12-20) needs 2: X is short with Y (4 of 3). Y's own peak is with Z
-    // (18-23, needs 3), not X, so Y gets no entry against X.
+  it('batch: the same-unit check counts only the viewing organization\'s kits (#230 follow-up)', async () => {
+    // Another org's kit on gig B holds the same PD-20 as ours on gig A: not our conflict.
+    (createClient as any).mockReturnValue(createBatchMock([
+      { table: 'gig_kit_assignments', response: { data: [
+        { gig_id: 'A', kit_id: 'ours', organization_id: 'org-1', kit: { id: 'ours', name: 'Main PA' } },
+        { gig_id: 'B', kit_id: 'theirs', organization_id: 'org-2', kit: { id: 'theirs', name: 'Their PA' } },
+        { gig_id: 'B', kit_id: 'ours-too', organization_id: 'org-1', kit: { id: 'ours-too', name: 'Monitors' } },
+      ], error: null } },
+      { table: 'kit_flattened_cache', response: { data: [
+        { kit_id: 'ours', asset_id: 'pd20', asset: { manufacturer_model: 'PD-20', tag_number: 'T1' } },
+        { kit_id: 'theirs', asset_id: 'pd20', asset: { manufacturer_model: 'PD-20', tag_number: 'T1' } },
+        { kit_id: 'ours-too', asset_id: 'wedge', asset: { manufacturer_model: 'Wedge', tag_number: 'T2' } },
+      ], error: null } },
+    ]));
+    const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
+
+    const result = await checkAllConflictsForGigs([
+      { id: 'A', title: 'A', start: '2026-10-10T10:00:00Z', end: '2026-10-10T13:00:00Z' },
+      { id: 'B', title: 'B', start: '2026-10-10T11:00:00Z', end: '2026-10-10T14:00:00Z' },
+    ], 'org-1');
+    expect(result.filter((c) => c.type === 'equipment')).toHaveLength(0);
+  });
+
+  it('batch: every short pair is reported, each at its own moment, and no entry is empty (#230 follow-up)', async () => {
+    // X (10-13) needs 2, Y (12:30-20) needs 2, Z (18-23) needs 3; 3 free. Y is short with X at 12:30
+    // (4 of 3) and with Z at 18:00 (5 of 3): both are named, not only the peak's Z. X and Z never meet.
+    // (12:30, not 12:00: a 12:00 UTC start marks a date-only gig.)
     needs.load.mockResolvedValue(ctxFor({ kx: 2, ky: 2, kz: 3 }, 3));
     (createClient as any).mockReturnValue(createBatchMock([
       { table: 'gig_kit_assignments', response: { data: [
@@ -935,13 +959,15 @@ describe('per-item conflicts: review fixes (#184)', () => {
 
     const result = await checkAllConflictsForGigs([
       { id: 'X', title: 'X', start: '2026-10-10T10:00:00Z', end: '2026-10-10T13:00:00Z' },
-      { id: 'Y', title: 'Y', start: '2026-10-10T12:00:00Z', end: '2026-10-10T20:00:00Z' },
+      { id: 'Y', title: 'Y', start: '2026-10-10T12:30:00Z', end: '2026-10-10T20:00:00Z' },
       { id: 'Z', title: 'Z', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z' },
     ], 'org-1');
     const equipment = result.filter((c) => c.type === 'equipment');
     const pair = (gig: string, other: string) => equipment.find((c) => c.gig_id === gig && c.details.other_gig_id === other);
-    expect(pair('X', 'Y')?.details.items_short).toHaveLength(1);
-    expect(pair('Y', 'X')).toBeUndefined();
+    expect(pair('X', 'Y')?.details.items_short).toMatchObject([{ needed: 4, short: 1, others: [{ gig_title: 'Y' }] }]);
+    expect(pair('Y', 'X')?.details.items_short).toMatchObject([{ needed: 4, short: 1, peak_at: '2026-10-10T12:30:00.000Z', others: [{ gig_title: 'X' }] }]);
+    expect(pair('Y', 'Z')?.details.items_short).toMatchObject([{ needed: 5, short: 2, peak_at: '2026-10-10T18:00:00.000Z', others: [{ gig_title: 'Z' }] }]);
+    expect(pair('X', 'Z')).toBeUndefined();
     for (const c of equipment) expect(c.details.items_short.length + c.details.conflicting_asset_ids.length).toBeGreaterThan(0);
   });
 

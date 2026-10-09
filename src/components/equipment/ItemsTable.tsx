@@ -4,7 +4,7 @@ import { Badge } from '../ui/badge';
 import { cn } from '../ui/utils';
 import { TrackingStatusBadge } from '../inventory/TrackingStatusBadge';
 import { ASSET_STATUS_CONFIG } from '../../utils/supabase/constants';
-import { recordKind, summarizeItem, type ItemSummary } from '../../utils/equipmentItems';
+import { recordKind, summarizeItem, type ContainerPieces, type ItemSummary } from '../../utils/equipmentItems';
 import type { EquipmentItemWithRecords } from '../../services/equipmentItem.service';
 import type { DbAsset } from '../../utils/supabase/types';
 
@@ -13,7 +13,7 @@ export type TrackingSummary = Map<string, { status: string; location?: string | 
 interface ItemsTableProps {
   items: EquipmentItemWithRecords[];
   /** Pieces of each item inside container kits. */
-  containerPieces: ReadonlyMap<string, number>;
+  containerPieces: ContainerPieces;
   tracking: TrackingSummary;
   onViewItem: (itemId: string) => void;
   onViewAsset: (assetId: string) => void;
@@ -98,7 +98,7 @@ export default function ItemsTable({ items, containerPieces, tracking, onViewIte
       return next;
     });
 
-  const rows = items.map((item) => ({ item, summary: summarizeItem(item.records, containerPieces.get(item.id) ?? 0) }));
+  const rows = items.map((item) => ({ item, summary: summarizeItem(item.records, containerPieces.all.get(item.id) ?? 0, containerPieces.active.get(item.id) ?? 0) }));
   const totals = rows.reduce(
     (t, { summary: s }) => ({ units: t.units + s.units, lots: t.lots + s.lots, pieces: t.pieces + s.owned, value: t.value + s.totalValue }),
     { units: 0, lots: 0, pieces: 0, value: 0 },
