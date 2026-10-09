@@ -40,7 +40,7 @@ the gig from the calendar). Below the header are up to four tabs:
 | Tab | What it shows |
 | --- | --- |
 | **Overview** | [Schedule](/gigs/schedule/), Venue, [Notes & attachments](/gigs/documents-and-notes/), [Participants](/gigs/participating-organizations/), and your organization's [Staffing](/gigs/staffing-and-participants/). Any [conflicts](/gigs/conflict-detection/) with other gigs show at the top. |
-| **Equipment** | The kits assigned to the gig, and its packing list. |
+| **Equipment** | The kits assigned to the gig, the equipment it needs against what's free ([Equipment needed](/gigs/conflict-detection/#equipment-needed)), and its packing list. |
 | **Financials** | Money in and money out for the gig — Admins and Managers only. See [Financials](/financials/overview/). |
 | **History** | The gig's [change history](/gigs/change-history/). |
 
