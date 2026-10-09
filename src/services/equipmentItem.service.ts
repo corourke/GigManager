@@ -95,6 +95,8 @@ export async function updateItem(itemId: string, fields: ItemFields): Promise<Db
 export async function getContainerPieces(
   organizationId: string,
   assetItem: ReadonlyMap<string, string>,
+  /** A kit being edited: its own contents aren't counted against it (#184). */
+  excludeKitId?: string | null,
 ): Promise<Map<string, number>> {
   const supabase = getSupabase();
   try {
@@ -104,6 +106,7 @@ export async function getContainerPieces(
       .eq('is_container', true);
     if (error) throw error;
     const containerKitIds = new Set<string>((kits ?? []).map((k: { id: string }) => k.id));
+    if (excludeKitId) containerKitIds.delete(excludeKitId);
     if (containerKitIds.size === 0) return new Map();
     const ids = [...containerKitIds];
 

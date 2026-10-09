@@ -30,6 +30,8 @@ import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { getKit, createKit, updateKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, KitFlattenedSummary } from '../services/kit.service';
 import { getAssets } from '../services/asset.service';
+import { getItems, getContainerPieces } from '../services/equipmentItem.service';
+import { isAvailable, isRetired, itemMatchesSearch, pieceValue, recordKind, summarizeItem, type ItemRecord } from '../utils/equipmentItems';
 import type { DbAsset } from '../utils/supabase/types';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
 
@@ -54,8 +56,21 @@ interface FormData {
   rental_value: string;
 }
 
+/** An equipment item with its records, for "any" lines and availability (#184). */
+interface KitItem {
+  id: string;
+  manufacturer_model: string;
+  category: string | null;
+  type?: string | null;
+  records: (ItemRecord & Partial<DbAsset>)[];
+}
+
+/** How a status reads when it makes a unit unavailable. */
+const STATUS_LABEL: Record<string, string> = { Maintenance: 'In maintenance', Inactive: 'Inactive' };
+
 /**
- * A row in the kit's contents — exactly one of asset/childKit is set.
+ * A row in the kit's contents — exactly one of asset/item/childKit is set
+ * (an item line is "N × any" of it, #184).
  * clientKey is the row's stable local identity: the DB id when loaded from an
  * existing kit, or a generated id for a row just added in this session. It's
  * never derived from asset_id/child_kit_id, which aren't unique — two rows
@@ -67,14 +82,17 @@ interface KitComponentRow {
   clientKey: string;
   id?: string;
   asset_id?: string;
+  equipment_item_id?: string;
   child_kit_id?: string;
   asset?: DbAsset;
+  item?: { id: string; manufacturer_model: string; category?: string | null };
   childKit?: { id: string; name: string; is_container?: boolean; category?: string | null };
   quantity: number;
 }
 
-/** A searchable candidate in the unified picker — an asset or an existing kit. */
+/** A searchable candidate in the unified picker: any of an item, a specific unit, or a kit (#184). */
 type PickerCandidate =
+  | { type: 'item'; id: string; name: string; subtitle: string; item: KitItem; owned: number; available: number; excludedReason: string | null }
   | { type: 'asset'; id: string; name: string; subtitle: string; asset: DbAsset; quantityAvailable: number | null; excludedReason: string | null }
   | { type: 'kit'; id: string; name: string; subtitle: string; componentCount: number; wouldCycle: boolean; excludedReason: string | null };
 
@@ -110,13 +128,16 @@ export default function KitScreen({
 
   // Unified component picker dialog
   const [showPicker, setShowPicker] = useState(false);
-  const [pickerFilter, setPickerFilter] = useState<'all' | 'assets' | 'kits'>('all');
+  const [pickerFilter, setPickerFilter] = useState<'all' | 'items' | 'units' | 'kits'>('all');
   const [pickerCandidates, setPickerCandidates] = useState<PickerCandidate[]>([]);
   const [pickerSearchQuery, setPickerSearchQuery] = useState('');
   const [showAlreadyInKit, setShowAlreadyInKit] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [addQuantities, setAddQuantities] = useState<Map<string, number>>(new Map());
   const [tagInput, setTagInput] = useState('');
+  // The organization's items and how many of each sit in container kits (#184).
+  const [items, setItems] = useState<Map<string, KitItem>>(new Map());
+  const [containerPieces, setContainerPieces] = useState<Map<string, number>>(new Map());
 
   const isEditMode = !!kitId;
 
@@ -158,6 +179,25 @@ export default function KitScreen({
     }
   }, [kitId]);
 
+  // Items and container pieces, for "any" lines and availability (#184).
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const list = ((await getItems(organization.id)) ?? []) as KitItem[];
+        if (!live) return;
+        setItems(new Map(list.map((i) => [i.id, { ...i, records: i.records ?? [] }])));
+        const assetItem = new Map<string, string>();
+        for (const i of list) for (const r of i.records ?? []) assetItem.set(r.id, i.id);
+        const pieces = await getContainerPieces(organization.id, assetItem, kitId);
+        if (live) setContainerPieces(pieces ?? new Map());
+      } catch (error) {
+        console.error('Error loading equipment items:', error);
+      }
+    })();
+    return () => { live = false; };
+  }, [organization.id, kitId]);
+
   // Fetch (and cache) each referenced sub-kit's flattened replacement value
   // whenever a new one shows up in the draft — covers both kits loaded with
   // the kit and ones just added via the picker.
@@ -170,7 +210,7 @@ export default function KitScreen({
       setChildKitSummaries((prev) => {
         const next = new Map(prev);
         for (const id of missing) {
-          next.set(id, summaries.get(id) ?? { totalValue: 0, totalItems: 0, assetIds: new Set(), assetLabels: new Map() });
+          next.set(id, summaries.get(id) ?? { totalValue: 0, totalItems: 0, assetIds: new Set(), assetLabels: new Map(), itemQuantities: new Map() });
         }
         return next;
       });
@@ -202,8 +242,10 @@ export default function KitScreen({
         clientKey: kc.id,
         id: kc.id,
         asset_id: kc.asset_id ?? undefined,
+        equipment_item_id: kc.equipment_item_id ?? undefined,
         child_kit_id: kc.child_kit_id ?? undefined,
         asset: kc.asset ?? undefined,
+        item: kc.item ?? undefined,
         childKit: kc.child_kit ?? undefined,
         quantity: kc.quantity,
       }));
@@ -228,8 +270,8 @@ export default function KitScreen({
   const loadPickerCandidates = async () => {
     try {
       const [assets, kits] = await Promise.all([
-        pickerFilter === 'kits' ? Promise.resolve([]) : getAssets(organization.id, { search: pickerSearchQuery || undefined }),
-        pickerFilter === 'assets' ? Promise.resolve([]) : getKits(organization.id, { search: pickerSearchQuery || undefined }),
+        pickerFilter === 'all' || pickerFilter === 'units' ? getAssets(organization.id, { search: pickerSearchQuery || undefined }) : Promise.resolve([]),
+        pickerFilter === 'all' || pickerFilter === 'kits' ? getKits(organization.id, { search: pickerSearchQuery || undefined }) : Promise.resolve([]),
       ]);
 
       // Exclude assets already added as a direct component, and kits already
@@ -273,7 +315,23 @@ export default function KitScreen({
       // list (not filtered out) so the picker can show them grayed out with
       // a reason, same treatment as the circular-reference case below —
       // gated behind the "show already in this kit" toggle at render time.
-      const assetCandidates: PickerCandidate[] = (assets || []).map((a: DbAsset) => {
+      // Any of an item: one per item, with how many are owned and available (#184).
+      const alreadyItemIds = new Set(kitComponents.filter(c => c.equipment_item_id).map(c => c.equipment_item_id as string));
+      const itemCandidates: PickerCandidate[] = pickerFilter === 'all' || pickerFilter === 'items'
+        ? Array.from(items.values())
+          .filter((i) => itemMatchesSearch(i, i.records, pickerSearchQuery))
+          .map((i) => {
+            const summary = summarizeItem(i.records, containerPieces.get(i.id) ?? 0);
+            return {
+              type: 'item' as const, id: i.id, name: i.manufacturer_model, subtitle: [i.category, i.type].filter(Boolean).join(' • '),
+              item: i, owned: summary.owned, available: summary.available,
+              excludedReason: alreadyItemIds.has(i.id) ? 'Already in this kit' : null,
+            };
+          })
+        : [];
+
+      // Retired units (Disposed, Returned or a retirement date) can't be picked (#184).
+      const assetCandidates: PickerCandidate[] = (assets || []).filter((a: DbAsset) => !isRetired(a as ItemRecord)).map((a: DbAsset) => {
         let excludedReason: string | null = null;
         if (alreadyDirectAssetIds.has(a.id)) {
           excludedReason = 'Already in this kit';
@@ -337,7 +395,7 @@ export default function KitScreen({
         };
       });
 
-      setPickerCandidates([...assetCandidates, ...kitCandidates]);
+      setPickerCandidates([...itemCandidates, ...assetCandidates, ...kitCandidates]);
     } catch (error: any) {
       console.error('Error loading picker candidates:', error);
     }
@@ -347,7 +405,7 @@ export default function KitScreen({
     if (showPicker) {
       loadPickerCandidates();
     }
-  }, [pickerSearchQuery, pickerFilter, showPicker]);
+  }, [pickerSearchQuery, pickerFilter, showPicker, items, containerPieces]);
 
   // Candidates already covered elsewhere in the kit's tree stay out of the
   // list by default — the toggle above the list reveals them, grayed out
@@ -403,7 +461,12 @@ export default function KitScreen({
     for (const c of pickerCandidates) {
       const key = candidateKey(c);
       if (!selectedKeys.has(key)) continue;
-      if (c.type === 'asset') {
+      if (c.type === 'item') {
+        toAdd.push({
+          clientKey: crypto.randomUUID(), equipment_item_id: c.id, quantity: addQuantities.get(key) ?? 1,
+          item: { id: c.item.id, manufacturer_model: c.item.manufacturer_model, category: c.item.category },
+        });
+      } else if (c.type === 'asset') {
         const requested = addQuantities.get(key) ?? 1;
         const quantity = Math.min(requested, c.quantityAvailable ?? Infinity);
         toAdd.push({ clientKey: crypto.randomUUID(), asset_id: c.id, asset: c.asset, quantity });
@@ -434,7 +497,7 @@ export default function KitScreen({
         // A kit component can't exceed how many of that asset are in
         // inventory; a sub-kit component is always exactly 1 (its input
         // isn't editable, but clamp defensively all the same).
-        const max = row.child_kit_id ? 1 : (row.asset?.quantity ?? Infinity);
+        const max = row.child_kit_id ? 1 : row.equipment_item_id ? Infinity : (row.asset?.quantity ?? Infinity);
         return { ...row, quantity: Math.min(Math.max(1, quantity), max) };
       })
     );
@@ -505,6 +568,7 @@ export default function KitScreen({
       kitData.components = kitComponents.map((row) => ({
         id: row.id,
         asset_id: row.asset_id,
+        equipment_item_id: row.equipment_item_id,
         child_kit_id: row.child_kit_id,
         quantity: row.quantity,
       }));
@@ -552,7 +616,42 @@ export default function KitScreen({
   // contents are worth), not its own rental_value — the parent kit's rental
   // value is what the user sets, informed by this total.
   const componentUnitValue = (row: KitComponentRow) =>
-    row.asset?.replacement_value ?? (row.child_kit_id ? childKitSummaries.get(row.child_kit_id)?.totalValue : undefined) ?? 0;
+    row.equipment_item_id ? pieceValue(items.get(row.equipment_item_id)?.records ?? [])
+      : row.asset?.replacement_value ?? (row.child_kit_id ? childKitSummaries.get(row.child_kit_id)?.totalValue : undefined) ?? 0;
+
+  /** Pieces a line puts in the kit: a sub-kit counts what's in it. */
+  const componentPieces = (row: KitComponentRow) =>
+    row.child_kit_id ? (childKitSummaries.get(row.child_kit_id)?.totalItems ?? 0) : row.quantity;
+
+  /** Availability (#184): Active, not retired, not in a container kit (Cameron, 10-09). */
+  const availability = (row: KitComponentRow): { text: string; note?: string; tone: 'muted' | 'amber' | 'red' } | null => {
+    if (row.equipment_item_id) {
+      const item = items.get(row.equipment_item_id);
+      if (!item) return null;
+      const s = summarizeItem(item.records, containerPieces.get(item.id) ?? 0);
+      const text = `${s.owned} ${s.owned === 1 ? 'unit' : 'units'} owned · ${s.available} available`;
+      if (row.quantity <= s.available) return { text, tone: 'muted' };
+      const inactive = item.records.filter((r) => !isRetired(r) && r.status === 'Inactive')
+        .reduce((n, r) => n + (r.quantity == null ? 1 : Number(r.quantity)), 0);
+      const why = [
+        s.inMaintenance ? `${s.inMaintenance} in maintenance` : '',
+        inactive ? `${inactive} inactive` : '',
+        s.inContainers ? `${s.inContainers} in container kits` : '',
+      ].filter(Boolean).join(' · ');
+      return { text, note: why || undefined, tone: 'amber' };
+    }
+    if (row.asset) {
+      const a = row.asset as ItemRecord;
+      const what = recordKind(a) === 'unit' ? 'Specific unit' : 'Specific lot';
+      if (isRetired(a)) {
+        const status = a.retired_on && isAvailable({ status: a.status }) ? 'Retired' : a.status;
+        return { text: `${status}: no longer owned. Remove it from the kit.`, tone: 'red' };
+      }
+      if (!isAvailable(a)) return { text: what, note: `${STATUS_LABEL[a.status ?? ''] ?? a.status}: not available now`, tone: 'amber' };
+      return { text: what, tone: 'muted' };
+    }
+    return null;
+  };
 
   const getTotalValue = () => {
     return kitComponents.reduce((total, row) => total + componentUnitValue(row) * row.quantity, 0);
@@ -754,13 +853,14 @@ export default function KitScreen({
                   </Button>
                 </div>
               ) : (
-                <div className="border rounded-lg overflow-hidden">
+                <div className="border rounded-lg overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Component</TableHead>
-                        <TableHead>Type</TableHead>
+                        <TableHead>Kind</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead>Availability</TableHead>
                         <TableHead className="text-right">Unit Value</TableHead>
                         <TableHead className="text-right">Total Value</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -770,14 +870,23 @@ export default function KitScreen({
                       {kitComponents.map((row) => {
                         const rowId = row.clientKey;
                         const isKit = !!row.child_kit_id;
+                        const isAny = !!row.equipment_item_id;
                         const unitValue = componentUnitValue(row);
+                        const avail = availability(row);
+                        const kind = isKit ? 'Kit' : isAny ? 'Any' : row.asset && recordKind(row.asset as ItemRecord) === 'lot' ? 'Lot' : 'Unit';
                         return (
                           <TableRow key={rowId}>
                             <TableCell>
                               <div>
                                 <div className="text-sm text-gray-900">
-                                  {isKit ? (row.childKit?.name || 'Unknown Kit') : (row.asset?.manufacturer_model || 'Unknown Asset')}
+                                  {isKit ? (row.childKit?.name || 'Unknown Kit')
+                                    : isAny ? (row.item?.manufacturer_model || items.get(row.equipment_item_id!)?.manufacturer_model || 'Unknown item')
+                                    : (row.asset?.manufacturer_model || 'Unknown Asset')}
                                 </div>
+                                {isAny && <div className="text-xs text-gray-500">any unit</div>}
+                                {!isKit && !isAny && row.asset?.tag_number && (
+                                  <div className="text-xs text-gray-500 font-mono">{row.asset.tag_number}</div>
+                                )}
                                 {!isKit && row.asset?.serial_number && (
                                   <div className="text-xs text-gray-500">
                                     SN: {row.asset.serial_number}
@@ -789,9 +898,9 @@ export default function KitScreen({
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className="gap-1">
+                              <Badge variant="outline" className={`gap-1 ${isAny ? 'border-sky-300 bg-sky-50 text-sky-800' : ''}`}>
                                 {isKit ? <Layers className="w-3 h-3" /> : <Package className="w-3 h-3" />}
-                                {isKit ? 'Kit' : 'Asset'}
+                                {kind}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
@@ -803,13 +912,21 @@ export default function KitScreen({
                                 <Input
                                   type="number"
                                   min="1"
-                                  max={row.asset?.quantity ?? undefined}
+                                  max={isAny ? undefined : row.asset?.quantity ?? undefined}
                                   value={row.quantity}
                                   onChange={(e) =>
                                     handleUpdateQuantity(rowId, parseInt(e.target.value) || 1)
                                   }
                                   className="w-20 ml-auto"
                                 />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {avail && (
+                                <div className={`text-xs ${avail.tone === 'red' ? 'text-red-700' : avail.tone === 'amber' ? 'text-amber-700' : 'text-gray-500'}`}>
+                                  <div className={avail.tone === 'amber' && isAny ? 'font-medium' : ''}>{avail.text}</div>
+                                  {avail.note && <div>{avail.note}</div>}
+                                </div>
                               )}
                             </TableCell>
                             <TableCell className="text-right">
@@ -861,7 +978,7 @@ export default function KitScreen({
                     Items
                   </span>
                   <span className="text-xs text-gray-500 leading-snug">
-                    Each component is scanned individually
+                    Each line is confirmed when packed
                   </span>
                 </button>
                 <button
@@ -881,7 +998,7 @@ export default function KitScreen({
                     Container
                   </span>
                   <span className="text-xs text-gray-500 leading-snug">
-                    Whole kit — and everything nested inside it — scanned as one unit
+                    Checked off as one, by its tag
                   </span>
                 </button>
               </div>
@@ -891,13 +1008,13 @@ export default function KitScreen({
               <h3 className="text-gray-900 mb-4">Kit Summary</h3>
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600">Total Components</p>
+                  <p className="text-sm text-gray-600">Components</p>
                   <p className="text-2xl text-gray-900">{kitComponents.length}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Items</p>
+                  <p className="text-sm text-gray-600">Pieces</p>
                   <p className="text-2xl text-gray-900">
-                    {kitComponents.reduce((sum, row) => sum + row.quantity, 0)}
+                    {kitComponents.reduce((sum, row) => sum + componentPieces(row), 0)}
                   </p>
                 </div>
                 <div>
@@ -947,7 +1064,7 @@ export default function KitScreen({
           <DialogHeader>
             <DialogTitle>Add Components</DialogTitle>
             <DialogDescription>
-              Select assets or existing kits to add to this kit. Adding a kit nests everything inside it.
+              Add how many of an item (any will do), a specific unit, or a kit.
             </DialogDescription>
           </DialogHeader>
 
@@ -956,7 +1073,7 @@ export default function KitScreen({
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 type="text"
-                placeholder="Search assets and kits..."
+                placeholder="Search items, units and kits..."
                 value={pickerSearchQuery}
                 onChange={(e) => setPickerSearchQuery(e.target.value)}
                 className="pl-10"
@@ -965,7 +1082,7 @@ export default function KitScreen({
 
             <div className="flex items-center justify-between gap-4">
               <div className="flex gap-2">
-                {(['all', 'assets', 'kits'] as const).map((f) => (
+                {(['all', 'items', 'units', 'kits'] as const).map((f) => (
                   <Badge
                     key={f}
                     variant={pickerFilter === f ? 'default' : 'outline'}
@@ -991,7 +1108,14 @@ export default function KitScreen({
                   No assets or kits found
                 </div>
               ) : (
-                visibleCandidates.map((c) => {
+                ([['item', 'Any of an item'], ['asset', 'A specific unit'], ['kit', 'Kits']] as const).map(([groupType, groupTitle]) => {
+                  const group = visibleCandidates.filter((c) => c.type === groupType);
+                  if (group.length === 0) return null;
+                  return (
+                    <div key={groupType} role="group" aria-label={groupTitle}>
+                      <div className="px-4 py-1.5 bg-gray-50 text-[10px] font-semibold uppercase tracking-wider text-gray-500">{groupTitle}</div>
+                      <div className="divide-y divide-gray-200">
+                {group.map((c) => {
                   const key = candidateKey(c);
                   const selected = selectedKeys.has(key);
                   const quantityToAdd = addQuantities.get(key) ?? 1;
@@ -1000,9 +1124,13 @@ export default function KitScreen({
                       ? `Would create a circular reference — this kit is already nested inside ${c.name}`
                       : c.excludedReason;
                   const disabled = !!disabledReason;
+                  const assetRecord = c.type === 'asset' ? (c.asset as ItemRecord) : null;
+                  const notNow = assetRecord && !isAvailable(assetRecord)
+                    ? `${STATUS_LABEL[assetRecord.status ?? ''] ?? assetRecord.status}: not available now` : null;
                   return (
                     <div
                       key={key}
+                      data-candidate
                       className={`p-4 flex items-start gap-3 ${
                         disabled ? 'cursor-not-allowed bg-gray-50/60' : 'hover:bg-gray-50 cursor-pointer'
                       }`}
@@ -1015,9 +1143,12 @@ export default function KitScreen({
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <div className={`text-sm ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>{c.name}</div>
+                          {c.type === 'asset' && c.asset.tag_number && (
+                            <span className="font-mono text-xs text-gray-600">{c.asset.tag_number}</span>
+                          )}
                           <Badge variant="outline" className="gap-1 text-[10px]">
                             {c.type === 'kit' ? <Layers className="w-3 h-3" /> : <Package className="w-3 h-3" />}
-                            {c.type === 'kit' ? 'Kit' : 'Asset'}
+                            {c.type === 'kit' ? 'Kit' : c.type === 'item' ? 'Any' : recordKind(c.asset as ItemRecord) === 'lot' ? 'Lot' : 'Unit'}
                           </Badge>
                         </div>
                         {disabledReason ? (
@@ -1028,17 +1159,21 @@ export default function KitScreen({
                         ) : (
                           <div className="text-xs text-gray-500">
                             {c.subtitle}
+                            {c.type === 'item' && <span>{c.subtitle ? ' • ' : ''}{c.owned} owned · {c.available} available</span>}
                             {c.type === 'asset' && c.quantityAvailable != null && (
                               <span> • {c.quantityAvailable} in stock</span>
                             )}
                             {c.type === 'kit' && ` • ${c.componentCount} component${c.componentCount === 1 ? '' : 's'}`}
                           </div>
                         )}
+                        {!disabledReason && notNow && (
+                          <div className="text-xs text-amber-600">{notNow}</div>
+                        )}
                       </div>
                       {/* A kit is a singular entity — no quantity to set, it's
                           always exactly one instance (enforced when adding and
                           again on save). */}
-                      {c.type === 'asset' && (
+                      {(c.type === 'asset' || c.type === 'item') && (
                         <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
                           <Label htmlFor={`qty-${key}`} className="text-xs text-gray-500">
                             Qty
@@ -1047,16 +1182,20 @@ export default function KitScreen({
                             id={`qty-${key}`}
                             type="number"
                             min="1"
-                            max={c.quantityAvailable ?? undefined}
+                            max={c.type === 'asset' ? c.quantityAvailable ?? undefined : undefined}
                             value={quantityToAdd}
                             onChange={(e) => {
                               const requested = parseInt(e.target.value) || 1;
-                              setAddQuantity(key, Math.min(requested, c.quantityAvailable ?? Infinity));
+                              setAddQuantity(key, Math.min(requested, c.type === 'asset' ? c.quantityAvailable ?? Infinity : Infinity));
                             }}
                             className="w-16 h-8 text-sm"
                           />
                         </div>
                       )}
+                    </div>
+                  );
+                })}
+                      </div>
                     </div>
                   );
                 })

@@ -494,6 +494,27 @@ export async function getKitFlattenedContents(kitId: string) {
   }
 }
 
+/**
+ * The "any" lines of a kit and everything nested in it (#184): pieces per
+ * item, with the item and its records (for owned and value).
+ */
+export async function getKitFlattenedItems(kitId: string) {
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await (supabase.from('kit_flattened_item_cache') as any)
+      .select('equipment_item_id, total_quantity, item:equipment_items(id, manufacturer_model, category, type, records:assets(quantity, replacement_value, status, retired_on))')
+      .eq('kit_id', kitId);
+    if (error) throw error;
+    return (data || []) as {
+      equipment_item_id: string;
+      total_quantity: number;
+      item: { id: string; manufacturer_model: string; category: string | null; type?: string | null; records: any[] } | null;
+    }[];
+  } catch (err) {
+    return handleApiError(err, 'fetch kit item lines');
+  }
+}
+
 export interface KitFlattenedSummary {
   /** Sum of each flattened asset's replacement_value × quantity. */
   totalValue: number;

@@ -5,6 +5,7 @@ import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
 import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, updateKit } from '../services/kit.service'
 import { getAssets } from '../services/asset.service'
+import { getItems, getContainerPieces } from '../services/equipmentItem.service'
 
 // Mock all dependencies
 vi.mock('../services/kit.service', () => ({
@@ -18,6 +19,11 @@ vi.mock('../services/kit.service', () => ({
 
 vi.mock('../services/asset.service', () => ({
   getAssets: vi.fn().mockResolvedValue([]),
+}))
+
+vi.mock('../services/equipmentItem.service', () => ({
+  getItems: vi.fn().mockResolvedValue([]),
+  getContainerPieces: vi.fn().mockResolvedValue(new Map()),
 }))
 
 vi.mock('../utils/hooks/useFormWithChanges', () => ({
@@ -79,12 +85,11 @@ describe('KitScreen', () => {
     }).not.toThrow()
   })
 
-  it('opens the unified component picker with All/Assets/Kits filters', () => {
+  it('opens the unified component picker with all / items / units / kits filters (#184)', () => {
     render(<KitScreen {...mockProps} />)
     fireEvent.click(screen.getByText('Add Components'))
-    expect(screen.getByText('all')).toBeInTheDocument()
-    expect(screen.getByText('assets')).toBeInTheDocument()
-    expect(screen.getByText('kits')).toBeInTheDocument()
+    for (const f of ['all', 'items', 'units', 'kits']) expect(screen.getByText(f)).toBeInTheDocument()
+    expect(screen.getByText('Add how many of an item (any will do), a specific unit, or a kit.')).toBeInTheDocument()
   })
 
   // Regression: two rows referencing the same asset_id (only reachable today
@@ -417,5 +422,116 @@ describe('KitScreen', () => {
       expect(screen.getByText('Grand Rack')).toBeInTheDocument()
     })
     expect(screen.getByText(/Would create a circular reference/)).toBeInTheDocument()
+  })
+})
+
+// #184: "N × any" of an item, availability (Active only, Cameron 10-09), and the pick list.
+describe('KitScreen: "any" lines and availability (#184)', () => {
+  const rec = (id: string, over: Record<string, any> = {}) => ({
+    id, equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio', quantity: 1,
+    tag_number: id.toUpperCase(), status: 'Active', replacement_value: 1000, ...over,
+  })
+  const k12 = {
+    id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio', type: 'Speaker, Powered',
+    records: [rec('k1'), rec('k2'), rec('k3'), rec('k4'), rec('k5', { status: 'Maintenance' }), rec('k6', { status: 'Inactive' })],
+  }
+  const anyLine = (quantity: number) => ({
+    id: 'kit-1', name: 'Main PA',
+    kit_components: [{ id: 'kc-1', asset_id: null, child_kit_id: null, equipment_item_id: 'item-k12', quantity, item: { id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio' } }],
+  })
+  const reset = () => {
+    vi.mocked(getItems).mockResolvedValue([k12] as any)
+    vi.mocked(getContainerPieces).mockResolvedValue(new Map())
+    vi.mocked(getAssets).mockResolvedValue([])
+    vi.mocked(getKits).mockResolvedValue([])
+    vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map())
+  }
+
+  it('shows an "any" line as its item, with how many are owned and available', async () => {
+    reset()
+    vi.mocked(getKit).mockResolvedValue(anyLine(2) as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const row = (await screen.findByText('QSC K12.2')).closest('tr')!
+    expect(within(row).getByText('Any')).toBeInTheDocument()
+    expect(within(row).getByText('6 units owned · 4 available')).toBeInTheDocument()
+    expect(within(row).getByDisplayValue('2')).toBeInTheDocument()
+    expect(within(row).getByText('$1,000.00')).toBeInTheDocument()
+  })
+
+  it('warns when a line asks for more than are available, saying why', async () => {
+    reset()
+    vi.mocked(getContainerPieces).mockResolvedValue(new Map([['item-k12', 1]]))
+    vi.mocked(getKit).mockResolvedValue(anyLine(5) as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const row = (await screen.findByText('QSC K12.2')).closest('tr')!
+    expect(await within(row).findByText('6 units owned · 3 available')).toBeInTheDocument()
+    expect(within(row).getByText('1 in maintenance · 1 inactive · 1 in container kits')).toBeInTheDocument()
+  })
+
+  it('an "any" line\'s quantity isn\'t capped by any one record, and saves its item', async () => {
+    reset()
+    vi.mocked(getKit).mockResolvedValue(anyLine(2) as any)
+    vi.mocked(updateKit).mockResolvedValue({} as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const row = (await screen.findByText('QSC K12.2')).closest('tr')!
+    fireEvent.change(within(row).getByDisplayValue('2'), { target: { value: '8' } })
+    expect(within(row).getByDisplayValue('8')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Update Kit/ }))
+    await waitFor(() => expect(updateKit).toHaveBeenCalled())
+    expect(vi.mocked(updateKit).mock.lastCall![1].components).toEqual([
+      expect.objectContaining({ id: 'kc-1', equipment_item_id: 'item-k12', quantity: 8 }),
+    ])
+  })
+
+  it('adds "any" of an item from the picker, with a quantity', async () => {
+    reset()
+    render(<KitScreen {...mockProps} />)
+    fireEvent.click(screen.getByText('Add Components'))
+    const group = await screen.findByRole('group', { name: 'Any of an item' })
+    const option = within(group).getByText('QSC K12.2').closest('[data-candidate]') as HTMLElement
+    expect(within(option).getByText(/6 owned · 4 available/)).toBeInTheDocument()
+    fireEvent.click(option)
+    fireEvent.change(within(option).getByLabelText('Qty'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add 1 Selected' }))
+    const row = (await screen.findAllByText('QSC K12.2')).map((e) => e.closest('tr')).find(Boolean)!
+    expect(within(row).getByText('Any')).toBeInTheDocument()
+    expect(within(row).getByDisplayValue('3')).toBeInTheDocument()
+  })
+
+  it('the pick list leaves out retired units, and marks ones not available now', async () => {
+    reset()
+    vi.mocked(getAssets).mockResolvedValue([
+      rec('k1'), rec('k5', { status: 'Maintenance' }), rec('k7', { status: 'Disposed' }),
+      rec('k8', { status: 'Returned' }), rec('k9', { retired_on: '2026-09-01' }),
+    ] as any)
+    render(<KitScreen {...mockProps} />)
+    fireEvent.click(screen.getByText('Add Components'))
+    const group = await screen.findByRole('group', { name: 'A specific unit' })
+    expect(within(group).getByText('K1')).toBeInTheDocument()
+    expect(within(group).getByText('K5')).toBeInTheDocument()
+    expect(within(group).getByText('In maintenance: not available now')).toBeInTheDocument()
+    for (const gone of ['K7', 'K8', 'K9']) expect(within(group).queryByText(gone)).not.toBeInTheDocument()
+  })
+
+  it('a kit that holds a retired unit shows it flagged', async () => {
+    reset()
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1', name: 'Main PA',
+      kit_components: [{ id: 'kc-1', asset_id: 'k7', child_kit_id: null, equipment_item_id: null, quantity: 1, asset: rec('k7', { status: 'Disposed' }) }],
+    } as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const row = (await screen.findByText('QSC K12.2')).closest('tr')!
+    expect(within(row).getByText('Unit')).toBeInTheDocument()
+    expect(within(row).getByText('Disposed: no longer owned. Remove it from the kit.')).toBeInTheDocument()
+  })
+
+  it('Kit Summary counts pieces; tracking type explains how lines are checked off', async () => {
+    reset()
+    vi.mocked(getKit).mockResolvedValue(anyLine(4) as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    await screen.findByText('QSC K12.2')
+    expect(screen.getByText('Pieces').nextElementSibling).toHaveTextContent('4')
+    expect(screen.getByText('Each line is confirmed when packed')).toBeInTheDocument()
+    expect(screen.getByText('Checked off as one, by its tag')).toBeInTheDocument()
   })
 })
