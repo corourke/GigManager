@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **User guide published, PR #222** (Docs Lead, merged 10-09, Cameron's OK): 13 Gigs, Team and Reference pages and the glossary; links to held Equipment/Mobile pages left as plain text.
+
 - **User guide for #213, PR #220** (Docs Lead, merged 10-09): staffing and gig-expenses pages describe the projected estimate; staffing shots retaken (the view card's footer is left out until #219).
 
 - **Dev deploy (10-08, 23:58 UTC, coordinator):** main `571b636` (through PR #218) to dev. No migrations pending (dev matches the repo through `20261017000000`); functions server v46, ai-scan v34, health-check v6 via `functions deploy --use-api`. `supabase db push` hangs in the coordinator's cloud environment (no direct DB connection), so `deploy_dev.sh` stops there; when migrations are pending, Cameron applies them or the CLI runs where the DB port is reachable.
