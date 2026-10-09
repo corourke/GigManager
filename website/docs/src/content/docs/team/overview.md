@@ -9,13 +9,13 @@ An **organization** owns everything in GigWrangler: gigs, equipment, financials
 and its team. **Team** in the top nav is where you manage the people in it.
 Everyone in the organization can open it; Admins and Managers can change it.
 
-- **Roles & permissions** — what Admin, Manager, Staff and Viewer mean, how to
+- **[Roles & permissions](/team/team-and-roles/)** — what Admin, Manager, Staff and Viewer mean, how to
   change someone's role, and the job positions you assign to gig slots.
-- **Inviting members** — email invitations with a chosen role, and managing
+- **[Inviting members](/team/invitations/)** — email invitations with a chosen role, and managing
   pending ones.
-- **Adding people without a login** — crew and contacts who don't need to sign
+- **[Adding people without a login](/team/people-without-logins/)** — crew and contacts who don't need to sign
   in, with duplicate detection.
-- **Member profiles & contacts** — a member's details page, and the Contacts
+- **[Member profiles & contacts](/team/member-profiles/)** — a member's details page, and the Contacts
   list on an organization's edit screen.
 
 For *getting into* an organization (create / claim / request access / invitation),

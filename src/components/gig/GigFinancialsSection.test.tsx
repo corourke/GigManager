@@ -5,6 +5,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigFinancialsSection from './GigFinancialsSection';
 import * as gigService from '../../services/gig.service';
+import { createClient } from '../../utils/supabase/client';
 
 // The component uses TanStack Query, so renders need a QueryClientProvider.
 function render(ui: ReactElement) {
@@ -240,5 +241,47 @@ describe('GigFinancialsSection', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     // a blank category goes as null, not ''
     expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({ category: null }));
+  });
+});
+
+describe('GigFinancialsSection projected staff costs (#213)', () => {
+  // Chainable Supabase query stub that resolves to `data` when awaited.
+  const chain = (data: any) => {
+    const c: any = {};
+    ['select', 'eq', 'is', 'or', 'in', 'order'].forEach((m) => { c[m] = vi.fn(() => c); });
+    c.then = (resolve: any, reject: any) => Promise.resolve({ data, error: null }).then(resolve, reject);
+    return c;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(gigService.getGigFinancials).mockResolvedValue([] as any);
+    vi.mocked(gigService.getGigProfitabilitySummary).mockResolvedValue({ ...summary, projectedStaffCosts: 665 } as any);
+    vi.mocked(createClient).mockReturnValue({
+      from: vi.fn((table: string) => chain(table === 'gig_staff_assignments' ? [
+        { id: 'hand', fee: null, rate: 35, rate_unit: 'hour', status: 'Confirmed', user: { first_name: 'Sam', last_name: 'Rivera' }, slot: { role_info: { name: 'Stage Hand' } } },
+        { id: 'foh', fee: 350, rate: null, rate_unit: 'hour', status: 'Requested', user: { first_name: 'Sofia', last_name: 'Ortiz' }, slot: { role_info: { name: 'FOH Engineer' } } },
+      ] : [])),
+    } as any);
+  });
+
+  it('shows a rate as an estimate over the gig hours, and a fee as its flat amount', async () => {
+    render(
+      <GigFinancialsSection
+        gigId="test-gig-id"
+        currentOrganizationId="test-org-id"
+        userRole="Admin"
+        // 18:00–03:00 in Los Angeles: 9 hours
+        gigStart="2026-10-11T01:00:00Z"
+        gigEnd="2026-10-11T10:00:00Z"
+        gigTimezone="America/Los_Angeles"
+      />,
+    );
+    const section = await screen.findByRole('region', { name: 'Projected staff costs' });
+    const hand = within(section).getByText('Sam Rivera').closest('tr')!;
+    expect(hand).toHaveTextContent('est. 9 hr × $35.00 / hr = $315.00');
+    const foh = within(section).getByText('Sofia Ortiz').closest('tr')!;
+    expect(foh).toHaveTextContent('$350.00');
+    expect(foh).not.toHaveTextContent('est.');
   });
 });

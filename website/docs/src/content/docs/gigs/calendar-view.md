@@ -1,7 +1,6 @@
 ---
 title: The calendar view
 description: See your gigs on a month or week calendar, colored by status, with conflicts flagged.
-draft: true
 sidebar:
   order: 3
 ---

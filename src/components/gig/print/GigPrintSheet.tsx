@@ -10,6 +10,7 @@ import { formatDateTimeDisplay, formatInTimeZone } from '../../../utils/dateUtil
 import type { Gig, GigStaffSlotView, Organization } from '../../../utils/supabase/types';
 import MarkdownContent from '../../MarkdownContent';
 import { assignmentCost, money, rateBasis, staffRows } from '../view/staffRows';
+import { projectedStaffCost } from '../../../utils/rateEstimate';
 import { settledAmount, stageLabel } from '../../../utils/moneyFlow';
 
 interface GigPrintSheetProps {
@@ -272,13 +273,17 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
             <table aria-label="Staff costs" className={TABLE}>
               <thead><tr><th>Role</th><th>Name</th><th>Basis</th><th>Status</th><th className="text-right">Amount</th></tr></thead>
               <tbody>
-                {staffCosts.map(({ id, role, name, a }) => (
-                  <tr key={id}>
-                    <td>{role}</td><td>{name}</td>
-                    <td>{rateBasis(a)}</td>
-                    <td>{a.status}</td><td className="text-right">{money(assignmentCost(a))}</td>
-                  </tr>
-                ))}
+                {staffCosts.map(({ id, role, name, a }) => {
+                  // A booked, unfinalized assignment is shown at its estimate, like the summary above (#213, #219).
+                  const est = !a.completed_at && (a.status === 'Confirmed' || a.status === 'Requested') ? projectedStaffCost(a, gig) : null;
+                  return (
+                    <tr key={id}>
+                      <td>{role}</td><td>{name}</td>
+                      <td>{est ? est.basis : rateBasis(a)}</td>
+                      <td>{a.status}</td><td className="text-right">{money(est ? est.amount : assignmentCost(a))}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

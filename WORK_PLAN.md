@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-08 21:20 UTC (#20 paused until #186; #175 approved, after #186)
+- **Last updated:** 2026-10-09 00:15 UTC (coordinator check-in: PR #220 merged; #219 building)
 
 ---
 
@@ -28,7 +28,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 ## 2. Waiting on Cameron
 
-1. **Prod deploy held (Cameron, 10-08)** until the equipment refactor (#183–#186) is complete. Main is on dev (PR #205 deployed to dev 10-08; dev migrated to `20261016000000` 10-08). The held deploy carries migration `20261016000000_staff_rate_unit.sql` (#171) and everything merged after PR #204; run it with `deploy_prod.sh` (migration before frontend).
+1. **Prod deploy: goes out right after PR #221 (#183 B+C) merges (Cameron, 10-09; was: hold until #186).** #183 D (CSV import) and #184–#186 follow in a later deploy. Main is on dev (functions deployed from main `571b636` at 23:58 UTC 10-08 — server v46, ai-scan v34, health-check v6; dev migrations match the repo through `20261017000000`). The held deploy carries migrations `20261016000000_staff_rate_unit.sql` (#171) and `20261017000000_purchase_line_units.sql` (#183 piece A, PR #216; on dev 10-08), and everything merged after PR #204; run it with `deploy_prod.sh` (migration before frontend).
 2. **Sentry:** (a) add `VITE_SENTRY_DSN` (React project DSN) to `.env.production.local` before the held prod deploy; the live web app has none baked in (see `docs/technical/deployment.md`, PR #208). (b) Optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check (reports "not configured" until set). Edge-function `SENTRY_DSN` / `SENTRY_ENVIRONMENT` are set on both projects.
 
 **Decided 10-08, recorded here until done:**
@@ -66,8 +66,6 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
-**[#213](https://github.com/corourke/GigManager/issues/213): projected staff cost estimates units from the gig** (Cameron 10-08, option 1; released 10-08). Coordinator, by sub-agent: one pure helper used by the staffing footer, the Financials tab's Projected staff costs and `projectedStaffCosts`; "est. 9 hr × $35 / hr". Building.
-
 **[#175](https://github.com/corourke/GigManager/issues/175): gig owner organization; delete, cancel, leave and Inactive** (approved by Cameron 10-08; start only after #186 merges). Coordinator only, by sub-agents, 3 PRs in order: (1) migration `gigs.owner_organization_id` + `gig_participants.inactive`, delete/status/participant rules, RLS test 62 (migration to dev by the coordinator; prod rides the next prod deploy); (2) services: calendar cleanup after a successful delete (test first), duplicate uses the owner, remove/inactivate calls, Inactive left out of conflict checks and calendar sync, unused `DELETE /gigs/:id` removed; (3) UI: Delete Gig / Cancel Gig / Leave Gig / Mark Inactive, participant Remove / Mark Inactive / Reactivate, Inactive banner, status read-only for non-owners. The detailed plan is with the coordinator.
 
 Not released: #174's UI half shipped in PR #199; its remaining item (the already-active error names the tab "Add Existing User") is in a database function and waits for the next membership migration.
@@ -83,16 +81,57 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **Docs Lead, 10-08 late: coordinator's next queue.**
   - **Item 1, staff rate units (#171):** PR #214 (merged), which added demo rates per hour, day and half day, retakes the staffing shots and fixes the wording.
   - **Item 2, Equipment Items pages: held.** Cameron chose to keep holding all of Equipment until #183–#186 land.
-  - **Item 3, #206:** the guide keeps pointing role changes at Team → Edit Permissions.
-- **Projected staff cost counts a rate as one unit (#213, Docs Lead, 10-08).** A $35 / hr stagehand projects as $35. This hits the staffing footer, the Financials tab's Projected staff costs and Gig Accounting. **Cameron chose option 1 (10-08):** estimate the units from the gig (hours start to end, gig days, one half day per day) and show the estimate, e.g. "est. 9 hr × $35 / hr". Ready for the coordinator to schedule. Details are on the issue.
-- **Units from one multi-quantity depreciated purchase line (Docs Lead, 10-08; for #183).**
-  - The database finds a unit's depreciated line by `purchases.asset_id`, so only one unit per line counts as depreciated or can hold a recovery period. Its siblings (same `purchase_line_id`) count as not depreciated.
-  - Seen in the demo seed: 4 moving heads on one line.
-  - Worth settling when #183 moves the purchase screens to `purchase_line_id`.
-- **"N × any" kit lines before #184–#185 (Docs Lead, 10-08).** These are expected gaps; they're listed so the Equipment Lead sees them in the demo data:
-  - The kit page shows them as "Unknown Kit × N" and leaves them out of its totals.
-  - The packing list omits them.
-  - Conflict detection doesn't count two overlapping gigs that each need any 4 of the 4 PA tops.
+  - **Item 3, #206:** fixed in PR #215; the guide follows in PR #217.
+  - **#213:** merged in PR #218; the guide follows in PR #220.
+- **PR #221 pre-merge test on dev (Docs Lead, 10-09 00:45–01:05 UTC; for the coordinator).**
+  - **Setup:** branch `claude/equipment-purchase-forms` at 5d6e3c7, run against dev on localhost:3000. Port 3001 can't reach dev's edge function, whose CORS allows only `http://localhost:3000`. Tested as the Admin, plus Manager, Staff and Viewer. CSV import was skipped, per Cameron.
+  - **Verdict: one blocking bug.** Everything else passes or can follow.
+  - **BLOCKING: removing the line's own unit fails part-way through a save.**
+    - Steps: Edit Purchase → lower a **depreciated** units line by 1 → "Update the equipment" → tick the unit that `purchases.asset_id` points at (the line's first unit) → Confirm & Save.
+    - The DELETE fails: `400 {"code":"23514","message":"A depreciated purchase line must keep its equipment record (purchase …). Mark the equipment disposed instead, or change the line to an expense."}` (the `purchases_check_depreciate_has_asset` check, `20261006000000`).
+    - By then the header and line are already saved: the line quantity drops and the notes change. The unit stays.
+    - A lot change in the same save ("make the lot 3") is silently skipped, leaving the lot at 5 against a line that says 3.
+    - It reproduced twice. Ticking any other unit works.
+    - Fix: make the save all-or-nothing, and move `asset_id` to a remaining unit before deleting (or don't offer that unit).
+  - **Passed:**
+    - Add Item as 3 units, with number-tags-in-sequence and paste-serials.
+    - Add Item as a lot of 10.
+    - A unit with neither serial nor tag is refused: "Unit 1 needs a serial number or a tag (either will do)".
+    - The same tag twice in one save is blocked; the check ignores case.
+    - Item page → Add unit or lot.
+    - Edit a unit and a lot: status, lifecycle, insurance, quantity, disposal and recovery period all persist after a reload.
+    - A Manager can add items. Staff and Viewer see no add, edit or delete controls.
+    - New purchase with a units line of 2 with serials, which used to fail with a database error. Each unit's `purchase_line_id` is set.
+    - A lot line on an existing item, an expensed line, and a depreciated line, which needs a recovery period.
+    - Raise units 2→3, entering the new unit.
+    - Lower and remove a chosen non-first unit.
+    - "Leave it as it is" leaves the equipment untouched.
+    - Removing a tracked line keeps its equipment.
+    - No asset disappeared without being chosen; this was checked against an SQL snapshot after every save.
+    - **No "column … does not exist" or "schema cache" errors on any screen for any role.** The only console noise is a React duplicate-key warning (`kit-null`) on a nested kit's page.
+  - **Can follow:**
+    1. **A tag already in use in the organization gets no warning.** DSL-0011 saved a second time silently. Mockup 3 shows an amber warning. There's no unique index either, and scanning matches the first unit with that tag.
+    2. **Switching an existing unit to Lot erases its serial and tag** without asking; the switch only takes effect alongside another change. This logic is also on main, from #182.
+    3. **"Leave it as it is" isn't remembered:** every later save of that purchase asks again, and one wrong click deletes units. The Equipment details pop-up also shows the old quantity ("qty 2") afterwards.
+    4. **Removing a tracked line unlinks its units or lot without a notice,** including depreciated units.
+    5. **Clearing a money field on the unit edit page doesn't save:** the field is dropped as `undefined`. Also on main.
+    6. **Staff and Viewer can open `/assets/new` and `/assets/:id/edit` by URL;** the database (RLS) blocks the save. Also on main.
+    7. **The units table's Purchase column** shows vendor · date for units added by hand.
+    8. **Mockup differences:**
+       - A saved line doesn't list its units ("6 units: DSL-0141 to DSL-0146") or link to the item.
+       - "An item we already have" is a plain select, not a search.
+       - A new line defaults to Lot.
+       - The unit edit page has no Purchase / tax-treatment section; the recovery period sits under Lifecycle.
+    9. **Not from this PR:**
+       - A purchase whose invoice total is $0 still saves, despite the "Mismatch" warning.
+       - A tracked expensed line saves with no expense category.
+       - Staff and Viewer can open `/financials` by URL; it shows empty and doesn't redirect.
+  - **TEST-221 records left on dev for cleanup:**
+    - Items "TEST-221 Units Speaker", "TEST-221 Lot Cable 25ft", "TEST-221 Manager Units", "TEST-221 Lot 3000" and "TEST-221 Wireless Mic", with their units and lots.
+    - Unit TEST-221-H01 on the demo HX-12P.
+    - Purchase `e6a4ed86-173e-455f-a184-b88a0c05afcb` ("TEST-221 Vendor"), left mismatched by the blocking-bug rerun.
+    - Re-running `./scripts/seed-demo.sh` removes all of these, because they belong to the demo organization.
+- **"N × any" kit lines before #184–#185 (Docs Lead, 10-08):** expected gaps in the demo data (kit page "Unknown Kit × N", packing list omits them, overlap check ignores them); passed to the Equipment Lead 10-09 for #184/#185.
 
 - **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
 
@@ -148,7 +187,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 | `equipment/overview.md` | published | — | held: equipment rework (#162/#180) |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: #125 money-type rework |
-| `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #214, merged) | update projected staff costs when #213 ships |
+| `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #220) | projected staff estimate documented |
 | `financials/overview.md` | published | 2026-10-08 (Docs Lead, PR #209) | links Reporting (merge with its publish) |
 | `financials/purchases.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/reporting.md` | published (PR #211) | 2026-10-08 (Docs Lead, PRs #207/#209) | — |
@@ -158,32 +197,32 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
 | `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
-| `gigs/calendar-view.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
+| `gigs/calendar-view.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/conflict-detection.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead, PR #207) | ready to publish; banner shot added |
+| `gigs/conflict-detection.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #207) | banner shot added |
 | `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/documents-and-notes.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead) | ready to publish |
+| `gigs/documents-and-notes.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
 | `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
-| `gigs/participating-organizations.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `gigs/schedule.md` | draft, written (PR #172, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `gigs/staffing-and-participants.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead, PR #214, merged) | ready to publish; #213 TODO on projected rates |
-| `gigs/the-gig-list.md` | draft, written (PR #172, merged) | 2026-10-08 (Docs Lead) | ready to publish |
+| `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
+| `gigs/schedule.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
+| `gigs/staffing-and-participants.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #220) | #213 estimates documented; #219 TODOs |
+| `gigs/the-gig-list.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
 | `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
 | `mobile/offline-access.md` | draft | — | held |
 | `mobile/overview.md` | draft | — | held |
-| `reference/access-requests-and-moderation.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead); screenshots PR #191 | ready to publish |
-| `reference/glossary.md` | draft, written (PR #177) | 2026-10-07 (Docs Lead) | publish after the pages it links to |
+| `reference/access-requests-and-moderation.md` | published (PR #222) | 2026-10-07 (Docs Lead); screenshots PR #191 | — |
+| `reference/glossary.md` | published (PR #222) | 2026-10-07 (Docs Lead) | equipment terms (Asset, Kit, Container, Packing list) to revise with the Equipment pages |
 | `reference/roles-and-access.md` | published | 2026-10-08 (Docs Lead, PR #207) | Add Item, not Add Asset |
 | `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in |
 | `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, overnight rule checked) | connected-state shot needs a Google account |
 | `settings/overview.md` | published | 2026-10-08 (Docs Lead, Edit Organization button checked) | — |
-| `team/invitations.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #207) | ready to publish |
-| `team/member-profiles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #217) | ready to publish; #206 workaround removed |
+| `team/invitations.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #207) | — |
+| `team/member-profiles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | #206 workaround removed |
 | `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
-| `team/people-without-logins.md` | draft, written (PR #177, merged) | 2026-10-07 (Docs Lead) | ready to publish |
-| `team/team-and-roles.md` | draft, written (PR #177, merged) | 2026-10-08 (Docs Lead, PR #217) | ready to publish |
+| `team/people-without-logins.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
+| `team/team-and-roles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | — |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 

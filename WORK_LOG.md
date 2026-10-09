@@ -5,6 +5,20 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#219, PR #223** (coordinator's sub-agent, merged 10-09): the printed sheet's Staff costs rows use the #213 estimate and add up to its summary; `money()` shows cents with two decimals ("$1,582.50"); the edit-mode staffing footer uses en-US grouping.
+
+- **User guide published, PR #222** (Docs Lead, merged 10-09, Cameron's OK): 13 Gigs, Team and Reference pages and the glossary; links to held Equipment/Mobile pages left as plain text.
+
+- **User guide for #213, PR #220** (Docs Lead, merged 10-09): staffing and gig-expenses pages describe the projected estimate; staffing shots retaken (the view card's footer is left out until #219).
+
+- **Dev deploy (10-08, 23:58 UTC, coordinator):** main `571b636` (through PR #218) to dev. No migrations pending (dev matches the repo through `20261017000000`); functions server v46, ai-scan v34, health-check v6 via `functions deploy --use-api`. `supabase db push` hangs in the coordinator's cloud environment (no direct DB connection), so `deploy_dev.sh` stops there; when migrations are pending, Cameron applies them or the CLI runs where the DB port is reachable.
+
+- **#213, PR #218** (coordinator's sub-agent, merged 10-08): a booked, unfinalized rate projects rate × units estimated from the gig (hours start→end to the nearest ¼ hr; days in the gig's timezone, an end before 06:00 counting to the day before; one half day per day), via `src/utils/rateEstimate.ts`, in the staffing footer, view-mode staffing table, Financials → Projected staff costs, money summary, print sheet and Gig Accounting ("est. 9.5 hr × $35.00 / hr = $332.50"). Same PR: the dev env file is named `.env.development.local` in `info.tsx`, the screenshots README and setup-guide. Future considerations: the gig CSV export (`getGigExportAggregates` costOfStaff) still counts each rate once; the Financials tab doesn't refetch after the gig's times change on the page.
+
+- **#183 piece A, PR #216** (Equipment Lead, merged by the coordinator 10-08): migration `20261017000000_purchase_line_units` (on dev, applied by Cameron): `create_purchase_transaction_v2` and `add_purchase_line_units` make one record per unit (or one lot) linked by `purchase_line_id`; depreciation and recovery period follow each unit's own line; `purchases.asset_id` stays as the "tracked" marker; v1 kept for old builds. RLS test 51; mockups 3 and 4 updated. No screen uses it yet (pieces B, C, D).
+
+- **User guide for #206, PR #217** (Docs Lead, merged 10-08): Edit on a member's page changes their role.
+
 - **#206, PR #215** (coordinator's sub-agent, merged 10-08): a member's details page **Edit** now shows **Organization Role**, following `canAssignRole` like Team → Edit Permissions; test first.
 
 - **User guide, PRs #207, #209–#212** (Docs Lead, merged 10-08): pages edited by #197–#201 verified (six fixes) with new dashboard, conflict-banner and Grey zone shots (#207); Financials → Reporting written (#209) and published (#211); demo seed reworked for equipment items (#210, dev reseeded); onboarding and invitations cover the email-link screens, with Cameron's hand-taken shots (#212).

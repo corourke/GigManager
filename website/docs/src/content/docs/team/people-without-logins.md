@@ -1,7 +1,6 @@
 ---
 title: Adding people without a login
 description: Add crew and contacts who don't need to sign in, and avoid creating duplicates.
-draft: true
 sidebar:
   order: 4
 ---

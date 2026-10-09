@@ -1,7 +1,6 @@
 ---
 title: The gig list
 description: Find, filter, and open gigs from the Gigs list, and export what you see to CSV.
-draft: true
 sidebar:
   order: 2
 ---
@@ -109,7 +108,7 @@ The export covers the tab you're on, so switch to **Past** to export past gigs.
 On a phone, **Gigs** shows a card list instead of a table. **Upcoming** and **Past**
 are two sections on one scrolling page, and a search box sits above the same date and
 status filters. Cards open the gig, and the **+** button adds one. There's no CSV
-export or calendar on the phone. See [Mobile](/mobile/overview/).
+export or calendar on the phone.
 
 ## Related
 

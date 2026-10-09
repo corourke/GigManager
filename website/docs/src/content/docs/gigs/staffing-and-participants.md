@@ -1,7 +1,6 @@
 ---
 title: Staffing
 description: Add staff slots for the roles you need, assign people, track their status and pay, and finalize completed work.
-draft: true
 sidebar:
   order: 5
 ---
@@ -38,7 +37,7 @@ Each row in a slot is one person.
 
 A row with no person selected isn't saved. If you lower **Required:**, GigWrangler removes open rows first and keeps the people you've assigned.
 
-![The Staff Assignments card in edit mode: slots for FOH Engineer, Monitor Engineer, Lighting Tech, Stage Hand (two required, one open) and Stage Manager, each person with a status and pay: fees for FOH and monitors, and rates per day, per hour and per half day for the others, then the Total Staff Cost footer](../../../assets/screenshots/gigs/staffing-assignments.png)
+![The Staff Assignments card in edit mode: slots for FOH Engineer, Monitor Engineer, Lighting Tech, Stage Hand (two required, one open) and Stage Manager, each person with a status and pay: fees for FOH and monitors, and rates per day, per hour and per half day for the others, then the Total Staff Cost footer with an estimate line for each booked rate](../../../assets/screenshots/gigs/staffing-assignments.png)
 
 ## Finalizing completed work
 
@@ -55,17 +54,26 @@ Finalizing adds a money-out entry for the gig (category Contract labor, descript
 The footer shows **Total Staff Cost** in three parts:
 
 - **Finalized**: finalized assignments (rate times units, or the fee).
-- **Projected**: **Confirmed** and **Requested** assignments not yet finalized. A rate counts as one of its unit until it's finalized.
-<!-- TODO: #213 — projected rates count one unit (one hour for $35 / hr). Update once Cameron picks a fix. -->
+- **Projected**: **Confirmed** and **Requested** assignments not yet finalized. A fee counts in full. A rate is estimated from the gig (see below).
 - **Total**: the two added together.
+
+Under the totals, each booked rate shows how its estimate was reached, such as "Stage Hand · Sam Whitfield: est. 9.5 hr × $35.00 / hr = $332.50". GigWrangler estimates:
+
+- **/ hr:** the hours from the gig's start to its end, to the nearest quarter hour. If the gig has no end time, or no times at all, it counts 1 hour and says so: "1 hr (no end time)" or "1 hr (no times)".
+- **/ day:** the gig's days, in the gig's time zone. A gig that ends before 6 AM doesn't count the extra day.
+- **/ ½ day:** one half day per gig day.
+
+The estimate is only a projection. When you finalize, you enter the units actually worked, and the cost becomes the rate times that number.
 
 ## Viewing staffing
 
 Everyone in your organization who can open the gig sees a read-only **Staffing** card, headed with a summary such as "3 of 4 filled · 2 confirmed". Each row shows the role, the person (or **Open**), their phone and email, a status badge and any notes. Use **Columns** to hide the ones you don't need; the choice is remembered in this browser.
 
-The **Rate / Fee** column shows a rate with its unit, such as "$400 / day", and a fee as "$350 fee". A **Staff cost** line under the table gives the finalized, projected and total amounts. On the printed financials page, **Staff costs** shows how each rate's amount was reached, such as "3 days × $400 / day". **Rate / Fee** and the staff cost line are for Admins and Managers only. Staff and Viewers don't see pay.
+The **Rate / Fee** column shows a rate with its unit, such as "$400 / day", and a fee as "$350 fee". A **Staff cost** line under the table gives the finalized, projected and total amounts. On the printed financials page, **Staff costs** shows how each rate's amount was reached, such as "3 days × $400 / day".
+<!-- TODO: #219 — the print's Staff costs rows still count an unfinalized rate as one unit. --> **Rate / Fee** and the staff cost line are for Admins and Managers only. Staff and Viewers don't see pay.
 
-![The read-only Staffing card: "5 of 6 filled · 4 confirmed", each role with the person, phone, email, status and pay, such as $350 fee, $400 / day, $35 / hr and $200 / ½ day, an open Stage Hand place, and the Staff cost line](../../../assets/screenshots/gigs/staffing-view-card.png)
+![The read-only Staffing card: "5 of 6 filled · 4 confirmed", each role with the person, phone, email, status and pay, such as $350 fee, $400 / day, $35 / hr and $200 / ½ day, and an open Stage Hand place](../../../assets/screenshots/gigs/staffing-view-card.png)
+<!-- TODO: #219 — retake with the Staff cost line once it shows two decimals. -->
 
 ## Related
 

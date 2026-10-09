@@ -285,3 +285,49 @@ describe('GigStaffSlotsSection rate units (#171)', () => {
     expect(dialog).toHaveTextContent('$400 / day');
   });
 });
+
+describe('GigStaffSlotsSection projected staff cost (#213)', () => {
+  const SLOT = '99999999-9999-4999-8999-999999999999';
+  const mockProps = {
+    gigId: 'test-gig-id',
+    currentOrganizationId: 'current-org-id',
+    participantOrganizationIds: ['current-org-id'],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGig).mockResolvedValue({
+      // 18:00–03:00 in Los Angeles: 9 hours
+      start: '2026-10-11T01:00:00Z', end: '2026-10-11T10:00:00Z', timezone: 'America/Los_Angeles',
+      staff_slots: [{
+        id: SLOT, organization_id: 'current-org-id', role: 'Stage Hand', count: 3, notes: '',
+        staff_assignments: [
+          { id: 'a-hand', user_id: 'user-a', user: { first_name: 'Sam', last_name: 'Rivera' }, status: 'Confirmed', rate: 35, rate_unit: 'hour', fee: null, notes: '' },
+          { id: 'a-fee', user_id: 'user-b', user: { first_name: 'Bo', last_name: 'Li' }, status: 'Requested', rate: null, rate_unit: 'hour', fee: 350, notes: '' },
+          { id: 'a-done', user_id: 'user-c', user: { first_name: 'Cy', last_name: 'Ng' }, status: 'Confirmed', rate: 35, rate_unit: 'hour', fee: null, notes: '', completed_at: '2026-10-12T00:00:00Z', units_completed: 4 },
+        ],
+      }],
+    } as any);
+  });
+
+  it('projects a rate over the gig hours and shows the estimate; a fee stays flat; a finalized rate uses the units entered', async () => {
+    render(<GigStaffSlotsSection {...mockProps} />);
+    expect(await screen.findByText(/est\. 9 hr × \$35\.00 \/ hr = \$315\.00/)).toBeInTheDocument();
+    expect(screen.getByText('$665.00')).toBeInTheDocument(); // projected: 315 + 350
+    expect(screen.getByText('$140.00')).toBeInTheDocument(); // finalized: 4 hr × $35
+    expect(screen.getByText(/Total: \$805\.00/)).toBeInTheDocument();
+  });
+
+  it('groups thousands in the footer amounts, like the Financials tab (#219)', async () => {
+    vi.mocked(getGig).mockResolvedValue({
+      start: '2026-10-11T01:00:00Z', end: '2026-10-11T10:00:00Z', timezone: 'America/Los_Angeles',
+      staff_slots: [{
+        id: SLOT, organization_id: 'current-org-id', role: 'Stage Hand', count: 1, notes: '',
+        staff_assignments: [{ id: 'a-big', user_id: 'user-a', user: { first_name: 'Sam', last_name: 'Rivera' }, status: 'Confirmed', rate: null, rate_unit: 'hour', fee: 1582.5, notes: '' }],
+      }],
+    } as any);
+    render(<GigStaffSlotsSection {...mockProps} />);
+    expect(await screen.findByText(/Total: \$1,582\.50/)).toBeInTheDocument();
+    expect(screen.getByText('$1,582.50')).toBeInTheDocument(); // projected
+  });
+});

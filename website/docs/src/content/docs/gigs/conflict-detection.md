@@ -1,7 +1,6 @@
 ---
 title: Conflict detection
 description: How GigWrangler flags gigs that double-book the same staff, venue or act, or equipment.
-draft: true
 sidebar:
   order: 9
 ---
