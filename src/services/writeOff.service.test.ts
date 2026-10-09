@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getGigReturns, writeOffPieces, undoWriteOff, markReturned } from './writeOff.service';
 import { createClient } from '../utils/supabase/client';
@@ -68,6 +69,7 @@ describe('writeOff.service (#185)', () => {
     await expect(writeOffPieces({ assetId: 'cables', quantity: 1, gigId: 'gig-1', kitId: 'foh', stillOut: 2, note: 'n' })).resolves.toBe('missing-1');
     expect(supabase.rpc).toHaveBeenCalledWith('write_off_pieces', {
       p_asset_id: 'cables', p_quantity: 1, p_gig_id: 'gig-1', p_kit_id: 'foh', p_still_out: 2, p_note: 'n',
+      p_on: format(new Date(), 'yyyy-MM-dd'),
     });
     await undoWriteOff('missing-1');
     expect(supabase.rpc).toHaveBeenLastCalledWith('undo_write_off', { p_asset_id: 'missing-1' });

@@ -133,3 +133,111 @@ SELECT rls_test.expect('An org-A row can point at A''s own unit and kit', rls_te
     rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a'), rls_test.id('unit_a'))), 1);
 SELECT rls_test.expect('An existing org-A row can''t be repointed at an org-B unit', rls_test.run('a_admin',
   format('UPDATE inventory_tracking SET asset_id = %s WHERE asset_id = %s', rls_test.id('unit_b'), rls_test.id('lot_a'))), -1);
+
+-- 8. Write-off provenance is stored on the record -------------------------------------------
+-- The record a split-off piece came from is kept on the piece itself (written_off_from), set
+-- only by write_off_pieces, along with the status it had (status_before_write_off).
+SELECT set_config('request.jwt.claim.sub', '', true);
+DELETE FROM organization_members WHERE organization_id = rls_test.u('org_b') AND user_id = rls_test.u('a_admin');
+INSERT INTO rls_test.ids VALUES
+  ('lot_p',   '00000000-0000-0000-0000-00000000a020'),
+  ('unit_p',  '00000000-0000-0000-0000-00000000a021'),
+  ('unit_m',  '00000000-0000-0000-0000-00000000a022'),
+  ('lot_r',   '00000000-0000-0000-0000-00000000a023'),
+  ('line_r',  '00000000-0000-0000-0000-00000000a024'),
+  ('head_r',  '00000000-0000-0000-0000-00000000a025');
+INSERT INTO assets (id, organization_id, acquisition_date, category, manufacturer_model, quantity, tag_number, item_cost, status, created_by, updated_by)
+SELECT rls_test.u(name), rls_test.u('org_a'), DATE '2026-01-15', 'Audio', model, qty, tag, 50, st, rls_test.u('a_admin'), rls_test.u('a_admin')
+FROM (VALUES ('lot_p', 'DI Box', 8, NULL, 'Active'), ('unit_p', 'DI Box', 1, 'DI-0001', 'Active'),
+             ('unit_m', 'Wireless Mic', 1, 'WM-0001', 'Maintenance')) v(name, model, qty, tag, st);
+
+SELECT rls_test.as_user('a_manager');
+SELECT public.write_off_pieces(rls_test.u('lot_p'), 2, rls_test.u('gig'), rls_test.u('kit_a'), 0, 'two missing');
+SELECT rls_test.expect('A split-off piece records the lot it came from',
+  (SELECT count(*)::int FROM assets WHERE written_off_from = rls_test.u('lot_p') AND quantity = 2 AND status = 'Missing'), 1);
+SELECT rls_test.expect('The closing row is at the warehouse',
+  (SELECT count(*)::int FROM rls_test.newest_row('lot_p') WHERE status = 'In Warehouse' AND location = 'Warehouse'), 1);
+SELECT public.write_off_pieces(rls_test.u('unit_p'), 1, NULL, NULL, 0, 'lost');
+SELECT rls_test.expect('A whole record has no provenance',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_p') AND written_off_from IS NULL), 1);
+
+-- An activity entry any member can write doesn't change what Undo does.
+SELECT set_config('rls.org', rls_test.u('org_a')::text, true), set_config('rls.unit', rls_test.u('unit_p')::text, true),
+       set_config('rls.lot', rls_test.u('lot_p')::text, true);
+SELECT rls_test.as_user('a_staff');
+SET LOCAL ROLE authenticated;
+SELECT public.log_activity(current_setting('rls.org')::uuid, 'asset.written_off', 'asset', current_setting('rls.unit')::uuid, NULL,
+  jsonb_build_object('split_from', current_setting('rls.lot')));
+RESET ROLE;
+SELECT rls_test.expect('A staff member''s activity entry is there',
+  (SELECT count(*)::int FROM activity_log WHERE entity_id = rls_test.u('unit_p') AND context->>'split_from' = rls_test.u('lot_p')::text), 1);
+SELECT rls_test.as_user('a_manager');
+SELECT public.undo_write_off(rls_test.u('unit_p'));
+SELECT rls_test.expect('Undo of a whole tagged unit brings it back, never deletes it',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_p') AND status = 'Active' AND retired_on IS NULL), 1);
+SELECT rls_test.expect('The lot is untouched by that entry',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_p') AND quantity = 6), 1);
+
+-- Merging back: the piece's tracking rows go with it, so nothing becomes a kit-only row.
+SELECT set_config('request.jwt.claim.sub', '', true);
+INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, scanned_at)
+SELECT rls_test.u('org_a'), rls_test.u('gig'), rls_test.u('kit_a'), id, 'On Site', 2, now()
+  FROM assets WHERE written_off_from = rls_test.u('lot_p');
+SELECT rls_test.as_user('a_manager');
+SELECT public.undo_write_off((SELECT id FROM assets WHERE written_off_from = rls_test.u('lot_p')));
+SELECT rls_test.expect('The piece is back in its lot', (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_p') AND quantity = 8), 1);
+SELECT rls_test.expect('No kit-only tracking row is left behind',
+  (SELECT count(*)::int FROM inventory_tracking WHERE kit_id = rls_test.u('kit_a') AND asset_id IS NULL), 0);
+
+-- Undo restores the status the record had.
+SELECT public.write_off_pieces(rls_test.u('unit_m'), 1, NULL, NULL, 0, 'lost');
+SELECT public.undo_write_off(rls_test.u('unit_m'));
+SELECT rls_test.expect('Undo restores the earlier status',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_m') AND status = 'Maintenance' AND retired_on IS NULL), 1);
+
+-- Counts and dates.
+SELECT rls_test.expect('Still out can''t exceed what is left after the write-off',
+  rls_test.run('a_manager', rls_test.write_off('lot_p', 2, 7)), -1);
+SELECT rls_test.expect('Whole pieces only', rls_test.run('a_manager', rls_test.write_off('lot_p', 1.5)), -1);
+SELECT rls_test.as_user('a_manager');
+SELECT public.write_off_pieces(rls_test.u('lot_p'), 1, NULL, NULL, 0, NULL, current_date - 1);
+SELECT rls_test.expect('A write-off dated the caller''s day keeps that date',
+  (SELECT count(*)::int FROM assets WHERE written_off_from = rls_test.u('lot_p') AND retired_on = current_date - 1), 1);
+SELECT rls_test.expect('A date far from today is refused', rls_test.run('a_manager',
+  format('SELECT public.write_off_pieces(%s, 1, NULL, NULL, 0, NULL, %L)', rls_test.id('lot_p'), current_date - 30)), -1);
+
+-- A lot linked to its depreciated line only through the line's asset_id keeps its recovery period on a split.
+SELECT set_config('request.jwt.claim.sub', '', true);
+INSERT INTO assets (id, organization_id, acquisition_date, category, manufacturer_model, quantity, item_cost, status, created_by, updated_by)
+VALUES (rls_test.u('lot_r'), rls_test.u('org_a'), DATE '2026-01-15', 'Audio', 'Speaker Cable', 6, 40, 'Active', rls_test.u('a_admin'), rls_test.u('a_admin'));
+INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, vendor, total_inv_amount, quantity, item_cost, line_cost, asset_id, description, tax_treatment) VALUES
+  (rls_test.u('head_r'), rls_test.u('org_a'), NULL, 'header', '2026-01-15', 'V', 240, NULL, NULL, NULL, NULL, 'inv', NULL),
+  (rls_test.u('line_r'), rls_test.u('org_a'), rls_test.u('head_r'), 'asset', '2026-01-15', 'V', NULL, 6, 40, 240, rls_test.u('lot_r'), 'cables', 'depreciate');
+UPDATE assets SET recovery_period = 7 WHERE id = rls_test.u('lot_r');
+SELECT rls_test.as_user('a_manager');
+SELECT public.write_off_pieces(rls_test.u('lot_r'), 1, NULL, NULL, 0, NULL);
+SELECT rls_test.expect('The piece is on the lot''s line, with its recovery period',
+  (SELECT count(*)::int FROM assets WHERE written_off_from = rls_test.u('lot_r') AND purchase_line_id = rls_test.u('line_r') AND recovery_period = 7), 1);
+
+-- 9. Status changes into or out of retired statuses follow the write-off rules ---------------
+CREATE FUNCTION rls_test.set_status(p_asset text, p_status text) RETURNS text LANGUAGE sql AS $$
+  SELECT format('SELECT public.update_asset_status(%L, %L)', rls_test.u(p_asset), p_status) $$;
+SELECT rls_test.expect('Staff can mark equipment for maintenance', rls_test.run('a_staff', rls_test.set_status('unit_a2', 'Maintenance')), 1);
+SELECT rls_test.expect('Staff can bring it back to Active', rls_test.run('a_staff', rls_test.set_status('unit_a2', 'Active')), 1);
+SELECT rls_test.expect('Staff can''t mark equipment Disposed', rls_test.run('a_staff', rls_test.set_status('unit_a2', 'Disposed')), -1);
+SELECT rls_test.expect('Staff can''t mark equipment Returned', rls_test.run('a_staff', rls_test.set_status('unit_a2', 'Returned')), -1);
+SELECT rls_test.expect('B admin can''t change A''s equipment', rls_test.run('b_admin', rls_test.set_status('unit_a2', 'Maintenance')), -1);
+SELECT rls_test.as_user('a_manager');
+SELECT public.update_asset_status(rls_test.u('unit_a2'), 'Disposed');
+SELECT rls_test.expect('A manager can mark equipment Disposed',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_a2') AND status = 'Disposed'), 1);
+SELECT rls_test.expect('Staff can''t bring Disposed equipment back', rls_test.run('a_staff', rls_test.set_status('unit_a2', 'Active')), -1);
+SELECT rls_test.expect('A manager can', rls_test.run('a_manager', rls_test.set_status('unit_a2', 'Active')), 1);
+SELECT rls_test.expect('Missing is set only by a write-off', rls_test.run('a_admin', rls_test.set_status('unit_a2', 'Missing')), -1);
+SELECT rls_test.expect('Missing is left only by Undo', rls_test.run('a_admin', rls_test.set_status('unit_a3', 'Active')), -1);
+SELECT rls_test.expect('Staff can''t leave Missing either', rls_test.run('a_staff', rls_test.set_status('unit_a3', 'Maintenance')), -1);
+SELECT rls_test.expect('The written-off unit is still Missing',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_a3') AND status = 'Missing'), 1);
+SELECT rls_test.expect('Only signed-in users can call it',
+  (SELECT count(*)::int FROM information_schema.routine_privileges
+    WHERE routine_name = 'update_asset_status' AND grantee IN ('PUBLIC', 'anon') AND privilege_type = 'EXECUTE'), 0);

@@ -213,6 +213,13 @@ describe('Disposals by record (#185)', () => {
     expect(r.total).toBe(2900);
   });
 
+  it('pieces of a line add up to the line\'s cost, however it divides', () => {
+    const tri = [line({ id: 'tri', tax_treatment: 'depreciate', description: 'DI Box', quantity: 3, item_cost: 33.33, line_cost: 100, asset_id: 't1', asset: lineAsset('t1') })];
+    const gone = ['t1', 't2', 't3'].map((id) => rec({ id, manufacturer_model: 'DI Box', item_cost: 33.33, purchase_line_id: 'tri', status: 'Missing', retired_on: '2026-10-09' }));
+    const costs = buildAssetReport(tri, 2026, gone).disposals.map(d => d.cost);
+    expect(costs.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 10);
+  });
+
   it('a line with no records falls back to its linked equipment', () => {
     const old = [line({ id: 'd3', tax_treatment: 'depreciate', purchase_date: '2025-02-01', line_cost: 600, item_cost: 600, asset_id: 'a3',
       asset: { ...lineAsset('a3'), manufacturer_model: 'Sennheiser XSW IEM', retired_on: '2026-05-20', liquidation_amt: 350, status: 'Disposed' } })];

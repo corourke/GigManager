@@ -123,9 +123,9 @@ function timedNeeds(gig: { id: string; title?: string; start: string; end: strin
   return { id: gig.id, title: gig.title ?? 'This gig', start: effectiveStart.getTime(), end: effectiveEnd.getTime(), needs };
 }
 
-/** Kit assignment rows of the given organization only (all when none is given). */
+/** Kit assignment rows of the given organization only. */
 const ofOrg = <T extends { organization_id?: string | null }>(rows: readonly T[], organizationId: string) =>
-  organizationId ? rows.filter((r) => r.organization_id === organizationId) : [...rows];
+  rows.filter((r) => r.organization_id === organizationId);
 
 /** Per-item counts, or none if they can't be loaded: the other checks still run. */
 async function loadNeedsSafely(kitIds: string[], organizationId?: string) {

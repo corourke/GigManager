@@ -1137,9 +1137,11 @@ Tracks equipment check-in/check-out status at gigs.
   - **Moving a lot to another gig** writes a return row in each of the first gig's buckets, then the row at the new gig. Otherwise the lot counts at both. A unit doesn't need this: it is wherever its newest row says.
   - **Home has no location** until every bucket of the lot is closed by a return. Home takes the newest return row's status and location.
 - **Writing off missing pieces** (`write_off_pieces` / `undo_write_off`, migration 20261018000000):
-  - A whole unit or lot becomes `status = 'Missing'`, `retired_on` = today.
-  - Part of a lot is split off into its own Missing record with the lot's values, and the lot's quantity drops. The bucket gets a closing row: `In Warehouse`, or `Not Returned` with what is still out.
-  - Undo merges a split-off piece back into its lot. It is refused once the write-off's tax year is locked.
+  - A whole unit or lot becomes `status = 'Missing'`, with `retired_on` = the caller's day (`p_on`, within a day of the server's date).
+  - Part of a lot is split off into its own Missing record with the lot's values, on the lot's purchase line, and the lot's quantity drops. The bucket gets a closing row: `In Warehouse` at the Warehouse, or `Not Returned` with what is still out (at most what the lot has left).
+  - Quantities are whole pieces.
+  - **Write-off provenance is stored on the record.** `assets.written_off_from` is the lot a split-off piece came from, and `assets.status_before_write_off` is the status it had. Only `write_off_pieces` sets them.
+  - Undo merges a split-off piece back into its lot when the lot is still on hand, of the same organization, item and purchase line; the piece's tracking rows go with it. Otherwise the record comes back as itself, with its earlier status. A record with a serial or tag is never merged away. Undo is refused once the write-off's tax year is locked.
   - Only Admins and Managers can write off or undo. Both write an `activity_log` entry: `asset.written_off` / `asset.write_off_undone`.
 - **Data integrity.** A tracking row's `asset_id` and `kit_id`, when set, belong to the row's `organization_id`. This is checked in the write policy.
 - Today every write path records `quantity` 1. Recording N for lots is #185 PR 2 (the scan flows).
@@ -1408,7 +1410,7 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 - `create_gig_complex(p_gig_data, p_participants, p_staff_slots)`: Transactionally creates a gig with participants and staff slots. Since migration 20260613000000 it requires `p_gig_data.primary_organization_id` and that the caller is Admin/Manager of that org; it is the only gig-creation path (no gigs INSERT policy).
 - `create_purchase_transaction_v1(p_header, p_items, p_assets)`: Transactionally creates a purchase header with item rows and associated assets.
 - `reclassify_expense_as_asset(p_purchase_item_id)`: Retired (dropped by migration 20261011000000, which also dropped `purchases.sub_category` and `assets.sub_category`).
-- `update_asset_status(p_asset_id, p_status)`: Updates asset status; requires the caller to be a member of the asset's org.
+- `update_asset_status(p_asset_id, p_status)`: Updates asset status. Members of the asset's org can move it between Active, Maintenance and Inactive. **Status changes into or out of retired statuses follow the write-off rules:** Disposed and Returned, in or out, take an Admin or Manager; Missing is set only by `write_off_pieces` and left only by `undo_write_off`.
 - `user_is_admin(user_uuid)`: Returns true if the user is Admin of **at least one** organization (not a global admin; migration 20260522000000).
 - `user_can_manage_org_contacts(p_organization_id, p_user_id)`: True if the user is `user_is_admin`, Admin/Manager of the org, or Admin/Manager of an org sharing a gig with it. Gates all contact RPCs and the broadened member/user read policies.
 - `user_is_contact_status(p_user_id)`: True if the user's `user_status = 'contact'` (breaks RLS recursion between `users` and `organization_members`).

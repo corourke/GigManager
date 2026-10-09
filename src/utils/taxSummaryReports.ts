@@ -148,19 +148,18 @@ export interface ReportAsset {
   serial_number?: string | null;
   tag_number?: string | null;
   equipment_item_id?: string | null;
+  /** The lot a written-off piece was split off (#185), set only by write_off_pieces. */
+  written_off_from?: string | null;
 }
 
-const blank = (s: string | null | undefined) => !s || s.trim() === '';
 /**
- * Pieces split off a lot when written off (#185): a Missing lot record whose lot (same item,
- * purchase line and date) is still on hand. The lot already answers for them, so they aren't
- * flagged a second time.
+ * Pieces split off a lot when written off (#185): the record says which lot (written_off_from),
+ * and that lot is still listed. The lot already answers for them, so they aren't flagged a
+ * second time.
  */
 export function isSplitOffPiece(a: ReportAsset, all: readonly ReportAsset[]): boolean {
-  if (a.status !== 'Missing' || !blank(a.serial_number) || !blank(a.tag_number)) return false;
-  return all.some(o => o.id !== a.id && o.status !== 'Missing' && blank(o.serial_number) && blank(o.tag_number)
-    && o.equipment_item_id === a.equipment_item_id && (o.purchase_line_id ?? null) === (a.purchase_line_id ?? null)
-    && o.acquisition_date === a.acquisition_date);
+  if (a.status !== 'Missing' || !a.written_off_from) return false;
+  return all.some(o => o.id === a.written_off_from);
 }
 
 /** A purchase's invoice (its header row). */

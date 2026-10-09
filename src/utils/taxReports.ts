@@ -356,17 +356,27 @@ export function buildAssetReport(lines: ReportPurchaseLine[], year: number, asse
   const byPeriod = [...periods.values()].sort((a, b) => (a.period ?? 99) - (b.period ?? 99));
 
   const recordsOf = (l: ReportPurchaseLine) => assets.filter(a => a.purchase_line_id === l.id || a.id === l.asset_id);
+  // Each record's share of the line's cost, by its pieces. Shares are cut from the running total
+  // (records in id order), so the pieces of a line always add up to the line: 3 of $100 are
+  // 33.33, 33.33 and 33.34, not 99.99.
   const byRecord: DisposalRow[] = depreciated.flatMap(l => {
     const quantity = Number(l.quantity ?? 1) || 1;
-    const perPiece = l.item_cost != null ? Number(l.item_cost) : lineCost(l) / quantity;
-    return recordsOf(l)
-      .filter(a => inYear(dayOf(a.retired_on), year))
-      .map(a => ({
+    const total = lineCost(l);
+    let before = 0;
+    const shares = [...recordsOf(l)].sort((a, b) => a.id.localeCompare(b.id)).map(a => {
+      const after = before + (Number(a.quantity ?? 1) || 1);
+      const cost = money(money(total * after / quantity) - money(total * before / quantity));
+      before = after;
+      return { a, cost };
+    });
+    return shares
+      .filter(({ a }) => inYear(dayOf(a.retired_on), year))
+      .map(({ a, cost }) => ({
         id: a.id,
         assetId: a.id,
         description: a.manufacturer_model || l.description || '',
         bought: lineDay(l) ?? '',
-        cost: money(perPiece * (Number(a.quantity ?? 1) || 1)),
+        cost,
         disposed: dayOf(a.retired_on)!,
         proceeds: a.liquidation_amt != null ? money(Number(a.liquidation_amt)) : null,
         status: a.status ?? '',

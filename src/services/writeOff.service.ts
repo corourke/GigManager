@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -115,6 +116,8 @@ export async function writeOffPieces(params: {
       p_kit_id: params.kitId,
       p_still_out: params.stillOut ?? 0,
       p_note: params.note ?? null,
+      // The caller's own day: a Dec 31 evening write-off lands in that year, not UTC's next one.
+      p_on: format(new Date(), 'yyyy-MM-dd'),
     });
     if (error) throw error;
     return data as string;
