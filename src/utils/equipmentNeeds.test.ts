@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { kitNeeds, gigNeeds, itemNeedRows, type GigNeeds, type ItemNeed, type KitLine, type KitMeta } from './equipmentNeeds';
+import { containersIn, kitNeeds, gigNeeds, itemNeedRows, type GigNeeds, type ItemNeed, type KitLine, type KitMeta } from './equipmentNeeds';
 
 // #184 PR 2: count units per item across overlapping gigs (mockup screen 10).
 const kits: Record<string, KitMeta> = {
@@ -102,3 +102,24 @@ describe('itemNeedRows', () => {
     expect(rows[0]).toMatchObject({ name: 'Unknown item', owned: 0, free: 0, short: 1 });
   });
 });
+
+// A container is one physical case: two gigs that both reach it need the same case.
+describe('containersIn', () => {
+  const kits = new Map<string, KitMeta>([
+    ['stage', { id: 'stage', name: 'Stage', is_container: false }],
+    ['mic-case', { id: 'mic-case', name: 'Mic Case', is_container: true }],
+    ['pouch', { id: 'pouch', name: 'Clip Pouch', is_container: true }],
+  ])
+  const lines = new Map<string, KitLine[]>([
+    ['stage', [{ child_kit_id: 'mic-case', quantity: 1 }, { equipment_item_id: 'xlr', quantity: 4 }]],
+    ['mic-case', [{ child_kit_id: 'pouch', quantity: 1 }]],
+    ['pouch', []],
+  ])
+  const ctx = { kits, lines, assetItem: new Map() }
+
+  it('the kit itself when it is a container, and every container reached through it', () => {
+    expect([...containersIn('mic-case', ctx)].sort()).toEqual(['mic-case', 'pouch'])
+    expect([...containersIn('stage', ctx)].sort()).toEqual(['mic-case', 'pouch'])
+    expect([...containersIn('pouch', ctx)]).toEqual(['pouch'])
+  })
+})

@@ -1084,3 +1084,86 @@ describe('same-unit conflicts list only tracked units', () => {
   });
 });
 
+
+// #238 review: a container is one case. Its contents are lots on dev, which the same-unit check
+// leaves out, so the case itself is the shared unit: the same case on two overlapping gigs, or
+// a kit holding it on one and the case on the other, is a conflict.
+describe('same-unit conflicts: a container is one unit', () => {
+  const xlr = { manufacturer_model: 'XLR Cable, 50 ft', tag_number: null, serial_number: null, quantity: 10 }
+  const containerNeeds = () => ({
+    ctx: {
+      kits: new Map([
+        ['stage', { id: 'stage', name: 'Stage Kit', is_container: false }],
+        ['mic-case', { id: 'mic-case', name: 'Mic Case', is_container: true }],
+        ['lights', { id: 'lights', name: 'Lights', is_container: false }],
+      ]),
+      lines: new Map<string, any[]>([
+        ['stage', [{ child_kit_id: 'mic-case', quantity: 1 }]],
+        ['mic-case', []],
+        ['lights', []],
+      ]),
+      assetItem: new Map(),
+    },
+    counts: new Map(),
+  })
+  const cache = { data: [
+    { kit_id: 'mic-case', asset_id: 'xlr', asset: xlr },
+    { kit_id: 'stage', asset_id: 'xlr', asset: xlr },
+  ], error: null }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.resetModules()
+    needs.load.mockResolvedValue(containerNeeds())
+  })
+
+  const single = async (mine: string, theirs: string, theirName: string) => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: mine, organization_id: 'org-1' }], error: null },
+      gigs: { data: [{ id: 'gig-2', title: 'Other', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
+        kit_assignments: [{ kit_id: theirs, organization_id: 'org-1', kit: { id: theirs, name: theirName } }] }], error: null },
+      kit_flattened_cache: cache,
+    }
+    ;(createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) })
+    const { checkEquipmentConflicts } = await import('./conflictDetection.service')
+    return checkEquipmentConflicts('gig-1', '2026-10-10T18:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1')
+  }
+
+  it('single gig: the same container on both gigs', async () => {
+    const result = await single('mic-case', 'mic-case', 'Mic Case')
+    expect(result.conflicts).toHaveLength(1)
+    expect(result.conflicts[0].details.conflicting_kits[0].shared_assets).toEqual(['Mic Case'])
+  })
+
+  it('single gig: a kit holding the container on one gig, the container on the other', async () => {
+    const result = await single('stage', 'mic-case', 'Mic Case')
+    expect(result.conflicts).toHaveLength(1)
+    expect(result.conflicts[0].details.conflicting_kits).toEqual([{ kit_id: 'mic-case', kit_name: 'Mic Case', shared_assets: ['Mic Case'] }])
+  })
+
+  it('single gig: kits with no container in common don\'t conflict', async () => {
+    expect((await single('stage', 'lights', 'Lights')).conflicts).toHaveLength(0)
+  })
+
+  it('batch: both cases, named by the container', async () => {
+    ;(createClient as any).mockReturnValue(createBatchMock([
+      { table: 'gig_kit_assignments', response: { data: [
+        { gig_id: 'A', kit_id: 'stage', organization_id: 'org-1', kit: { id: 'stage', name: 'Stage Kit' } },
+        { gig_id: 'B', kit_id: 'mic-case', organization_id: 'org-1', kit: { id: 'mic-case', name: 'Mic Case' } },
+        { gig_id: 'C', kit_id: 'mic-case', organization_id: 'org-1', kit: { id: 'mic-case', name: 'Mic Case' } },
+        { gig_id: 'D', kit_id: 'lights', organization_id: 'org-1', kit: { id: 'lights', name: 'Lights' } },
+      ], error: null } },
+      { table: 'kit_flattened_cache', response: cache },
+    ]))
+    const { checkAllConflictsForGigs } = await import('./conflictDetection.service')
+    const at = (id: string) => ({ id, title: id, start: '2026-10-10T10:00:00Z', end: '2026-10-10T20:00:00Z' })
+    const result = await checkAllConflictsForGigs([at('A'), at('B'), at('C'), at('D')], 'org-1')
+    const equipment = result.filter((c) => c.type === 'equipment')
+    expect(equipment.map((c) => [c.gig_id, c.details.other_gig_id]).sort()).toEqual([
+      ['A', 'B'], ['A', 'C'], ['B', 'A'], ['B', 'C'], ['C', 'A'], ['C', 'B'],
+    ])
+    const aWithB = equipment.find((c) => c.gig_id === 'A' && c.details.other_gig_id === 'B')!
+    expect(aWithB.details.conflicting_kits).toEqual([{ kit_id: 'stage', kit_name: 'Stage Kit', shared_assets: ['Mic Case'] }])
+    expect(aWithB.details.conflicting_asset_ids).toEqual([])
+  })
+})

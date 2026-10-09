@@ -44,6 +44,21 @@ export function kitNeeds(kitId: string, ctx: NeedsContext, seen: ReadonlySet<str
   return out;
 }
 
+/**
+ * Every container kit a kit reaches, itself included when it is one, through nested kits and
+ * containers alike. A container is one physical case, so two gigs reaching it share it.
+ */
+export function containersIn(kitId: string, ctx: NeedsContext, seen: ReadonlySet<string> = new Set()): Set<string> {
+  const out = new Set<string>();
+  if (seen.has(kitId)) return out;
+  if (ctx.kits.get(kitId)?.is_container) out.add(kitId);
+  const path = new Set(seen).add(kitId);
+  for (const line of ctx.lines.get(kitId) ?? []) {
+    if (line.child_kit_id) for (const id of containersIn(line.child_kit_id, ctx, path)) out.add(id);
+  }
+  return out;
+}
+
 export interface ItemNeed {
   total: number;
   /** Which of the gig's kits ask for how many. */
