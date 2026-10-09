@@ -599,6 +599,55 @@ export const shots = [
     target: (page) => page.getByText(/Conflicts? Detected/).first().locator('xpath=ancestor::div[contains(@class,"rounded")][1]'),
     pad: 8,
   },
+  {
+    id: 'gigs/conflict-detection-equipment-needed',
+    page: 'gigs/conflict-detection.md',
+    user: 'admin',
+    sources: ['src/components/gig/EquipmentNeededTable.tsx', 'src/utils/equipmentNeeds.ts'],
+    viewport: { width: 1200, height: 1800 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${SONGWRITER_SHOWCASE}/equipment`);
+      await page.locator('#equipment-needed').waitFor();
+      await page.getByText(/ short| spare|Enough/).first().waitFor();
+    },
+    target: (page) => page.locator('section[aria-labelledby="equipment-needed"]'),
+    pad: 12,
+  },
+  {
+    id: 'financials/reporting-schedule-c',
+    page: 'financials/reporting.md',
+    user: 'admin',
+    sources: ['src/components/financials/ScheduleCView.tsx', 'src/utils/taxSummaryReports.ts'],
+    viewport: { width: 1200, height: 1800 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/financials/reporting`);
+      await page.getByRole('button', { name: 'Schedule C', exact: true }).click();
+      await page.getByRole('table', { name: 'Schedule C summary' }).waitFor();
+    },
+    clip: async (page) => {
+      const t = await box(page.getByRole('table', { name: 'Schedule C summary' }));
+      return { x: 0, y: 56, width: 1200, height: Math.min(t.y + t.height + 90, 1750) - 56 };
+    },
+  },
+  {
+    id: 'financials/reporting-needs-attention',
+    page: 'financials/reporting.md',
+    user: 'admin',
+    sources: ['src/components/financials/NeedsAttentionView.tsx', 'src/utils/taxSummaryReports.ts'],
+    viewport: { width: 1200, height: 1800 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/financials/reporting`);
+      await page.getByRole('button', { name: 'Needs attention', exact: true }).click();
+      await page.getByText(/would leave the|Nothing needs attention/).first().waitFor();
+      await page.waitForTimeout(500);
+    },
+    clip: async (page) => {
+      const tables = page.locator('table');
+      const n = await tables.count();
+      const last = n ? await box(tables.nth(n - 1)) : await box(page.getByText(/Nothing needs attention/).first());
+      return { x: 0, y: 56, width: 1200, height: Math.min(last.y + last.height + 24, 1750) - 56 };
+    },
+  },
   // Supplied by hand (Cameron, 10-08): these screens open only from a link in an
   // email, which the script can't follow, so they aren't taken here. Retake them by
   // hand from a dev email (Mailtrap) when the screen changes.

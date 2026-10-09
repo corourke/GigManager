@@ -1,11 +1,11 @@
 ---
 title: Reporting
-description: Income, Expenses, Assets and Grey zone reports for each tax year, with CSV downloads to hand to your tax program or accountant.
+description: Income, Expenses, Assets, Grey zone, Schedule C and Needs attention reports for each tax year, with CSV downloads to hand to your tax program or accountant.
 sidebar:
   order: 8
 ---
 
-**Financials → Reporting** gathers a tax year's figures into four reports: **Income**, **Expenses**, **Assets** and **Grey zone**. Each one downloads as a CSV file you can give to your tax program or accountant. Admins and Managers can open it. GigWrangler doesn't calculate tax; it lists what you received, spent and bought.
+**Financials → Reporting** gathers a tax year's figures into six reports: **Income**, **Expenses**, **Assets**, **Grey zone**, **Schedule C** and **Needs attention**. Each one downloads as a CSV file you can give to your tax program or accountant. Admins and Managers can open it. GigWrangler doesn't calculate tax; it lists what you received, spent and bought.
 
 The reports use the cash basis. Money counts in the year it was received or paid, and equipment counts in the year it was bought.
 
@@ -13,13 +13,13 @@ The reports use the cash basis. Money counts in the year it was received or paid
 
 1. Open **Financials → Reporting**.
 2. Choose a year in **Tax year**. The list holds this year and every year in which you have purchases, paid gig money or equipment you sold or retired.
-3. Select **Income**, **Expenses**, **Assets** or **Grey zone**.
+3. Select **Income**, **Expenses**, **Assets**, **Grey zone**, **Schedule C** or **Needs attention**.
 
 If an Admin has marked the year as filed, a **{year} is filed** badge appears beside the report buttons. See [Filing a year](#filing-a-year).
 
 ## Downloading a CSV
 
-Select **Download CSV** to save the report you're looking at for the year you chose. The file is named after your organization, the report and the year, such as `demo-sound-lighting-expenses-2026.csv`. The Assets report also has **Download disposals CSV**, described below.
+Select **Download CSV** to save the report you're looking at for the year you chose. The file is named after your organization, the report and the year, such as `demo-sound-lighting-expenses-2026.csv` or `demo-sound-lighting-schedule-c-2026.csv`. The Assets report also has **Download disposals CSV**, described below.
 
 ## The Income report
 
@@ -61,7 +61,7 @@ The table has **Date bought**, **Description**, **Category**, **Qty**, **Cost ea
 
 If you bought no depreciated equipment, you'll see "No depreciated equipment was bought in {year}."
 
-![The Assets report for 2026: Tax year, the four report buttons, Download CSV, totals for equipment bought, items and de minimis candidates, the 7-year total, and a table of depreciated equipment with cost and recovery period](../../../assets/screenshots/financials/reporting-assets.png)
+![The Assets report for 2026: Tax year, the report buttons, Download CSV, totals for equipment bought, items and de minimis candidates, the 7-year total, and a table of depreciated equipment with cost and recovery period](../../../assets/screenshots/financials/reporting-assets.png)
 
 ### Disposed of in {year}
 
@@ -80,6 +80,40 @@ If nothing falls in the range, you'll see "No equipment costing $200 to $2,500 e
 The CSV adds the vendor and a **Tracked as equipment** column.
 
 ![The Grey zone report for 2026: the total, 1 expensed and 2 depreciated, then a stage box and four moving heads set to Depreciate and a lighting controller set to Expense, each with Change…](../../../assets/screenshots/financials/reporting-grey-zone.png)
+
+## The Schedule C report
+
+The Schedule C report pulls the year together in the order of your Schedule C. It has no figures of its own: gross receipts are the Income report's total, and each line is the Expenses report's total for that line.
+
+The boxes at the top show **Gross receipts {year}**, **Expenses** and **Net before depreciation**. The table starts with **Gross receipts**, then lists each Schedule C line that has expenses, such as **Line 9: Car and truck expenses**, then **Total expenses** and **Net (before depreciation)**.
+
+- **Line 9** also shows its miles, and a note under it gives what those miles come to at the IRS rate on each trip's date. Mileage is counted once, on its category's line. If the mileage you recorded differs from the IRS-rate amount, or a trip has a different category, an amber note says what to correct on the gig's [Financials tab](/financials/gig-expenses/).
+- **No category (no Schedule C line)** appears in amber when some expenses have no category, or one that isn't on your list. It's included in the total. Fix it as described under [The Expenses report](#the-expenses-report).
+- **Not deducted (category has no Schedule C line; not in total)** appears below the net when expenses are in a category with no Schedule C line, such as Reimbursable. It isn't in the total or the net.
+
+Depreciation isn't included: "Depreciation and Section 179 are worked out by your tax program from the Assets report." If no expenses were paid, the table says "No expenses were paid in {year}."
+
+The CSV has the columns **Line**, **Description**, **Amount** and **Miles**.
+
+<!-- 📸 schedule-c -->
+
+## The Needs attention report
+
+The Needs attention report lists what would leave the year's reports wrong or incomplete. Only groups with something in them appear, each with a count:
+
+- **Expensed with no expense category:** purchases with no category, or one that isn't on your expense list.
+- **Depreciated with no recovery period:** depreciated equipment bought in the year with no recovery period, and depreciated purchases that aren't tracked as equipment.
+- **Equipment with no cost:** equipment bought in the year with no cost.
+- **Disposed or returned with no date disposed:** equipment marked Disposed or Returned with no date, whatever year it was bought.
+- **Invoices that don't add up:** invoices dated in the year whose lines don't add up to the invoice total, with how far off they are.
+
+Each row shows the **Item**, **Date**, **Amount** and **Problem**. Select **Edit purchase…** to open the purchase, or **Edit equipment…** to open the equipment record. The report updates when you save a purchase. In a filed year, **Edit purchase…** doesn't appear, but **Edit equipment…** still does.
+
+If there's nothing to fix, you'll see "Nothing needs attention for {year}."
+
+The CSV has the columns **Group**, **Item**, **Date**, **Amount** and **Problem**.
+
+<!-- 📸 needs-attention -->
 
 ## Filing a year
 
