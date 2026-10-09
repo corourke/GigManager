@@ -76,11 +76,22 @@ export interface ItemCounts {
 
 export type NeedStatus = 'enough' | 'none-spare' | 'short';
 
+/** A gig's needs per item, with its effective time range (ms). */
+export interface GigNeeds {
+  id: string;
+  title: string;
+  start: number;
+  end: number;
+  needs: ReadonlyMap<string, ItemNeed>;
+}
+
 export interface ItemNeedRow {
   itemId: string;
   name: string;
   thisGig: number;
+  /** What the other gigs need at the peak. */
   overlapping: number;
+  /** The peak: the most this gig and the gigs running at the same moment need together. */
   needed: number;
   owned: number;
   inMaintenance: number;
@@ -88,27 +99,43 @@ export interface ItemNeedRow {
   free: number;
   short: number;
   status: NeedStatus;
+  /** When the peak starts (ms), and the other gigs that add to it. */
+  peakAt: number;
+  peakGigs: { id: string; title: string; need: ItemNeed }[];
 }
 
 /**
- * The "Equipment needed" rows: each item this gig needs, with what the
- * overlapping gigs need of it, against what's free.
+ * The "Equipment needed" rows: each item this gig needs, against what's free.
+ * Needed is the peak concurrent demand: gigs that overlap this one but not
+ * each other don't add up (#184 review). The peak starts at this gig's start
+ * or at an overlapping gig's start, so those are the moments checked.
  */
 export function itemNeedRows(
-  thisGig: ReadonlyMap<string, ItemNeed>,
-  others: readonly ReadonlyMap<string, ItemNeed>[],
+  thisGig: GigNeeds,
+  others: readonly GigNeeds[],
   counts: ReadonlyMap<string, ItemCounts>,
 ): ItemNeedRow[] {
+  const moments = Array.from(new Set([thisGig.start, ...others.map((o) => Math.max(o.start, thisGig.start))]))
+    .filter((t) => t <= thisGig.end)
+    .sort((a, b) => a - b);
   const rows: ItemNeedRow[] = [];
-  for (const [itemId, need] of thisGig) {
+  for (const [itemId, need] of thisGig.needs) {
     const c = counts.get(itemId) ?? { name: 'Unknown item', owned: 0, available: 0, inMaintenance: 0, inContainers: 0 };
-    const overlapping = others.reduce((n, o) => n + (o.get(itemId)?.total ?? 0), 0);
+    let peakAt = thisGig.start;
+    let peakGigs: GigNeeds[] = [];
+    let overlapping = 0;
+    for (const t of moments) {
+      const running = others.filter((o) => o.start <= t && o.end >= t && o.needs.has(itemId));
+      const sum = running.reduce((n, o) => n + (o.needs.get(itemId)?.total ?? 0), 0);
+      if (sum > overlapping) { overlapping = sum; peakAt = t; peakGigs = running; }
+    }
     const needed = need.total + overlapping;
     const short = Math.max(0, needed - c.available);
     rows.push({
       itemId, name: c.name, thisGig: need.total, overlapping, needed,
       owned: c.owned, inMaintenance: c.inMaintenance, inContainers: c.inContainers, free: c.available, short,
       status: short > 0 ? 'short' : needed === c.available ? 'none-spare' : 'enough',
+      peakAt, peakGigs: peakGigs.map((g) => ({ id: g.id, title: g.title, need: g.needs.get(itemId)! })),
     });
   }
   return rows;

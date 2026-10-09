@@ -458,6 +458,15 @@ describe('KitScreen: "any" lines and availability (#184)', () => {
     expect(within(row).getByText('$1,000.00')).toBeInTheDocument()
   })
 
+  it('counts only available pieces in container kits against the kit (#230 review)', async () => {
+    reset()
+    vi.mocked(getKit).mockResolvedValue(anyLine(2) as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    await waitFor(() => expect(getContainerPieces).toHaveBeenCalled())
+    const assetItem = vi.mocked(getContainerPieces).mock.calls.at(-1)![1]
+    expect([...assetItem.keys()]).toEqual(['k1', 'k2', 'k3', 'k4'])
+  })
+
   it('warns when a line asks for more than are available, saying why', async () => {
     reset()
     vi.mocked(getContainerPieces).mockResolvedValue(new Map([['item-k12', 1]]))

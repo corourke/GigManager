@@ -1,5 +1,5 @@
 import { createClient } from '../utils/supabase/client';
-import { containerPiecesByItem, summarizeItem } from '../utils/equipmentItems';
+import { containerPiecesByItem, isAvailable, summarizeItem } from '../utils/equipmentItems';
 import { gigNeeds, type ItemCounts, type ItemNeed, type KitLine, type KitMeta, type NeedsContext } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
@@ -17,7 +17,7 @@ export interface EquipmentNeedsData {
  * Everything needed to count what a set of kits asks for per item (#184): their
  * lines through nested kits, each record's item, and each item's counts.
  */
-export async function loadEquipmentNeeds(kitIds: readonly string[]): Promise<EquipmentNeedsData> {
+export async function loadEquipmentNeeds(kitIds: readonly string[], organizationId?: string): Promise<EquipmentNeedsData> {
   const supabase = getSupabase();
   const kits = new Map<string, KitMeta & { organization_id?: string }>();
   const lines = new Map<string, KitLine[]>();
@@ -57,25 +57,41 @@ export async function loadEquipmentNeeds(kitIds: readonly string[]): Promise<Equ
     .in('id', itemIds);
   if (itemsError) throw itemsError;
 
-  // Pieces inside the organization's container kits are never free for others.
+  // Pieces inside container kits are never free for others. Only Active ones
+  // come off what's free: a unit in Maintenance isn't free anyway (#184 review).
   const recordItem = new Map<string, string>();
-  for (const i of items ?? []) for (const r of i.records ?? []) recordItem.set(r.id, i.id);
-  const orgId = [...kits.values()].find((k) => k.organization_id)?.organization_id;
-  const inContainers = orgId ? await containerPieces(supabase, orgId, recordItem) : new Map<string, number>();
+  const availableRecords = new Map<string, string>();
+  for (const i of items ?? []) {
+    for (const r of i.records ?? []) {
+      recordItem.set(r.id, i.id);
+      if (isAvailable(r)) availableRecords.set(r.id, i.id);
+    }
+  }
+  // The viewing organization's containers; without one, each kit's organization's.
+  const orgIds = organizationId ? [organizationId]
+    : Array.from(new Set([...kits.values()].map((k) => k.organization_id).filter((id): id is string => !!id)));
+  const inContainers = new Map<string, number>();
+  const activeInContainers = new Map<string, number>();
+  for (const orgId of orgIds) {
+    const [all, active] = await containerPieces(supabase, orgId, [recordItem, availableRecords]);
+    for (const [k, n] of all) inContainers.set(k, (inContainers.get(k) ?? 0) + n);
+    for (const [k, n] of active) activeInContainers.set(k, (activeInContainers.get(k) ?? 0) + n);
+  }
 
   const counts = new Map<string, ItemCounts>();
   for (const i of items ?? []) {
-    const s = summarizeItem(i.records ?? [], inContainers.get(i.id) ?? 0);
-    counts.set(i.id, { name: i.manufacturer_model, owned: s.owned, available: s.available, inMaintenance: s.inMaintenance, inContainers: s.inContainers });
+    const s = summarizeItem(i.records ?? [], activeInContainers.get(i.id) ?? 0);
+    counts.set(i.id, { name: i.manufacturer_model, owned: s.owned, available: s.available, inMaintenance: s.inMaintenance, inContainers: inContainers.get(i.id) ?? 0 });
   }
   return { ctx, counts };
 }
 
-async function containerPieces(supabase: any, organizationId: string, assetItem: ReadonlyMap<string, string>) {
+/** Pieces per item inside the organization's container kits, once for each record-to-item map. */
+async function containerPieces(supabase: any, organizationId: string, assetItems: readonly ReadonlyMap<string, string>[]) {
   const { data: containers, error } = await supabase.from('kits').select('id').eq('organization_id', organizationId).eq('is_container', true);
   if (error) throw error;
   const ids: string[] = (containers ?? []).map((k: { id: string }) => k.id);
-  if (ids.length === 0) return new Map<string, number>();
+  if (ids.length === 0) return assetItems.map(() => new Map<string, number>());
   const [components, unitCache, itemCache] = await Promise.all([
     supabase.from('kit_components').select('kit_id, child_kit_id').in('kit_id', ids),
     supabase.from('kit_flattened_cache').select('kit_id, asset_id, total_quantity').in('kit_id', ids),
@@ -86,7 +102,8 @@ async function containerPieces(supabase: any, organizationId: string, assetItem:
   const nestedContainerIds = new Set<string>(
     (components.data ?? []).map((c: { child_kit_id: string | null }) => c.child_kit_id).filter((id: string | null): id is string => !!id && containerKitIds.has(id)),
   );
-  return containerPiecesByItem({ containerKitIds, nestedContainerIds, assetItem, unitCache: unitCache.data ?? [], itemCache: itemCache.data ?? [] });
+  return assetItems.map((assetItem) =>
+    containerPiecesByItem({ containerKitIds, nestedContainerIds, assetItem, unitCache: unitCache.data ?? [], itemCache: itemCache.data ?? [] }));
 }
 
 /** A gig's needs per item, from its assigned kits. */

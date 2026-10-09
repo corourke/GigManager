@@ -85,7 +85,7 @@ describe('GigPage (#12)', () => {
   it('checks conflicts in the gig\'s own timezone (#184)', async () => {
     const { checkAllConflicts } = await import('../../services/conflictDetection.service');
     render(<GigPage {...baseProps} />);
-    await waitFor(() => expect(checkAllConflicts).toHaveBeenCalledWith('g1', gig.start, gig.end, 'America/Los_Angeles'));
+    await waitFor(() => expect(checkAllConflicts).toHaveBeenCalledWith('g1', gig.start, gig.end, 'America/Los_Angeles', 'org-1'));
   });
 
   it('shows the overview in the agreed order, read-only', async () => {

@@ -103,7 +103,7 @@ export default function CalendarScreen({
       setGigs(gigsData);
 
       if (gigsData && gigsData.length > 0) {
-        const detected = await checkAllConflictsForGigs(gigsData);
+        const detected = await checkAllConflictsForGigs(gigsData, organization.id);
         setConflicts(detected);
       }
     } catch (error) {

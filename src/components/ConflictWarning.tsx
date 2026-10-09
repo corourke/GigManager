@@ -5,6 +5,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import type { Conflict, ItemShort } from '../services/conflictDetection.service';
+import { formatDateDisplay } from '../utils/dateUtils';
 
 const formatGigDate = (iso: string) => {
   try {
@@ -14,17 +15,13 @@ const formatGigDate = (iso: string) => {
   }
 };
 
-const formatDay = (iso: string) => {
-  try {
-    return format(new Date(iso), 'MMM d');
-  } catch {
-    return iso;
-  }
-};
-
 /** "4 (Club Lighting Package × 4)": how many a gig asks for, and from which kits. */
 const askedFor = (need: ItemShort['this_gig']) =>
   `${need.total} (${need.kits.map((k) => `${k.kit_name} × ${k.quantity}`).join(', ')})`;
+
+/** Every gig adding to the peak: "This gig: 2 (…) · A: 2 (…) · B: 2 (…)". */
+const contributors = (i: ItemShort) =>
+  [`This gig: ${askedFor(i.this_gig)}`, ...i.others.map((o) => `${o.gig_title}: ${askedFor(o.need)}`)].join(' · ');
 
 interface ConflictWarningProps {
   conflicts: Conflict[];
@@ -86,13 +83,14 @@ export function ConflictWarning({
           parts.push(`Not enough equipment: ${short.map((i) => `${i.item_name} (${i.needed} needed, ${i.available} available)`).join('; ')}`);
         }
         const kits = (conflict.details.conflicting_kits ?? []).filter((k: any) => k.shared_assets?.length || !short.length);
-        if (kits.length || !short.length) {
+        // Never "Equipment conflict with kits:" with nothing after it.
+        if (kits.length) {
           const kitNames = kits
             .map((k: any) => (k.shared_assets?.length ? `${k.kit_name} (${k.shared_assets.join(', ')})` : k.kit_name))
             .join('; ');
           parts.push(`Equipment conflict with kits: ${kitNames}`);
         }
-        return parts.join('. ');
+        return parts.join('. ') || 'Equipment conflict';
       }
       default:
         return 'Unknown conflict type';
@@ -117,12 +115,12 @@ export function ConflictWarning({
         {conflict.type === 'equipment' && conflict.details.items_short?.length ? (
           <div className="mb-2 space-y-1.5">
             {(conflict.details.items_short as ItemShort[]).map((i) => (
-              <div key={i.item_name}>
+              <div key={i.item_id}>
                 <p className="text-sm text-gray-700">
-                  <strong>{i.item_name}</strong>: {i.needed} needed on {formatDay(conflict.start)}, {i.available} available.{' '}
+                  <strong>{i.item_name}</strong>: {i.needed} needed on {formatDateDisplay(i.peak_at, i.timezone)}, {i.available} available.{' '}
                   <strong className="text-red-700">{i.short} short.</strong>
                 </p>
-                <p className="text-xs text-gray-500">{`This gig: ${askedFor(i.this_gig)} · ${conflict.gig_title}: ${askedFor(i.other_gig)}`}</p>
+                <p className="text-xs text-gray-500">{contributors(i)}</p>
               </div>
             ))}
             {conflict.details.conflicting_kits?.some((k: any) => k.shared_assets?.length) && (

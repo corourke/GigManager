@@ -147,12 +147,12 @@ export default function GigKitAssignmentsSection({
   const checkCrossGigConflicts = useCallback(async () => {
     if (!gigStart || !gigEnd) return;
     try {
-      const result = await checkEquipmentConflicts(gigId, gigStart, gigEnd, gigTimezone);
+      const result = await checkEquipmentConflicts(gigId, gigStart, gigEnd, gigTimezone, currentOrganizationId);
       setCrossGigConflicts([...result.conflicts, ...result.warnings]);
     } catch {
       // Non-critical — leave whatever conflicts were already shown.
     }
-  }, [gigId, gigStart, gigEnd, gigTimezone]);
+  }, [gigId, gigStart, gigEnd, gigTimezone, currentOrganizationId]);
 
   const handleSaveSuccess = useCallback((data: KitFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
@@ -407,7 +407,7 @@ export default function GigKitAssignmentsSection({
               <p className="text-sm text-gray-500">No kits available to assign</p>
             )}
             {gigStart && gigEnd && (
-              <EquipmentNeededTable gigId={gigId} gigStart={gigStart} gigEnd={gigEnd} gigTimezone={gigTimezone} refreshKey={savedCount} />
+              <EquipmentNeededTable gigId={gigId} gigStart={gigStart} gigEnd={gigEnd} gigTimezone={gigTimezone} organizationId={currentOrganizationId} refreshKey={savedCount} />
             )}
           </div>
         </CardContent>

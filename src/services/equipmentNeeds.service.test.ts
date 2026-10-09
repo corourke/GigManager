@@ -47,4 +47,34 @@ describe('loadEquipmentNeeds (#184)', () => {
     expect(data.counts.get('k12')).toEqual({ name: 'QSC K12.2', owned: 2, available: 1, inMaintenance: 1, inContainers: 0 });
     expect(data.counts.get('xlr')).toEqual({ name: 'XLR 50 ft', owned: 10, available: 6, inMaintenance: 0, inContainers: 4 });
   });
+
+  it('only Active pieces in a container come off what\'s free; containers are the viewing organization\'s', async () => {
+    const db: Record<string, any[]> = {
+      kits: [
+        { id: 'pa', name: 'PA', is_container: false, organization_id: 'org-1' },
+        { id: 'case', name: 'Case', is_container: true, organization_id: 'org-1' },
+        { id: 'their-case', name: 'Their case', is_container: true, organization_id: 'org-2' },
+      ],
+      kit_components: [
+        { kit_id: 'pa', equipment_item_id: 'k12', quantity: 2 },
+        { kit_id: 'case', asset_id: 'k4', quantity: 1 },
+        { kit_id: 'their-case', asset_id: 'k1', quantity: 1 },
+      ],
+      assets: [],
+      equipment_items: [{ id: 'k12', manufacturer_model: 'QSC K12.2', records: [
+        { id: 'k1', status: 'Active', tag_number: 'K1' }, { id: 'k2', status: 'Active', tag_number: 'K2' },
+        { id: 'k3', status: 'Active', tag_number: 'K3' }, { id: 'k4', status: 'Maintenance', tag_number: 'K4' },
+      ] }],
+      kit_flattened_cache: [
+        { kit_id: 'case', asset_id: 'k4', total_quantity: 1 },
+        { kit_id: 'their-case', asset_id: 'k1', total_quantity: 1 },
+      ],
+      kit_flattened_item_cache: [],
+    };
+    vi.mocked(createClient).mockReturnValue({ from: (t: string) => table(db[t] ?? []) } as any);
+
+    const data = await loadEquipmentNeeds(['pa'], 'org-1');
+    // 3 Active; K4 is in a container but in Maintenance, so it doesn't take one off; org-2's case isn't counted.
+    expect(data.counts.get('k12')).toEqual({ name: 'QSC K12.2', owned: 4, available: 3, inMaintenance: 1, inContainers: 1 });
+  });
 });

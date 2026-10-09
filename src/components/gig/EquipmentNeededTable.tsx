@@ -1,25 +1,19 @@
 import { useEffect, useState } from 'react';
-import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { getEquipmentNeeded } from '../../services/conflictDetection.service';
 import type { ItemNeedRow } from '../../utils/equipmentNeeds';
+import { formatDateDisplay } from '../../utils/dateUtils';
 
 interface EquipmentNeededTableProps {
   gigId: string;
   gigStart: string;
   gigEnd: string;
   gigTimezone?: string;
+  /** The viewing organization: only its kits count. */
+  organizationId?: string;
   /** Change it to reload, e.g. after the gig's kits are saved. */
   refreshKey?: number;
 }
-
-const day = (iso: string) => {
-  try {
-    return format(new Date(iso), 'MMM d');
-  } catch {
-    return iso;
-  }
-};
 
 function Status({ row }: { row: ItemNeedRow }) {
   if (row.status === 'short') return <span className="font-medium text-red-700">{row.short} short</span>;
@@ -38,24 +32,26 @@ function Status({ row }: { row: ItemNeedRow }) {
  * this gig and the gigs that overlap it, against what's free. Specific units
  * and "any" lines both count; container contents travel in their container.
  */
-export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimezone, refreshKey }: EquipmentNeededTableProps) {
+export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimezone, organizationId, refreshKey }: EquipmentNeededTableProps) {
   const [result, setResult] = useState<{ overlapping: number; rows: ItemNeedRow[] } | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let live = true;
-    getEquipmentNeeded(gigId, gigStart, gigEnd, gigTimezone)
-      .then((r) => { if (live) setResult(r); })
-      .catch(() => { if (live) setResult(null); });
+    getEquipmentNeeded(gigId, gigStart, gigEnd, gigTimezone, organizationId)
+      .then((r) => { if (live) { setResult(r); setFailed(false); } })
+      .catch(() => { if (live) { setResult(null); setFailed(true); } });
     return () => { live = false; };
-  }, [gigId, gigStart, gigEnd, gigTimezone, refreshKey]);
+  }, [gigId, gigStart, gigEnd, gigTimezone, organizationId, refreshKey]);
 
+  if (failed) return <p className="text-xs text-gray-500">Couldn't load equipment counts.</p>;
   if (!result || result.rows.length === 0) return null;
   const others = result.overlapping;
 
   return (
     <section aria-labelledby="equipment-needed" className="space-y-2">
       <div>
-        <h3 id="equipment-needed" className="text-sm font-semibold text-gray-900">Equipment needed on {day(gigStart)}</h3>
+        <h3 id="equipment-needed" className="text-sm font-semibold text-gray-900">Equipment needed on {formatDateDisplay(gigStart, gigTimezone)}</h3>
         <p className="text-xs text-gray-500">
           {others ? `this gig and the ${others} that ${others === 1 ? 'overlaps' : 'overlap'} it` : 'no other gig overlaps this one'}
         </p>

@@ -18,7 +18,7 @@ import {
   type EquipmentItemWithRecords, type ItemFields, type ItemKitLine,
 } from '../services/equipmentItem.service';
 import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
-import { recordKind, summarizeItem, isInService } from '../utils/equipmentItems';
+import { recordKind, summarizeItem, isInService, availableRecordItems } from '../utils/equipmentItems';
 import { useAutoSave } from '../utils/hooks/useAutoSave';
 import { canManage } from '../utils/permissions';
 import type { Organization, User, UserRole, DbAsset } from '../utils/supabase/types';
@@ -97,7 +97,7 @@ export default function ItemDetailScreen({
       const recordIds = loaded.records.map((r) => r.id);
       const [summary, containers, lines] = await Promise.all([
         getAssetTrackingSummary(organization.id),
-        getContainerPieces(organization.id, new Map(recordIds.map((id) => [id, loaded.id]))),
+        getContainerPieces(organization.id, availableRecordItems([loaded])),
         getItemKitLines(loaded.id, recordIds),
       ]);
       setTracking(summary);

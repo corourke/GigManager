@@ -3,7 +3,7 @@ import {Package, Plus, Search, Loader2, AlertCircle, Upload, FileText, X } from 
 import { toast } from 'sonner';
 import { deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
 import { getItems, getContainerPieces, type EquipmentItemWithRecords } from '../services/equipmentItem.service';
-import { itemMatchesSearch } from '../utils/equipmentItems';
+import { availableRecordItems, itemMatchesSearch } from '../utils/equipmentItems';
 import ItemsTable from './equipment/ItemsTable';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
@@ -88,8 +88,7 @@ export default function AssetListScreen({
       ]);
       setItems(loadedItems);
       setAssetTrackingSummary(trackingSummary);
-      const assetItem = new Map(loadedItems.flatMap((i) => i.records.map((r) => [r.id, i.id] as const)));
-      setContainerPieces(await getContainerPieces(organization.id, assetItem));
+      setContainerPieces(await getContainerPieces(organization.id, availableRecordItems(loadedItems)));
     } catch (err: any) {
       setError(err.message || 'Failed to load equipment');
     } finally {
