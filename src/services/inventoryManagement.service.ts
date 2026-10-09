@@ -3,6 +3,7 @@ import { handleApiError } from '../utils/api-error-utils';
 import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
 import { getKitComponentTree, flattenToScanUnits, type KitComponentTreeNode } from './kit.service';
 import type { DbInventoryTracking } from '../utils/supabase/types';
+import { isRetired } from '../utils/equipmentItems';
 
 const getSupabase = () => createClient();
 
@@ -511,7 +512,11 @@ export async function createManualTrackingRecord(params: CreateManualTrackingPar
 
     // A logical kit isn't scanned itself: a row per asset under it, as the phone writes (#185).
     const records = (assetIds ?? []).map((id) => buildRecord(id, quantities?.[id] ?? 1));
-    if (records.length === 0) return [];
+    // Only "any" lines: which units or lots fill them is chosen when packing, so there's nothing
+    // to move by hand. Say so, rather than report a save that wrote nothing.
+    if (records.length === 0) {
+      throw new Error('This kit has no specific units or lots to move. Its "any" lines are filled when packing: scan or count them on the phone.');
+    }
     const { data, error } = await supabase
       .from('inventory_tracking')
       .insert(records)
@@ -624,7 +629,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
         }], { id: assignment.kit_id, name: kit.name })[0]?.contents ?? []);
       } else {
         const tree = await getKitComponentTree(assignment.kit_id);
-        scanUnitsByKit.set(assignment.kit_id, flattenToScanUnits(tree, { id: assignment.kit_id, name: kit.name }));
+        scanUnitsByKit.set(assignment.kit_id, sumRepeatedLines(flattenToScanUnits(tree, { id: assignment.kit_id, name: kit.name })));
       }
     }
 
@@ -646,10 +651,13 @@ export async function getPackingListReport(organizationId: string, gigId: string
     const taggedItems = new Set<string>();
     if (anyItemIds.length) {
       const { data: tagged, error: taggedError } = await (supabase.from('assets') as any)
-        .select('equipment_item_id').eq('organization_id', organizationId).in('equipment_item_id', anyItemIds)
+        .select('equipment_item_id, tag_number, status, retired_on').eq('organization_id', organizationId).in('equipment_item_id', anyItemIds)
         .not('tag_number', 'is', null);
       if (taggedError) throw taggedError;
-      for (const a of (tagged ?? []) as { equipment_item_id: string }[]) taggedItems.add(a.equipment_item_id);
+      // A blank tag isn't a tag, and a retired record's tag doesn't make the item scanned.
+      for (const a of (tagged ?? []) as { equipment_item_id: string; tag_number: string | null; status: string | null; retired_on: string | null }[]) {
+        if ((a.tag_number ?? '').trim() && !isRetired(a)) taggedItems.add(a.equipment_item_id);
+      }
     }
     const isOut = (r: DbInventoryTracking | undefined) => !!r && r.status !== RETURNED_STATUS;
     const packedOf = (r: DbInventoryTracking | undefined) => (isOut(r) ? Number((r as any).quantity ?? 1) : 0);
@@ -739,15 +747,15 @@ export async function getPackingListReport(organizationId: string, gigId: string
       }
     }
 
-    // A kit reachable both directly (its own gig_kit_assignments row) and
-    // transitively (nested inside another assigned kit's tree) would
-    // otherwise produce one row from each path — same physical unit shown
-    // twice. (kit_id, asset_id) uniquely identifies a row either way.
+    // A container reachable both directly (its own gig_kit_assignments row)
+    // and nested inside another assigned kit's tree would otherwise produce
+    // one row from each path: the same sealed case shown twice. Other lines
+    // are summed within their kit instead (sumRepeatedLines).
     const seen = new Set<string>();
     const dedupedRows = rows.filter((row) => {
-      const key = `${row.kit_id}:${row.asset_id ?? ''}:${row.item_id ?? ''}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
+      if (!row.is_container) return true;
+      if (seen.has(row.kit_id)) return false;
+      seen.add(row.kit_id);
       return true;
     });
 
@@ -755,6 +763,32 @@ export async function getPackingListReport(organizationId: string, gigId: string
   } catch (err) {
     return handleApiError(err, 'get packing list report');
   }
+}
+
+/**
+ * One line per unit, lot or "any" item within a kit (#240 review): nested lines are filed under
+ * the owning kit, so 3 SM57s in "Drum mics" and 2 in "Guitar mics" are one line of 5, not 3.
+ * Containers stay as they are.
+ */
+function sumRepeatedLines(units: ReturnType<typeof flattenToScanUnits>): ReturnType<typeof flattenToScanUnits> {
+  const out: ReturnType<typeof flattenToScanUnits> = [];
+  const byKey = new Map<string, (typeof out)[number]>();
+  for (const unit of units) {
+    if (unit.kind === 'container') {
+      out.push(unit);
+      continue;
+    }
+    const key = `${unit.kit_id}:${unit.asset_id ?? ''}:${unit.item_id ?? ''}`;
+    const first = byKey.get(key);
+    if (first) {
+      first.quantity += unit.quantity;
+      continue;
+    }
+    const copy = { ...unit };
+    byKey.set(key, copy);
+    out.push(copy);
+  }
+  return out;
 }
 
 export async function getMaintenanceQueueReport(organizationId: string): Promise<MaintenanceRow[]> {
