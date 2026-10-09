@@ -173,7 +173,8 @@ describe('packingListService.fetchGigPackingList', () => {
         { id: 'lot-gone', tag_number: null, serial_number: null, quantity: 2, status: 'Missing', retired_on: '2026-10-09', created_at: '2026-01-02T00:00:00Z' },
       ] }], error: null },
       inventory_tracking: { data: [
-        { id: 't1', gig_id: 'other-gig', kit_id: 'k', asset_id: 'lot-a', status: 'On Site', quantity: 4, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+        { id: 't1', gig_id: 'other-gig', kit_id: 'k', asset_id: 'lot-a', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+        { id: 't2', gig_id: 'gig-1', kit_id: 'rack', asset_id: 'lot-a', status: 'Checked Out', quantity: 3, scanned_at: '2026-10-02T10:00:00Z', created_at: '2026-10-02T10:00:00Z' },
       ], error: null },
       gigs: { data: { title: 'Test Gig' }, error: null },
     };
@@ -184,7 +185,7 @@ describe('packingListService.fetchGigPackingList', () => {
 
     expect(result.kits[0].kit.any_lines).toEqual([{ item_id: 'item-xlr', item_name: 'XLR Cable, 50 ft', quantity: 10 }]);
     expect(result.item_records['item-xlr']).toEqual([
-      expect.objectContaining({ id: 'lot-a', quantity: 10, at_home: 6 }),
+      expect.objectContaining({ id: 'lot-a', quantity: 10, at_home: 6, at_gig: 3 }),
     ]);
   });
 });

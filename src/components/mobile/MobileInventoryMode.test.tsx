@@ -5,50 +5,6 @@ import { format } from 'date-fns'
 import MobileInventoryMode from './MobileInventoryMode'
 import { SCANNING_MODES } from '../../config/inventoryWorkflow'
 
-function getLatestTrackingRecord(tracking: any[] = [], kitId: string, assetId?: string) {
-  return tracking
-    .filter((record) => record.kit_id === kitId && (record.asset_id ?? null) === (assetId || null))
-    .sort((left, right) => new Date(right.scanned_at).getTime() - new Date(left.scanned_at).getTime())[0] || null
-}
-
-// Faithful reimplementation of inventoryTracking.service.ts's cascade logic
-// for the mock below — a container is one sealed unit (itself plus its
-// fully-flattened contents, under its own id); a non-container kit gets no
-// record of its own, just its contents, recursing through non-container
-// children and stopping at the next container boundary.
-function getKitAssignment(packingList: any, kitId: string) {
-  return packingList?.kits?.find((assignment: any) => assignment.kit?.id === kitId) || null
-}
-function getKitAssetIds(packingList: any, kitId: string) {
-  return (getKitAssignment(packingList, kitId)?.kit?.assets || [])
-    .map((a: any) => a.asset_id || a.asset?.id || a.id)
-    .filter(Boolean)
-}
-function getDirectAssetIds(kit: any) {
-  return (kit?.direct_assets ?? kit?.assets ?? [])
-    .map((a: any) => a.asset_id || a.asset?.id || a.id)
-    .filter(Boolean)
-}
-function getChildKitIds(packingList: any, kitId: string) {
-  return (packingList?.hierarchy_edges || [])
-    .filter((edge: any) => edge.parent_kit_id === kitId)
-    .map((edge: any) => edge.child_kit_id)
-}
-function getCascadeTargets(packingList: any, kitId: string, owningKitId: string = kitId): { kit_id: string; asset_id: string | null }[] {
-  const kit = getKitAssignment(packingList, kitId)?.kit
-  if (kit?.is_container) {
-    return [
-      { kit_id: kitId, asset_id: null },
-      ...getKitAssetIds(packingList, kitId).map((assetId: string) => ({ kit_id: kitId, asset_id: assetId })),
-    ]
-  }
-  const targets = getDirectAssetIds(kit).map((assetId: string) => ({ kit_id: owningKitId, asset_id: assetId }))
-  for (const childKitId of getChildKitIds(packingList, kitId)) {
-    targets.push(...getCascadeTargets(packingList, childKitId, owningKitId))
-  }
-  return targets
-}
-
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'user-1' },
@@ -70,30 +26,38 @@ vi.mock('../../services/mobile/packingList.service', () => ({
   },
 }))
 
-vi.mock('../../services/mobile/inventoryTracking.service', () => ({
+// The pure helpers (latest record, cascade, "any" slots, progress) are the real ones; only
+// the writes are mocked.
+vi.mock('../../services/mobile/inventoryTracking.service', async (importOriginal) => {
+  const actual: any = await importOriginal()
+  return {
   inventoryTrackingService: {
-    getLatestTrackingRecord,
-    getCascadeTargets,
+    ...actual.inventoryTrackingService,
     matchTag: vi.fn(),
     submitScan: vi.fn(),
     clearTracking: vi.fn(),
     updateLatestNote: vi.fn(),
     updateAssetStatus: vi.fn(),
   },
-}))
+  }
+})
 
+let scannerProps: any = null
 vi.mock('./MobileBarcodeScanner', () => ({
-  MobileBarcodeScanner: () => null,
+  MobileBarcodeScanner: (props: any) => { scannerProps = props; return null },
 }))
 
 vi.mock('sonner', () => ({
   toast: Object.assign(vi.fn(), {
     success: vi.fn(),
     error: vi.fn(),
+    warning: vi.fn(),
   }),
 }))
 
 import { idbStore } from '../../utils/idb/store'
+import { inventoryTrackingService } from '../../services/mobile/inventoryTracking.service'
+import { act } from '@testing-library/react'
 
 describe('MobileInventoryMode', () => {
   beforeEach(() => {
@@ -268,6 +232,90 @@ describe('MobileInventoryMode', () => {
     // Mic Case is a container, so it defaults to collapsed and doesn't get
     // descended into any further — but it's still there as its own kit row.
     expect(screen.getByText('Mic Case').closest('div')).toBeTruthy()
+  })
+
+  it('counts progress in pieces, once each, however the kits nest (#185)', async () => {
+    // Rack holds 10 cables and nests Mic Case (2 mics); Mic Case is also on the list as its
+    // own entry. 10 + the case + 2 mics = 13 pieces, 7 cables out so far.
+    vi.mocked(idbStore.getPackingList).mockImplementation(async () => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['rack'],
+      hierarchy_edges: [{ parent_kit_id: 'rack', child_kit_id: 'case', quantity: 1 }],
+      kits: [
+        { kit_id: 'rack', kit: { id: 'rack', name: 'Rack', is_container: false,
+          direct_assets: [{ asset_id: 'xlr', quantity: 10, asset: { id: 'xlr', manufacturer_model: 'XLR' } }],
+          assets: [{ asset_id: 'xlr', quantity: 10 }, { asset_id: 'mic', quantity: 2 }] } },
+        { kit_id: 'case', kit: { id: 'case', name: 'Mic Case', tag_number: 'C-1', is_container: true,
+          assets: [{ asset_id: 'mic', quantity: 2, asset: { id: 'mic', manufacturer_model: 'SM58' } }] } },
+      ],
+      tracking: [{ gig_id: 'gig-1', kit_id: 'rack', asset_id: 'xlr', status: SCANNING_MODES[0].resultingStatus, quantity: 7, scanned_at: '2026-10-09T10:00:00.000Z', scanned_by: 'user-1' }],
+    }))
+
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+
+    expect(await screen.findByText('7 / 13 pieces')).toBeInTheDocument()
+  })
+
+  // #185: an "any" line is N of an item, filled from its lots (most at home first) or by
+  // scanning a tagged unit of it.
+  describe('"any" lines', () => {
+    const PACK_OUT = SCANNING_MODES[0].resultingStatus
+    const withAnyLine = (tracking: any[] = []) => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['top'],
+      hierarchy_edges: [],
+      kits: [{ kit_id: 'top', kit: { id: 'top', name: 'Stage Box', is_container: false,
+        direct_assets: [{ asset_id: 'xlr', quantity: 10, asset: { id: 'xlr', manufacturer_model: 'XLR' } }],
+        assets: [{ asset_id: 'xlr', quantity: 10 }],
+        any_lines: [{ item_id: 'item-di', item_name: 'DI box', quantity: 3 }] } }],
+      item_records: { 'item-di': [
+        { id: 'lot-a', quantity: 2, at_home: 2, at_gig: 0 },
+        { id: 'lot-b', quantity: 5, at_home: 5, at_gig: 0 },
+        { id: 'di-7', tag_number: 'DI-7', quantity: 1, at_home: 1, at_gig: 0 },
+      ] },
+      tracking,
+    })
+    const out = (asset_id: string, quantity: number) =>
+      ({ id: `t-${asset_id}`, gig_id: 'gig-1', kit_id: 'top', asset_id, status: PACK_OUT, quantity, scanned_at: '2026-10-09T10:00:00.000Z', scanned_by: 'user-1' })
+
+    it('shows the line with how many are packed, and the kit\'s count in pieces', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withAnyLine([out('di-7', 1)]))
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      expect(await screen.findByText('DI box')).toBeInTheDocument()
+      expect(screen.getByText('Any · 1 / 3')).toBeInTheDocument()
+      expect(screen.getByText(`1 / 13 pieces ${PACK_OUT}`)).toBeInTheDocument()
+    })
+
+    it('checking it packs from the lot with the most at home, with no "which lot?" prompt', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withAnyLine())
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByRole('button', { name: 'Check DI box' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledTimes(1)
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'top', assetId: 'lot-b', quantity: 3, status: PACK_OUT }))
+    })
+
+    it('un-checking a full line deletes the rows that filled it', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withAnyLine([out('lot-b', 2), out('di-7', 1)]))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByRole('button', { name: 'Uncheck DI box' }))
+      expect(vi.mocked(inventoryTrackingService.clearTracking).mock.calls.map((c: any) => c[0])).toEqual([
+        { gigId: 'gig-1', kitId: 'top', assetId: 'lot-b' },
+        { gigId: 'gig-1', kitId: 'top', assetId: 'di-7' },
+      ])
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+    })
+
+    it('scanning a tagged unit of the item fills a slot under its kit', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => withAnyLine())
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await screen.findByText('DI box')
+      await act(async () => { await scannerProps.onScan('DI-7') })
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'top', assetId: 'di-7', status: PACK_OUT }))
+    })
   })
 
   it('preserves customized location when switching modes', async () => {

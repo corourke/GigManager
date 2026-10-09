@@ -1,6 +1,10 @@
 import { idbStore } from '../../utils/idb/store';
 import { offlineSyncService } from './offlineSync.service';
 import { createClient } from '../../utils/supabase/client';
+import { RETURNED_STATUS } from '../../config/inventoryWorkflow';
+import { recordKind } from '../../utils/equipmentItems';
+import { placementOf, type TrackingRow } from '../../utils/locations';
+import { pickLots } from '../../utils/pickLots';
 
 const supabase = createClient();
 
@@ -147,6 +151,118 @@ const getCascadeTargets = (packingList: any, kitId: string, owningKitId: string 
   return targets;
 };
 
+/** An "any" line (#185): N of an item, filled from its units and lots, tracked under `kit_id`. */
+type AnySlot = { kit_id: string; item_id: string; item_name: string; quantity: number };
+
+/** Every "any" line toggling `kitId` covers, by the same container rule as getCascadeTargets. */
+const getAnySlots = (packingList: any, kitId: string, owningKitId: string = kitId, multiplier = 1): AnySlot[] => {
+  const kit = getKitAssignment(packingList, kitId)?.kit;
+  const lines = (kit?.any_lines || []) as { item_id: string; item_name: string; quantity: number }[];
+  if (kit?.is_container) {
+    return lines.map((l) => ({ kit_id: kitId, item_id: l.item_id, item_name: l.item_name, quantity: quantityOf(l) }));
+  }
+  const slots: AnySlot[] = lines.map((l) => ({ kit_id: owningKitId, item_id: l.item_id, item_name: l.item_name, quantity: quantityOf(l) * multiplier }));
+  for (const child of getChildKits(packingList, kitId)) {
+    slots.push(...getAnySlots(packingList, child.kit_id, owningKitId, multiplier * child.quantity));
+  }
+  return slots;
+};
+
+/** How many pieces a tracking row says are there: a row from before #185 has no count, so the whole line. */
+const piecesIn = (record: TrackingRecord | null, status: string, line: number) =>
+  record?.status === status ? Math.min(line, record.quantity ?? line) : 0;
+
+/** How many of an "any" line's pieces are in `status` under its kit: each of the item's records' newest row. */
+const getAnySlotFilled = (packingList: any, slot: AnySlot, status: string) =>
+  ((packingList?.item_records?.[slot.item_id] || []) as { id: string }[])
+    .reduce((sum, r) => {
+      const latest = getLatestTrackingRecord(packingList?.tracking || [], slot.kit_id, r.id);
+      return sum + (latest?.status === status ? Math.max(1, Number(latest.quantity ?? 1) || 1) : 0);
+    }, 0);
+
+/** Every record that could be filling the kit's "any" lines (#185): the items' units and lots, under each line's kit. */
+const getAnySlotTargets = (packingList: any, kitId: string): CascadeTarget[] =>
+  getAnySlots(packingList, kitId).flatMap((slot) =>
+    ((packingList?.item_records?.[slot.item_id] || []) as { id: string }[])
+      .map((r) => ({ kit_id: slot.kit_id, asset_id: r.id, quantity: 0 })));
+
+/**
+ * The rows that fill an "any" line in `status` (#185), each saying the record's new count under
+ * the line's kit. First whatever the kit already holds of the item in an earlier status moves
+ * on at the same count; then, except on Unload, lots at home make up the rest, most at home
+ * first (pickLots). Tagged units are never picked: they're scanned one by one.
+ */
+const getAnySlotFills = (packingList: any, slot: AnySlot, status: string, gigId: string) => {
+  const tracking: TrackingRecord[] = packingList?.tracking || [];
+  const records: any[] = packingList?.item_records?.[slot.item_id] || [];
+  const latestOf = (r: any) => getLatestTrackingRecord(tracking, slot.kit_id, r.id);
+  const countOf = (row: TrackingRecord) => Math.max(1, Number(row.quantity ?? 1) || 1);
+
+  let need = slot.quantity - getAnySlotFilled(packingList, slot, status);
+  if (need <= 0) return { fills: [] as { asset_id: string; quantity: number }[], short: 0 };
+
+  const next = new Map<string, number>();
+  for (const r of records) {
+    const latest = latestOf(r);
+    if (!latest || latest.status === status || latest.status === RETURNED_STATUS) continue;
+    next.set(r.id, countOf(latest));
+    need -= countOf(latest);
+  }
+
+  let short = Math.max(0, need);
+  if (need > 0 && status !== RETURNED_STATUS) {
+    // at_home is as of the fetch; what this gig took or put back since moves it.
+    const hereRows = tracking.filter((t) => t.gig_id === gigId) as TrackingRow[];
+    const lots = records.filter((r) => recordKind(r) === 'lot').map((r) => {
+      const hereNow = placementOf(hereRows, r).find((p) => p.gig_id === gigId)?.quantity ?? 0;
+      return { id: r.id, created_at: r.created_at, at_home: Math.max(0, Number(r.at_home ?? 0) + Number(r.at_gig ?? 0) - hereNow) };
+    });
+    const picked = pickLots(lots, need);
+    for (const p of picked.picks) {
+      const latest = latestOf({ id: p.asset_id });
+      const base = next.get(p.asset_id) ?? (latest?.status === status ? countOf(latest) : 0);
+      next.set(p.asset_id, base + p.quantity);
+    }
+    short = picked.short;
+  }
+
+  return { fills: [...next.entries()].map(([asset_id, quantity]) => ({ asset_id, quantity })), short };
+};
+
+/** Pieces done and to do under `roots`, each line, container and "any" line counted once. */
+const progressUnder = (packingList: any, roots: string[], status: string): { done: number; total: number } => {
+  const tracking = packingList?.tracking || [];
+  const seen = new Set<string>();
+  let done = 0;
+  let total = 0;
+  for (const root of roots) {
+    for (const t of getCascadeTargets(packingList, root)) {
+      const key = `${t.kit_id}|${t.asset_id ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      total += t.quantity;
+      done += piecesIn(getLatestTrackingRecord(tracking, t.kit_id, t.asset_id ?? undefined), status, t.quantity);
+    }
+    for (const slot of getAnySlots(packingList, root)) {
+      const key = `${slot.kit_id}|item:${slot.item_id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      total += slot.quantity;
+      done += Math.min(slot.quantity, getAnySlotFilled(packingList, slot, status));
+    }
+  }
+  return { done, total };
+};
+
+/** Packing progress in pieces (#185) across the gig's top-level kits, however they nest. */
+const getScanProgress = (packingList: any, status: string) =>
+  progressUnder(packingList, packingList?.top_level_kit_ids?.length
+    ? packingList.top_level_kit_ids
+    : (packingList?.kits || []).map((a: any) => a.kit?.id).filter(Boolean), status);
+
+/** One kit's progress in pieces: what toggling it as a whole covers. */
+const getKitProgress = (packingList: any, kitId: string, status: string) => progressUnder(packingList, [kitId], status);
+
 const appendTrackingEntries = (packingList: any, entries: TrackingRecord[]) => {
   if (!packingList) {
     return packingList;
@@ -265,6 +381,11 @@ const syncIfOnline = async () => {
 export const inventoryTrackingService = {
   getLatestTrackingRecord,
   getCascadeTargets,
+  getAnySlots,
+  getAnySlotFilled,
+  getAnySlotFills,
+  getScanProgress,
+  getKitProgress,
 
   async matchTag(tagNumber: string) {
     const trimmed = tagNumber.trim();
@@ -316,7 +437,11 @@ export const inventoryTrackingService = {
     // container boundaries at every level — see getCascadeTargets.
     const entries: TrackingRecord[] = assetId
       ? [buildEntry(kitId, assetId, quantity ?? 1)]
-      : getCascadeTargets(packingList, kitId).map((target) => buildEntry(target.kit_id, target.asset_id, target.quantity));
+      : [
+          ...getCascadeTargets(packingList, kitId).map((target) => buildEntry(target.kit_id, target.asset_id, target.quantity)),
+          ...getAnySlots(packingList, kitId).flatMap((slot) =>
+            getAnySlotFills(packingList, slot, status, gigId).fills.map((f) => buildEntry(slot.kit_id, f.asset_id, f.quantity))),
+        ];
 
     if (packingList) {
       await idbStore.putPackingList(gigId, appendTrackingEntries(packingList, entries));
@@ -409,14 +534,14 @@ export const inventoryTrackingService = {
         // children that were set in the same batch as it, same as before.
         const latestRecord = getLatestTrackingRecord(tracking, kitId, undefined);
         if (!latestRecord) return;
-        const childTargets = getCascadeTargets(packingList, kitId)
+        const childTargets = [...getCascadeTargets(packingList, kitId), ...getAnySlotTargets(packingList, kitId)]
           .filter((target) => !(target.kit_id === kitId && target.asset_id === null));
         recordsToRemove = [latestRecord, ...getInheritedChildClearRecords(tracking, latestRecord, childTargets)];
       } else {
         // Non-container: no record of its own to anchor on — clear
         // whatever the latest record currently is for each of its
         // scannable units directly.
-        recordsToRemove = getCascadeTargets(packingList, kitId)
+        recordsToRemove = [...getCascadeTargets(packingList, kitId), ...getAnySlotTargets(packingList, kitId)]
           .map((target) => getLatestTrackingRecord(tracking, target.kit_id, target.asset_id ?? undefined))
           .filter((record): record is TrackingRecord => Boolean(record));
       }

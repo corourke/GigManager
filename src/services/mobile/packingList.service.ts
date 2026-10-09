@@ -203,8 +203,11 @@ export const packingListService = {
         : { data: [], error: null };
       if (placedError) throw placedError;
       for (const r of owned) {
-        const atHome = placementOf((placed || []) as TrackingRow[], r).find((p) => p.gig_id === null)?.quantity ?? 0;
-        (itemRecords[r.item_id] ??= []).push({ ...r, at_home: atHome });
+        const placements = placementOf((placed || []) as TrackingRow[], r);
+        const atHome = placements.find((p) => p.gig_id === null)?.quantity ?? 0;
+        // What this gig held at fetch time, so the phone can tell what's home after its own scans.
+        const atGig = placements.find((p) => p.gig_id === gigId)?.quantity ?? 0;
+        (itemRecords[r.item_id] ??= []).push({ ...r, at_home: atHome, at_gig: atGig });
       }
     }
 

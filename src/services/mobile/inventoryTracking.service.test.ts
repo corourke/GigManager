@@ -414,4 +414,133 @@ describe('inventoryTrackingService', () => {
       'INVENTORY_CLEAR'
     )
   })
+
+  // #185: progress is counted in pieces. A kit shared by two parents, or a sub-kit that's also
+  // listed on its own, is counted once, not once per place it appears.
+  describe('getScanProgress', () => {
+    const row = (kit_id: string, asset_id: string | null, status: string, quantity?: number) =>
+      ({ gig_id: 'gig-1', kit_id, asset_id, status, quantity, scanned_at: '2026-10-09T10:00:00.000Z', scanned_by: 'u' })
+    const list = (tracking: any[]) => ({
+      top_level_kit_ids: ['rack'],
+      hierarchy_edges: [{ parent_kit_id: 'rack', child_kit_id: 'case', quantity: 1 }],
+      kits: [
+        { kit_id: 'rack', kit: { id: 'rack', is_container: false, direct_assets: [{ asset_id: 'xlr', quantity: 10 }], assets: [{ asset_id: 'xlr', quantity: 10 }, { asset_id: 'mic', quantity: 2 }],
+          any_lines: [{ item_id: 'item-di', item_name: 'DI box', quantity: 3 }] } },
+        { kit_id: 'case', kit: { id: 'case', is_container: true, assets: [{ asset_id: 'mic', quantity: 2 }] } },
+      ],
+      item_records: { 'item-di': [{ id: 'di-lot', quantity: 5, at_home: 5 }, { id: 'di-7', tag_number: 'DI-7', quantity: 1, at_home: 1 }] },
+      tracking,
+    })
+
+    it('counts pieces once: lines, the container and its contents, and "any" lines', () => {
+      // 10 cables + the case + 2 mics + 3 DI boxes
+      expect(inventoryTrackingService.getScanProgress(list([]), 'Checked Out')).toEqual({ done: 0, total: 16 })
+    })
+
+    it('counts what each row says is there, up to the line, in the chosen status only', () => {
+      const tracking = [
+        row('rack', 'xlr', 'Checked Out', 7),
+        row('case', null, 'Checked Out', 1),
+        row('case', 'mic', 'In Warehouse', 2),
+        row('rack', 'di-lot', 'Checked Out', 2),
+        row('rack', 'di-7', 'Checked Out', 1),
+        row('rack', 'di-lot', 'Checked Out', 9), // newer state wins; capped at the line
+      ].map((r, i) => ({ ...r, scanned_at: `2026-10-09T10:0${i}:00.000Z` }))
+      expect(inventoryTrackingService.getScanProgress(list(tracking), 'Checked Out')).toEqual({ done: 7 + 1 + 3, total: 16 })
+    })
+
+    it('a row with no quantity (before #185) counts as the whole line', () => {
+      expect(inventoryTrackingService.getScanProgress(list([row('rack', 'xlr', 'Checked Out')]), 'Checked Out').done).toBe(10)
+    })
+  })
+
+  describe('getAnySlots', () => {
+    it('lists each "any" line under the kit its pieces are tracked in, multiplied through nested kits', () => {
+      const packingList = {
+        hierarchy_edges: [{ parent_kit_id: 'top', child_kit_id: 'pair', quantity: 2 }, { parent_kit_id: 'top', child_kit_id: 'case', quantity: 1 }],
+        kits: [
+          { kit: { id: 'top', is_container: false, any_lines: [{ item_id: 'xlr', item_name: 'XLR', quantity: 4 }] } },
+          { kit: { id: 'pair', is_container: false, any_lines: [{ item_id: 'di', item_name: 'DI', quantity: 1 }] } },
+          { kit: { id: 'case', is_container: true, any_lines: [{ item_id: 'clip', item_name: 'Clip', quantity: 6 }] } },
+        ],
+      }
+      expect(inventoryTrackingService.getAnySlots(packingList, 'top')).toEqual([
+        { kit_id: 'top', item_id: 'xlr', item_name: 'XLR', quantity: 4 },
+        { kit_id: 'top', item_id: 'di', item_name: 'DI', quantity: 2 },
+        { kit_id: 'case', item_id: 'clip', item_name: 'Clip', quantity: 6 },
+      ])
+    })
+  })
+
+  // #185 (Cameron, 10-09): an "any" line of lots is packed with no "which lot?" prompt: the lot
+  // with the most at home first, then the next. Tagged units are scanned one by one. After
+  // Pack-Out, each mode moves on what the kit already holds; Unload never picks from home.
+  describe('getAnySlotFills', () => {
+    const slot = { kit_id: 'top', item_id: 'item-di', item_name: 'DI box', quantity: 3 }
+    const at = (asset_id: string, status: string, quantity: number, minute = 0) =>
+      ({ gig_id: 'gig-1', kit_id: 'top', asset_id, status, quantity, scanned_at: `2026-10-09T10:0${minute}:00.000Z`, scanned_by: 'u' })
+    const list = (tracking: any[] = []) => ({
+      item_records: { 'item-di': [
+        { id: 'lot-a', quantity: 4, at_home: 2, at_gig: 0, created_at: '2025-01-01T00:00:00Z' },
+        { id: 'lot-b', quantity: 5, at_home: 5, at_gig: 0, created_at: '2026-01-01T00:00:00Z' },
+        { id: 'di-7', tag_number: 'DI-7', quantity: 1, at_home: 1, at_gig: 0 },
+      ] },
+      tracking,
+    })
+
+    it('Pack-Out picks from the lot with the most at home, never a tagged unit', () => {
+      expect(inventoryTrackingService.getAnySlotFills(list(), slot, 'Checked Out', 'gig-1')).toEqual({ fills: [{ asset_id: 'lot-b', quantity: 3 }], short: 0 })
+    })
+
+    it('spills to the next lot, and says how many it couldn\'t find', () => {
+      expect(inventoryTrackingService.getAnySlotFills(list(), { ...slot, quantity: 8 }, 'Checked Out', 'gig-1'))
+        .toEqual({ fills: [{ asset_id: 'lot-b', quantity: 5 }, { asset_id: 'lot-a', quantity: 2 }], short: 1 })
+    })
+
+    it('tops up a line already partly packed: the lot\'s row says its new total', () => {
+      // 2 of lot-b went out since the list was fetched, so 3 are home now; lot-b still leads lot-a's 2.
+      expect(inventoryTrackingService.getAnySlotFills(list([at('lot-b', 'Checked Out', 2)]), slot, 'Checked Out', 'gig-1'))
+        .toEqual({ fills: [{ asset_id: 'lot-b', quantity: 3 }], short: 0 })
+    })
+
+    it('later modes move on what the kit holds, at the same count, units included', () => {
+      const tracking = [at('lot-b', 'Checked Out', 2), at('di-7', 'Checked Out', 1, 1)]
+      expect(inventoryTrackingService.getAnySlotFills(list(tracking), slot, 'In Transit', 'gig-1'))
+        .toEqual({ fills: [{ asset_id: 'lot-b', quantity: 2 }, { asset_id: 'di-7', quantity: 1 }], short: 0 })
+    })
+
+    it('Unload never picks from home', () => {
+      expect(inventoryTrackingService.getAnySlotFills(list([at('lot-b', 'On Site', 1)]), slot, 'In Warehouse', 'gig-1'))
+        .toEqual({ fills: [{ asset_id: 'lot-b', quantity: 1 }], short: 2 })
+    })
+
+    it('a full line needs nothing', () => {
+      expect(inventoryTrackingService.getAnySlotFills(list([at('lot-b', 'Checked Out', 3)]), slot, 'Checked Out', 'gig-1'))
+        .toEqual({ fills: [], short: 0 })
+    })
+  })
+
+  it('a kit scan also fills its "any" lines from lots (#185)', async () => {
+    vi.mocked(idbStore.getPackingList).mockResolvedValue({
+      gig_id: 'gig-1',
+      kits: [{ kit: { id: 'top', is_container: false, direct_assets: [], any_lines: [{ item_id: 'item-di', item_name: 'DI box', quantity: 3 }] } }],
+      item_records: { 'item-di': [{ id: 'lot-b', quantity: 5, at_home: 5, at_gig: 0 }] },
+      tracking: [],
+    })
+    await inventoryTrackingService.submitScan({ gigId: 'gig-1', kitId: 'top', status: 'Checked Out', organizationId: 'org-1', scannedBy: 'user-1' })
+    expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => [c[0].kit_id, c[0].asset_id, c[0].quantity]))
+      .toEqual([['top', 'lot-b', 3]])
+  })
+
+  it('un-checking a kit also deletes the rows its "any" lines wrote (#185)', async () => {
+    const row = (id: string, asset_id: string) => ({ id, gig_id: 'gig-1', kit_id: 'top', asset_id, status: 'Checked Out', quantity: 2, scanned_at: '2026-10-09T10:00:00.000Z', scanned_by: 'u' })
+    vi.mocked(idbStore.getPackingList).mockResolvedValue({
+      gig_id: 'gig-1',
+      kits: [{ kit: { id: 'top', is_container: false, direct_assets: [], any_lines: [{ item_id: 'item-di', item_name: 'DI box', quantity: 3 }] } }],
+      item_records: { 'item-di': [{ id: 'lot-b', quantity: 5 }, { id: 'di-7', tag_number: 'DI-7', quantity: 1 }, { id: 'lot-c', quantity: 2 }] },
+      tracking: [row('r1', 'lot-b'), row('r2', 'di-7')],
+    })
+    await inventoryTrackingService.clearTracking({ gigId: 'gig-1', kitId: 'top' })
+    expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => c[0].record_id)).toEqual(['r1', 'r2'])
+  })
 })
