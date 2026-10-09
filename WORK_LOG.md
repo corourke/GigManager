@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#219, PR #223** (coordinator's sub-agent, merged 10-09): the printed sheet's Staff costs rows use the #213 estimate and add up to its summary; `money()` shows cents with two decimals ("$1,582.50"); the edit-mode staffing footer uses en-US grouping.
+
 - **User guide published, PR #222** (Docs Lead, merged 10-09, Cameron's OK): 13 Gigs, Team and Reference pages and the glossary; links to held Equipment/Mobile pages left as plain text.
 
 - **User guide for #213, PR #220** (Docs Lead, merged 10-09): staffing and gig-expenses pages describe the projected estimate; staffing shots retaken (the view card's footer is left out until #219).
