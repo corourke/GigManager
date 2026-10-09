@@ -1013,3 +1013,74 @@ describe('per-item conflicts: review fixes (#184)', () => {
     expect(result.conflicts[0].details.conflicting_kits[0].shared_assets).toHaveLength(1);
   });
 });
+
+// Cameron 10-09: the same-unit conflict names only tracked units (quantity 1, with a serial or
+// tag). A lot shared by two gigs isn't a conflict in itself: "Not enough equipment" covers it.
+describe('same-unit conflicts list only tracked units', () => {
+  const pd20 = { manufacturer_model: 'PD-20', tag_number: 'DSL-0211', serial_number: null, quantity: 1 };
+  const stands = { manufacturer_model: 'Speaker Stand', tag_number: null, serial_number: null, quantity: 6 };
+  const taggedBox = { manufacturer_model: 'XLR Cable, 50 ft', tag_number: 'BOX-1', serial_number: null, quantity: 10 };
+  const flat = (rows: [string, string, any][]) => ({ data: rows.map(([kit_id, asset_id, asset]) => ({ kit_id, asset_id, asset })), error: null });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    needs.load.mockResolvedValue(noNeeds());
+  });
+
+  it('single gig: names the shared unit, not the shared lots', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'mine', organization_id: 'org-1' }], error: null },
+      gigs: { data: [{ id: 'gig-2', title: 'Other', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
+        kit_assignments: [{ kit_id: 'theirs', organization_id: 'org-1', kit: { id: 'theirs', name: 'Main PA' } }] }], error: null },
+      kit_flattened_cache: flat([
+        ['mine', 'pd20', pd20], ['mine', 'stands', stands], ['mine', 'xlr', taggedBox],
+        ['theirs', 'pd20', pd20], ['theirs', 'stands', stands], ['theirs', 'xlr', taggedBox],
+      ]),
+    };
+    (createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) });
+    const { checkEquipmentConflicts } = await import('./conflictDetection.service');
+    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T18:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1');
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0].details.conflicting_kits[0].shared_assets).toEqual(['PD-20 (#DSL-0211)']);
+  });
+
+  it('single gig: two gigs sharing only a lot have no same-unit conflict', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'mine', organization_id: 'org-1' }], error: null },
+      gigs: { data: [{ id: 'gig-2', title: 'Other', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
+        kit_assignments: [{ kit_id: 'theirs', organization_id: 'org-1', kit: { id: 'theirs', name: 'Main PA' } }] }], error: null },
+      kit_flattened_cache: flat([['mine', 'stands', stands], ['theirs', 'stands', stands]]),
+    };
+    (createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) });
+    const { checkEquipmentConflicts } = await import('./conflictDetection.service');
+    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T18:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1');
+    expect(result.conflicts).toHaveLength(0);
+  });
+
+  it('batch: names only the shared unit, and a lot alone raises nothing', async () => {
+    (createClient as any).mockReturnValue(createBatchMock([
+      { table: 'gig_kit_assignments', response: { data: [
+        { gig_id: 'A', kit_id: 'ka', organization_id: 'org-1', kit: { id: 'ka', name: 'FOH' } },
+        { gig_id: 'B', kit_id: 'kb', organization_id: 'org-1', kit: { id: 'kb', name: 'Main PA' } },
+        { gig_id: 'C', kit_id: 'kc', organization_id: 'org-1', kit: { id: 'kc', name: 'Stands only' } },
+      ], error: null } },
+      { table: 'kit_flattened_cache', response: flat([
+        ['ka', 'pd20', pd20], ['ka', 'stands', stands],
+        ['kb', 'pd20', pd20], ['kb', 'stands', stands],
+        ['kc', 'stands', stands],
+      ]) },
+    ]));
+    const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
+    const result = await checkAllConflictsForGigs([
+      { id: 'A', title: 'A', start: '2026-10-10T10:00:00Z', end: '2026-10-10T20:00:00Z' },
+      { id: 'B', title: 'B', start: '2026-10-10T11:00:00Z', end: '2026-10-10T20:00:00Z' },
+      { id: 'C', title: 'C', start: '2026-10-10T11:00:00Z', end: '2026-10-10T20:00:00Z' },
+    ], 'org-1');
+    const equipment = result.filter((c) => c.type === 'equipment');
+    expect(equipment.map((c) => [c.gig_id, c.details.other_gig_id]).sort()).toEqual([['A', 'B'], ['B', 'A']]);
+    expect(equipment[0].details.conflicting_asset_ids).toEqual(['pd20']);
+    expect(equipment[0].details.conflicting_kits[0].shared_assets).toEqual(['PD-20 (#DSL-0211)']);
+  });
+});
+

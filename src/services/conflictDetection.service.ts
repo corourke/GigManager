@@ -3,6 +3,7 @@ import { handleApiError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
 import type { OrganizationRole } from '../utils/supabase/types';
 import { assetLabel } from './kit.service';
+import { recordKind } from '../utils/equipmentItems';
 import { loadEquipmentNeeds, needsOf } from './equipmentNeeds.service';
 import { itemNeedRows, type GigNeeds, type ItemNeed, type ItemNeedRow, type ShortMoment } from '../utils/equipmentNeeds';
 
@@ -115,6 +116,16 @@ function itemsShort(rows: readonly ItemNeedRow[], thisNeeds: ReadonlyMap<string,
     });
   }
   return out;
+}
+
+/**
+ * The same-unit check names only tracked units: one piece with a serial or
+ * tag (Cameron, 10-09). A lot on two gigs isn't a conflict in itself; the
+ * per-item check says whether there are enough. A row whose asset can't be
+ * read is kept, so a hidden unit still warns.
+ */
+function isTrackedUnit(asset: { serial_number?: string | null; tag_number?: string | null; quantity?: number | string | null } | null | undefined): boolean {
+  return !asset || (recordKind(asset) === 'unit' && Number(asset.quantity ?? 1) === 1);
 }
 
 /** A gig's needs with its effective time range, for the peak. */
@@ -330,13 +341,14 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
 
     const { data: flattenedRows, error: flattenError } = await supabase
       .from('kit_flattened_cache')
-      .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number)')
+      .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number, serial_number, quantity)')
       .in('kit_id', allKitIds);
     if (flattenError) throw flattenError;
 
     const assetsByKit = new Map<string, Set<string>>();
     const labels = new Map<string, string>();
     for (const row of (flattenedRows || []) as any[]) {
+      if (!isTrackedUnit(row.asset)) continue;
       const set = assetsByKit.get(row.kit_id) ?? new Set<string>();
       set.add(row.asset_id);
       assetsByKit.set(row.kit_id, set);
@@ -522,10 +534,11 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
     if (allKitIds.length > 0) {
       const { data: flattenedRows, error: flattenError } = await supabase
         .from('kit_flattened_cache')
-        .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number)')
+        .select('kit_id, asset_id, asset:assets(manufacturer_model, tag_number, serial_number, quantity)')
         .in('kit_id', allKitIds);
       if (flattenError) throw flattenError;
       for (const row of (flattenedRows || []) as any[]) {
+        if (!isTrackedUnit(row.asset)) continue;
         const set = assetsByKit.get(row.kit_id) ?? new Set<string>();
         set.add(row.asset_id);
         assetsByKit.set(row.kit_id, set);
