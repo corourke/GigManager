@@ -86,21 +86,12 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **Docs Lead status, 10-09 05:45 UTC.**
-  - **PR #235 (merge after the next prod deploy):**
-    - conflict-detection: per-item conflicts and the Equipment needed table (#230);
-    - reporting: Schedule C and Needs attention, with screenshots (#232);
-    - roles-and-access: manager-only addresses (#233).
-  - **PR #234 (seed, merge any time; dev already reseeded):**
-    - recovery period on every depreciated unit;
-    - mileage at the IRS rate;
-    - two Needs attention examples.
-  - **Review fixes (10-09 08:40):**
-    - PR #234 is cut down to `scripts/seed-demo.sql` only. The guide changes had come along by mistake.
-    - PR #235 now says "equipment shared by both kits" (it will follow the Equipment Lead's answer on lots) and describes "none spare · N are in container kits".
-    - Before #235 merges, I'll retake its shots from main after the deploy, so `taken.json`'s `appCommit` names a commit on main.
-  - **Kits draft (#184, "N × any" lines):** on branch `claude/docs-kits-draft`, no PR, held with Equipment.
-  - **STYLE.md has no rule on timing guide changes against prod.** Proposal for Cameron: "The guide describes production; guide changes for features not yet in prod wait in a PR marked 'merge after the next prod deploy'."
+- **Docs Lead status, 10-09 20:45 UTC.**
+  - **Post-release screenshot check (prod 10-09):** I retook all 41 shots from main. None needs replacing: #235 had already retaken the changed screens, and 3 of the 4 diffs are invisible anti-aliasing.
+  - **Known gap: the team members table's Last Login** shows the screenshot runs' real sign-in times (Oct 8–9), later than the pinned date (Oct 7), and they change each run. Signing in is what updates it.
+    - Fix options: the screenshot script resets last sign-in after it signs in (it needs dev SQL access, which the script doesn't have); or the shot leaves out that column.
+    - Low priority; I'll take it up at the next full refresh unless Cameron prefers otherwise.
+  - **Next, held until they merge:** #239 (write-offs, "Not returned"), #240 (packing list with "any" lines), and #185 PR 2 (ad-hoc pack-out; scan or search to add kits and items, in Pack-Out and Load Truck only). The Kits draft is on `claude/docs-kits-draft`.
 - **Equipment conflicts, two questions from checking #230 on dev (Docs Lead, 10-09):**
   1. **The shared-unit message also lists lots.** On the Oct 17 gigs it reads "Equipment conflict with kits: Main PA … (Speaker Stand, Tripod, Speakon Speaker Cable, 50 ft, Voltline PD-20 … (#DSL-0211))". The stands and cables are lots, already counted in the per-item shortage, and a lot in two kits isn't "the same unit booked twice". So a lot with plenty spare would still be flagged.
   2. **The card's "This gig: 4 (Full Band Sound Package × 4)"** reads as four packages. It means 4 speakers from that kit. Wording like "4 via Full Band Sound Package" would be clearer.
@@ -162,7 +153,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/inventory-reports.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/kits.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/kits.md` | draft, written (branch `claude/docs-kits-draft`) | 2026-10-09 (Docs Lead) | held until #185/#186; N × any lines, kit editor, kit page |
 | `equipment/location-explorer.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/overview.md` | published | — | held: equipment rework (#162/#180) |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
@@ -170,7 +161,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #220) | projected staff estimate documented |
 | `financials/overview.md` | published | 2026-10-09 (Docs Lead, PR #227) | Upload Invoice is on the Items tab |
 | `financials/purchases.md` | published | 2026-10-09 (Docs Lead, PR #227) | Track as equipment makes a lot |
-| `financials/reporting.md` | published (PR #211) | 2026-10-08 (Docs Lead, PRs #207/#209) | — |
+| `financials/reporting.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | Schedule C and Needs attention documented |
 | `financials/receipts-and-invoices.md` | published | 2026-10-09 (Docs Lead, PR #227) | purchase form updated for #216/#221 (units/lots, Equipment details, quantity changes) |
 | `financials/tax-treatment.md` | published | 2026-10-09 (Docs Lead, PR #227) | equipment records and filed-year wording updated for #221 |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
@@ -179,7 +170,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
 | `gigs/calendar-view.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/conflict-detection.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #207) | banner shot added |
+| `gigs/conflict-detection.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | per-item conflicts, Equipment needed table, same-unit rule after #238 |
 | `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
 | `gigs/documents-and-notes.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
 | `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
@@ -194,7 +185,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `mobile/overview.md` | draft | — | held |
 | `reference/access-requests-and-moderation.md` | published (PR #222) | 2026-10-07 (Docs Lead); screenshots PR #191 | — |
 | `reference/glossary.md` | published (PR #222) | 2026-10-07 (Docs Lead) | equipment terms (Asset, Kit, Container, Packing list) to revise with the Equipment pages |
-| `reference/roles-and-access.md` | published | 2026-10-08 (Docs Lead, PR #207) | Add Item, not Add Asset |
+| `reference/roles-and-access.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | manager-only addresses redirect (#233) |
 | `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in |
 | `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, overnight rule checked) | connected-state shot needs a Google account |
 | `settings/overview.md` | published | 2026-10-08 (Docs Lead, Edit Organization button checked) | — |
