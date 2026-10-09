@@ -591,7 +591,7 @@ SELECT pg_temp.d(6, l.n), pg_temp.d(1,1), pg_temp.d(6, l.hdr), CASE WHEN l.gig I
        l.descr, l.category, h.created_by, h.created_by, 'expense'
   FROM (VALUES
     (201, 2, 4,        14.99, 6, 'Gaffer tape, 2 in, black',      'Expendables and supplies'),
-    (202, 2, NULL::int, 8.25, 4, 'AA batteries, 24-pack',         'Expendables and supplies'),
+    (202, 2, NULL::int, 8.25, 4, 'AA batteries, 24-pack',         NULL),  -- no category yet: shows under Needs attention
     (301, 3, 5,       172.00, 2, 'Cargo truck rental, per day',   'Vehicle and truck rental')
   ) AS l(n, hdr, gig, price, qty, descr, category)
   JOIN _p p ON p.n = l.hdr
@@ -605,9 +605,11 @@ UPDATE public.assets a
   JOIN _p p ON p.n = l.pur
  WHERE a.purchase_line_id = pg_temp.d(6, 100 + l.n) AND l.treatment = 'depreciate';
 
--- Invoice totals = sum of the burdened line costs.
+-- Invoice totals = sum of the burdened line costs, except the truck rental, whose
+-- $45 cleaning fee hasn't been entered as a line (Needs attention: "doesn't add up").
 UPDATE public.purchases h
    SET total_inv_amount = (SELECT sum(l.line_cost) FROM public.purchases l WHERE l.parent_id = h.id)
+                          + CASE WHEN h.id = pg_temp.d(6, 3) THEN 45 ELSE 0 END
  WHERE h.id IN (SELECT pg_temp.d(6, n) FROM _p);
 
 -- -----------------------------------------------------------------------------
