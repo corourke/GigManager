@@ -7,7 +7,8 @@ import {
   type CategoryPeriods, type RecoveryPeriod,
 } from '../../utils/recoveryPeriod';
 import { resizeUnitRows, unitRowProblems } from '../../utils/lineUnits';
-import ItemSection, { draftCategory, itemDraftErrors, type ItemDraft, type ItemOption } from '../equipment/form/ItemSection';
+import ItemSection from '../equipment/form/ItemSection';
+import { draftCategory, itemDraftErrors, type ItemDraft, type ItemOption } from '../equipment/form/itemDraft';
 import UnitOrLotSection, { type FormUnitRow, type UnitOrLot } from '../equipment/form/UnitOrLotSection';
 import InsuranceSection from '../equipment/form/InsuranceSection';
 

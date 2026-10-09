@@ -26,8 +26,9 @@ import { RECOVERY_PERIODS, categoryPeriod, type CategoryPeriods } from '../utils
 import AttachmentManager from './AttachmentManager';
 import { getItem, getItems } from '../services/equipmentItem.service';
 import { recordKind } from '../utils/equipmentItems';
-import { buildLineUnits, resizeUnitRows, unitRowProblems, type ItemChoice } from '../utils/lineUnits';
-import ItemSection, { emptyItemDraft, itemDraftErrors, type ItemDraft, type ItemOption } from './equipment/form/ItemSection';
+import { buildLineUnits, unitRowProblems, type ItemChoice } from '../utils/lineUnits';
+import ItemSection from './equipment/form/ItemSection';
+import { emptyItemDraft, itemDraftErrors, type ItemDraft, type ItemOption } from './equipment/form/itemDraft';
 import UnitOrLotSection, { type FormUnitRow, type UnitOrLot } from './equipment/form/UnitOrLotSection';
 import InsuranceSection from './equipment/form/InsuranceSection';
 

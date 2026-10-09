@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import UnitOrLotSection, { type FormUnitRow, type UnitOrLot } from './UnitOrLotSection';
-import ItemSection, { emptyItemDraft, type ItemDraft, type ItemOption } from './ItemSection';
+import ItemSection from './ItemSection';
+import { emptyItemDraft, type ItemDraft, type ItemOption } from './itemDraft';
 import InsuranceSection from './InsuranceSection';
 import { unitRowProblems } from '../../../utils/lineUnits';
 

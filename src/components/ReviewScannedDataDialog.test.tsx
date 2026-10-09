@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ReviewScannedDataDialog from './ReviewScannedDataDialog';
-import { createPurchaseTransaction } from '../services/purchase.service';
+import { createPurchaseWithUnits } from '../services/purchase.service';
 import { linkAttachmentToEntity, uploadAttachment } from '../services/attachment.service';
 
 vi.mock('../services/purchase.service', () => ({
   createPurchaseTransaction: vi.fn(async () => ({ id: 'p-new' })),
+  createPurchaseWithUnits: vi.fn(async () => ({ id: 'p-new', line_ids: [], unit_ids: [] })),
+  addLineUnits: vi.fn(async () => ['unit-new']),
   getPurchaseWithDetails: vi.fn(),
   updatePurchase: vi.fn(),
   createPurchase: vi.fn(),
@@ -15,6 +17,9 @@ vi.mock('../services/purchase.service', () => ({
   trackPurchaseLineAsEquipment: vi.fn(async () => 'asset-new'),
   createLedgerEntryForPurchaseLine: vi.fn(async () => ({ created: true, financial: {} })),
 }));
+vi.mock('../services/equipmentItem.service', () => ({
+  getItems: vi.fn(async () => [{ id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio', type: 'Speaker, Powered', records: [] }]),
+}));
 vi.mock('../services/taxYear.service', () => ({ getLockedTaxYears: vi.fn(async () => new Set<number>()) }));
 vi.mock('../services/gig.service', () => ({ createGigFinancial: vi.fn(), getGigFinancials: vi.fn(async () => []), updateGigFinancial: vi.fn() }));
 vi.mock('../services/attachment.service', () => ({
@@ -22,11 +27,7 @@ vi.mock('../services/attachment.service', () => ({
   linkAttachmentToEntity: vi.fn(async () => ({})),
   getAttachmentUrl: vi.fn(),
 }));
-vi.mock('../services/asset.service', () => ({ updateAsset: vi.fn() }));
-vi.mock('../services/kit.service', () => ({
-  getKitOptions: vi.fn(async () => [{ id: 'k1', name: 'Power Box' }, { id: 'k2', name: 'Lighting Rack' }]),
-  addAssetToKits: vi.fn(async () => {}),
-}));
+vi.mock('../services/asset.service', () => ({ updateAsset: vi.fn(), deleteAsset: vi.fn() }));
 vi.mock('../services/purchaseCategory.service', () => ({
   getTypeUsage: vi.fn(async () => [{ type: 'Cable, XLR', count: 7 }]),
   getExpenseCategories: vi.fn(async () => ['Small audio parts', 'Small lighting parts', 'Supplies', 'Software subscriptions'].map(name => ({ name, schedule_c_line: '27b' }))),
@@ -37,18 +38,20 @@ vi.mock('../services/purchaseCategory.service', () => ({
 
 // The Equipment details pop-up, opened from a line's chip.
 const chip = (desc: string) => screen.getByRole('button', { name: `Equipment details: ${desc}` });
-async function setEquipment(desc: string, fields: { category?: string; newCategory?: string; type?: string; kit?: string; period?: string }) {
+async function setEquipment(desc: string, fields: { category?: string; newCategory?: string; type?: string; period?: string; tags?: string[] }) {
   await userEvent.click(chip(desc));
-  const dialog = within(await screen.findByRole('dialog'));
-  if (fields.category) await userEvent.selectOptions(dialog.getByRole('combobox', { name: 'Category' }), fields.category);
+  const dialog = within(await screen.findByRole('dialog', { name: 'Equipment details' }));
+  if (fields.category) await userEvent.selectOptions(dialog.getByLabelText(/^Category/), fields.category);
   if (fields.newCategory) {
-    await userEvent.selectOptions(dialog.getByRole('combobox', { name: 'Category' }), 'Add new category…');
-    await userEvent.type(dialog.getByRole('textbox', { name: 'Category' }), fields.newCategory);
+    await userEvent.selectOptions(dialog.getByLabelText(/^Category/), 'Add new category…');
+    await userEvent.type(dialog.getByLabelText(/^Category/), fields.newCategory);
   }
   if (fields.type) await userEvent.type(dialog.getByRole('combobox', { name: 'Type' }), fields.type);
-  if (fields.kit) {
-    await userEvent.type(dialog.getByRole('textbox', { name: 'Search kits' }), fields.kit);
-    await userEvent.click(await dialog.findByRole('option', { name: fields.kit }));
+  if (fields.tags) {
+    await userEvent.click(dialog.getByRole('radio', { name: /^Unit/ }));
+    for (const [i, tag] of fields.tags.entries()) {
+      await userEvent.type(dialog.getByLabelText(fields.tags.length > 1 ? `Inventory tag, unit ${i + 1}` : 'Inventory tag'), tag);
+    }
   }
   if (fields.period) await userEvent.selectOptions(dialog.getByRole('combobox', { name: 'Recovery period' }), fields.period);
   await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
@@ -76,7 +79,7 @@ describe('ReviewScannedDataDialog in a page (Scan invoices, 10-02)', () => {
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Save Purchase' }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith('p-new'));
-    expect(createPurchaseTransaction).toHaveBeenCalled();
+    expect(createPurchaseWithUnits).toHaveBeenCalled();
     expect(linkAttachmentToEntity).toHaveBeenCalledWith('att-queued', 'purchase', 'p-new');
     expect(uploadAttachment).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
@@ -194,15 +197,14 @@ describe('ReviewScannedDataDialog: tax treatment and equipment (#133)', () => {
     await userEvent.click(tax('Moving head').getByRole('button', { name: 'Expense' }));
     expect(save).toBeEnabled();
     await userEvent.click(save);
-    await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
 
-    const [, items, assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+    const [, items, units] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
     expect(items!.map((i: any) => i.tax_treatment)).toEqual(['expense', 'depreciate', 'expense']);
-    // tracked as equipment is separate: the expensed moving head is still equipment.
-    // Lines are one type (10-07); `track` asks for the equipment record.
-    expect(items!.map((i: any) => i.track)).toEqual([false, true, true]);
     expect(items!.map((i: any) => i.row_type)).toEqual(['line', 'line', 'line']);
-    expect(assets).toHaveLength(2);
+    // Tracked as equipment is separate: the expensed moving head is still equipment,
+    // each a lot of 1 until serials or tags are entered (#183).
+    expect(units!.map((u: any) => [u.line_index, u.quantity])).toEqual([[1, 1], [2, 1]]);
   });
 
   it('a depreciated line is always tracked as equipment', async () => {
@@ -249,7 +251,7 @@ describe('ReviewScannedDataDialog: editing tax treatment and equipment (#133)', 
     await userEvent.click(tax().getByRole('button', { name: 'Depreciate' }));
     expect(chip('Stand')).toHaveTextContent('7-year');
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
-    await waitFor(() => expect(assets.updateAsset).toHaveBeenCalledWith('asset-new', { recovery_period: 7 }));
+    await waitFor(() => expect(assets.updateAsset).toHaveBeenCalledWith('unit-new', { recovery_period: 7 }));
     const depreciate = vi.mocked(svc.updatePurchase).mock.calls.findIndex(c => c[0] === 'l1');
     const period = vi.mocked(assets.updateAsset).mock.calls.findIndex(c => c[1]?.recovery_period === 7);
     expect(vi.mocked(svc.updatePurchase).mock.invocationCallOrder[depreciate])
@@ -262,8 +264,8 @@ describe('ReviewScannedDataDialog: editing tax treatment and equipment (#133)', 
     await userEvent.click(tax().getByRole('button', { name: 'Depreciate' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l1', expect.objectContaining({ tax_treatment: 'depreciate' })));
-    expect(svc.trackPurchaseLineAsEquipment).toHaveBeenCalledWith('l1');
-    const trackOrder = vi.mocked(svc.trackPurchaseLineAsEquipment).mock.invocationCallOrder[0];
+    expect(svc.addLineUnits).toHaveBeenCalledWith('l1', [expect.objectContaining({ quantity: 1 })]);
+    const trackOrder = vi.mocked(svc.addLineUnits).mock.invocationCallOrder[0];
     const lineUpdate = vi.mocked(svc.updatePurchase).mock.calls.findIndex(c => c[0] === 'l1');
     expect(trackOrder).toBeLessThan(vi.mocked(svc.updatePurchase).mock.invocationCallOrder[lineUpdate]);
   });
@@ -274,12 +276,13 @@ describe('ReviewScannedDataDialog: editing tax treatment and equipment (#133)', 
     await userEvent.click(screen.getByRole('switch', { name: 'Track Stand as equipment' }));
     expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
     expect(screen.getByText(/Choose an equipment category for 1 item/)).toBeInTheDocument();
-    await setEquipment('Stand', { category: 'Lighting', type: 'Stand, Lighting', kit: 'Lighting Rack' });
+    await setEquipment('Stand', { category: 'Lighting', type: 'Stand, Lighting' });
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
-    await waitFor(() => expect(svc.trackPurchaseLineAsEquipment).toHaveBeenCalledWith('l1'));
-    expect(assets.updateAsset).toHaveBeenCalledWith('asset-new', { category: 'Lighting', type: 'Stand, Lighting', replacement_value: 400 });
-    const kits = await import('../services/kit.service');
-    expect(kits.addAssetToKits).toHaveBeenCalledWith('asset-new', ['k2'], 1);
+    await waitFor(() => expect(svc.addLineUnits).toHaveBeenCalled());
+    expect(svc.addLineUnits).toHaveBeenCalledWith('l1', [expect.objectContaining({
+      category: 'Lighting', type: 'Stand, Lighting', replacement_value: 400, quantity: 1, serial_number: null, tag_number: null,
+    })]);
+    expect(assets.updateAsset).not.toHaveBeenCalled();
     expect(svc.updatePurchase).toHaveBeenCalledWith('l1', expect.objectContaining({ tax_treatment: 'expense' }));
   });
 
@@ -297,7 +300,7 @@ describe('ReviewScannedDataDialog: editing tax treatment and equipment (#133)', 
     // the equipment category isn't a tax field, so it can still be chosen
     await setEquipment('Stand', { category: 'Audio' });
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
-    await waitFor(() => expect(svc.trackPurchaseLineAsEquipment).toHaveBeenCalledWith('l1'));
+    await waitFor(() => expect(svc.addLineUnits).toHaveBeenCalledWith('l1', [expect.objectContaining({ category: 'Audio' })]));
     expect(svc.updatePurchase).toHaveBeenCalledWith('l1', { description: 'Stand' });
     expect(svc.updatePurchase).toHaveBeenCalledWith('h1', expect.not.objectContaining({ total_inv_amount: expect.anything() }));
   });
@@ -351,10 +354,10 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
     await setEquipment('Cable', { category: 'Misc' });
     await userEvent.selectOptions(select('Expense category: Cable'), 'Supplies');
     await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
-    await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
-    const [, items, assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+    const [, items, units] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
     expect(items!.map((i: any) => i.category)).toEqual(['Supplies', 'Audio']);
-    expect(assets!.map((a: any) => a.category)).toEqual(['Misc', 'Audio']);
+    expect(units!.map((u: any) => u.category)).toEqual(['Misc', 'Audio']);
   });
 
   it('switching to Depreciate moves the equipment category onto the line, and back', async () => {
@@ -373,9 +376,9 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
       expect(chip('Console')).toHaveTextContent('7-year');
       expect(chip('Console')).not.toHaveTextContent('Choose a recovery period');
       await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
-      await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
-      const [, , assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
-      expect(assets![0].recovery_period).toBe(7);
+      await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+      const [, , units] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
+      expect(units![0].recovery_period).toBe(7);
     });
 
     it('asks when the category has no default, and won\'t save until it is answered', async () => {
@@ -386,9 +389,9 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
       await setEquipment('Hazer', { period: '5' });
       expect(chip('Hazer')).toHaveTextContent('5-year');
       await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
-      await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
-      const [, , assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
-      expect(assets![0].recovery_period).toBe(5);
+      await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+      const [, , units] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
+      expect(units![0].recovery_period).toBe(5);
     });
 
     it('an expensed line has none', async () => {
@@ -396,9 +399,9 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
       await userEvent.click(screen.getByRole('switch', { name: 'Track Cable as equipment' }));
       expect(chip('Cable')).not.toHaveTextContent('-year');
       await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
-      await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
-      const [, , assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
-      expect(assets![0].recovery_period).toBeUndefined();
+      await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+      const [, , units] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
+      expect(units![0].recovery_period).toBeUndefined();
     });
   });
 
@@ -408,10 +411,10 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
     await setEquipment('Switcher', { newCategory: 'Video', period: '7' });
     expect(chip('Switcher')).toHaveTextContent('Video');
     await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
-    await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
-    const [, items, assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+    const [, items, units] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
     expect(items![0].category).toBe('Video');
-    expect(assets![0].category).toBe('Video');
+    expect(units![0].category).toBe('Video');
   });
 
   it('keeps a saved category that is not on the list', async () => {
@@ -456,7 +459,8 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
     expect(chip('Clamp')).toHaveTextContent('Lighting');
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(() => expect(svc.computeAssetFieldChanges).toHaveBeenCalled());
-    expect(svc.computeAssetFieldChanges).toHaveBeenCalledWith(expect.objectContaining({ category: 'Lighting' }), expect.anything());
+    // The line's price, cost, vendor and date reach its equipment; its name and category are the item's (#183).
+    expect(svc.computeAssetFieldChanges).toHaveBeenCalledWith({ item_price: 20, item_cost: 20, vendor: 'V', purchase_date: '2026-03-01' }, expect.objectContaining({ id: 'a1' }));
   });
 });
 
@@ -483,7 +487,7 @@ describe('ReviewScannedDataDialog: Upload Receipt on a gig (#130)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Save Purchase' }));
     await waitFor(() => expect(svc.createLedgerEntryForPurchaseLine).toHaveBeenCalled());
 
-    const [header] = vi.mocked(createPurchaseTransaction).mock.calls[0];
+    const [header] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
     expect(header).not.toHaveProperty('gig_id');
     expect(svc.updatePurchase).toHaveBeenCalledTimes(1);
     expect(svc.updatePurchase).toHaveBeenCalledWith('l-tape', { gig_id: 'g1' });
@@ -496,19 +500,32 @@ describe('ReviewScannedDataDialog: Upload Receipt on a gig (#130)', () => {
 describe('ReviewScannedDataDialog: equipment details pop-up (10-06)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('new equipment saves its Type and kits, and the chip shows them', async () => {
+  it('new equipment saves its Type, and the chip shows it with its units', async () => {
     render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" file={null}
       scannedData={{ vendor: 'Amazon', purchase_date: '2026-06-14', total_inv_amount: 27.31, items: [
         { description: 'PowerCON breakout box', quantity: 1, item_price: 69.99, item_cost: 27.31, is_asset: true, category: 'Power' },
       ] } as any} />);
-    await setEquipment('PowerCON breakout box', { type: 'Distribution, PowerCon Breakout', kit: 'Power Box' });
+    await setEquipment('PowerCON breakout box', { type: 'Distribution, PowerCon Breakout', tags: ['PB-01'] });
     expect(chip('PowerCON breakout box')).toHaveTextContent('Power › Distribution, PowerCon Breakout');
-    expect(chip('PowerCON breakout box')).toHaveTextContent('Power Box');
+    expect(chip('PowerCON breakout box')).toHaveTextContent('1 unit');
     await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
-    await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
-    const [, , assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
-    expect(assets![0]).toEqual(expect.objectContaining({ category: 'Power', type: 'Distribution, PowerCon Breakout', kit_ids: ['k1'] }));
-    expect(assets![0]).not.toHaveProperty('equipment_type');
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+    const [, , units] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
+    expect(units![0]).toEqual(expect.objectContaining({ category: 'Power', type: 'Distribution, PowerCon Breakout', tag_number: 'PB-01', quantity: 1 }));
+    expect(units![0]).not.toHaveProperty('kit_ids');
+  });
+
+  it('won’t save a units line until each unit has a serial or a tag', async () => {
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" file={null}
+      scannedData={{ vendor: 'Amazon', purchase_date: '2026-06-14', total_inv_amount: 100, items: [
+        { description: 'Mic', quantity: 2, item_price: 50, item_cost: 50, is_asset: true, category: 'Audio' },
+      ] } as any} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Equipment details: Mic' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Equipment details' }));
+    await userEvent.click(dialog.getByRole('radio', { name: /^Unit/ }));
+    await userEvent.type(dialog.getByLabelText('Inventory tag, unit 1'), 'M-1');
+    await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
+    expect(dialog.getByText('Unit 2 needs a serial number or a tag (either will do).')).toBeInTheDocument();
   });
 
   // 10-07 (Cameron): the switch sat before the expense dropdown and the chip
@@ -538,24 +555,101 @@ describe('ReviewScannedDataDialog: equipment details pop-up (10-06)', () => {
     expect(chip('Wall station')).toHaveTextContent('Choose an equipment category');
   });
 
-  it('editing an existing record\'s type proposes the change, and its kits stay on its own page', async () => {
+  it('a saved line shows its item and units; editing a unit\'s tag proposes the change', async () => {
     const svc = await import('../services/purchase.service');
     vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
       id: 'h1', vendor: 'V', purchase_date: '2026-03-01', total_inv_amount: 20, description: '',
-      items: [{ id: 'l1', row_type: 'asset', tax_treatment: 'expense', description: 'Clamp', quantity: 1, item_price: 20, item_cost: 20, asset_id: 'a1', category: 'Small lighting parts' }],
-      assets: [{ id: 'a1', category: 'Lighting', type: 'Clamp', item_cost: 20, quantity: 1 }], attachments: [],
+      items: [{ id: 'l1', row_type: 'line', tax_treatment: 'expense', description: 'Clamp', quantity: 1, item_price: 20, item_cost: 20, asset_id: 'a1', category: 'Small lighting parts' }],
+      assets: [{ id: 'a1', purchase_line_id: 'l1', equipment_item_id: 'i-clamp', manufacturer_model: 'Clamp', category: 'Lighting', type: 'Clamp', tag_number: 'C-1',
+        item_price: 20, item_cost: 20, vendor: 'V', acquisition_date: '2026-03-01', quantity: 1 }], attachments: [],
     } as any);
     render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
     await userEvent.click(await screen.findByRole('button', { name: 'Equipment details: Clamp' }));
-    const dialog = within(await screen.findByRole('dialog'));
-    expect(dialog.getByText(/Manage its kits on the equipment page/)).toBeInTheDocument();
-    const type = dialog.getByRole('combobox', { name: 'Type' });
-    await userEvent.clear(type);
-    await userEvent.type(type, 'Clamp, Truss');
+    const dialog = within(await screen.findByRole('dialog', { name: 'Equipment details' }));
+    expect(dialog.getByText('Lighting · Clamp')).toBeInTheDocument();
+    expect(dialog.queryByRole('button', { name: 'Change item' })).not.toBeInTheDocument();
+    const tag = dialog.getByLabelText('Inventory tag');
+    expect(tag).toHaveValue('C-1');
+    await userEvent.clear(tag);
+    await userEvent.type(tag, 'C-2');
     await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     expect(await screen.findByText('Confirm linked record updates')).toBeInTheDocument();
-    expect(screen.getByText('Clamp, Truss')).toBeInTheDocument();
+    expect(screen.getByText('C-2')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
+    const assets = await import('../services/asset.service');
+    await waitFor(() => expect(assets.updateAsset).toHaveBeenCalledWith('a1', { tag_number: 'C-2' }));
+  });
+});
+
+// #183 piece C: a saved line's quantity and its equipment.
+describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const unitRec = (id: string, tag: string) => ({ id, purchase_line_id: 'l1', equipment_item_id: 'i-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
+    tag_number: tag, item_price: 949, item_cost: 949, vendor: 'V', acquisition_date: '2026-03-01', quantity: 1, replacement_value: 1049 });
+  const openSaved = async (quantity: number, records: any[]) => {
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'V', purchase_date: '2026-03-01', total_inv_amount: 949 * quantity, description: '',
+      items: [{ id: 'l1', row_type: 'line', tax_treatment: 'expense', description: 'K12', quantity, item_price: 949, item_cost: 949,
+        asset_id: records[0].id, category: 'Small audio parts', purchase_date: '2026-03-01' }],
+      assets: records, attachments: [],
+    } as any);
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await screen.findByRole('button', { name: 'Equipment details: K12' });
+    return svc;
+  };
+
+  it('more pieces on the line: their serials or tags are entered, and they are added as units', async () => {
+    const svc = await openSaved(3, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102')]);
+    expect(screen.getByRole('button', { name: 'Equipment details: K12' })).toHaveTextContent('Serials or tags needed');
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Equipment details: K12' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Equipment details' }));
+    expect(dialog.getByLabelText('Inventory tag, unit 1')).toHaveValue('DSL-0101');
+    await userEvent.type(dialog.getByLabelText('Inventory tag, unit 3'), 'DSL-0103');
+    await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.addLineUnits).toHaveBeenCalledWith('l1', [expect.objectContaining({
+      equipment_item_id: 'i-k12', tag_number: 'DSL-0103', quantity: 1,
+    })]));
+  });
+
+  it('fewer pieces on the line: update the equipment, removing the units ticked', async () => {
+    await openSaved(2, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]);
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    expect(await screen.findByText('The line is now 2; it has 3 units.')).toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: /Confirm & Save/ });
+    expect(confirm).toBeDisabled();
+    await userEvent.click(screen.getByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
+    expect(confirm).toBeDisabled();
+    await userEvent.click(within(screen.getByRole('group', { name: 'Units to remove: K12' })).getByRole('checkbox', { name: 'DSL-0102' }));
+    await userEvent.click(confirm);
+    const assets = await import('../services/asset.service');
+    await waitFor(() => expect(assets.deleteAsset).toHaveBeenCalledWith('u2'));
+    expect(assets.deleteAsset).toHaveBeenCalledTimes(1);
+  });
+
+  it('fewer pieces on the line: or leave the equipment as it is', async () => {
+    const svc = await openSaved(2, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]);
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(await screen.findByRole('radio', { name: 'Leave the equipment as it is' }));
+    await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l1', expect.objectContaining({ quantity: 2 })));
+    const assets = await import('../services/asset.service');
+    expect(assets.deleteAsset).not.toHaveBeenCalled();
+  });
+
+  it('a lot whose line changed: update its quantity, or leave it', async () => {
+    const lot = { ...unitRec('lot1', ''), tag_number: null, quantity: 10 };
+    await openSaved(8, [lot]);
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    expect(await screen.findByText('The line is now 8; its lot is 10.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('radio', { name: 'Update the equipment: make the lot 8' }));
+    await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
+    const assets = await import('../services/asset.service');
+    await waitFor(() => expect(assets.updateAsset).toHaveBeenCalledWith('lot1', { quantity: 8 }));
   });
 });
 
@@ -603,9 +697,36 @@ describe('ReviewScannedDataDialog: purchase data fixes (#131)', () => {
         { description: 'XLR cable 25ft', quantity: 1, item_price: 100, item_cost: 100, is_asset: true, category: 'Audio' },
       ] } as any} />);
     await userEvent.click(await screen.findByRole('button', { name: 'Save Purchase' }));
-    await waitFor(() => expect(createPurchaseTransaction).toHaveBeenCalled());
-    const [, , assets] = vi.mocked(createPurchaseTransaction).mock.calls[0];
-    expect(assets!.map((a: any) => a.manufacturer_model)).toEqual(['Shure SM58', 'XLR cable 25ft']);
-    expect(assets![0].description).toBe('Shure SM58 vocal mic with clip and bag');
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+    const [, , units] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
+    expect(units!.map((u: any) => u.manufacturer_model)).toEqual(['Shure SM58', 'XLR cable 25ft']);
+    expect(units![0].description).toBe('Shure SM58 vocal mic with clip and bag');
+  });
+});
+
+describe('ReviewScannedDataDialog: one record per unit (#183)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('saves a line of 2 with a tag on each as 2 units: the purchase that failed to save', async () => {
+    const svc = await import('../services/purchase.service');
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" file={null}
+      scannedData={{ vendor: 'Sweetwater', purchase_date: '2026-07-05', total_inv_amount: 1898,
+        items: [{ description: 'QSC K12.2', quantity: 2, item_price: 949, item_cost: 949, is_asset: true, category: 'Audio' }] } as any} />);
+    // $949 each is in the grey zone: choose Depreciate.
+    await userEvent.click(within(await screen.findByRole('group', { name: 'Tax treatment: QSC K12.2' })).getByRole('button', { name: 'Depreciate' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Equipment details: QSC K12.2' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Equipment details' }));
+    await userEvent.click(dialog.getByRole('radio', { name: /^Unit/ }));
+    await userEvent.type(dialog.getByLabelText('Inventory tag, unit 1'), 'DSL-0101');
+    await userEvent.type(dialog.getByLabelText('Inventory tag, unit 2'), 'DSL-0102');
+    await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
+
+    await waitFor(() => expect(svc.createPurchaseWithUnits).toHaveBeenCalled());
+    const [, items, units] = vi.mocked(svc.createPurchaseWithUnits).mock.calls[0];
+    expect(items).toHaveLength(1);
+    expect(units.map((u: any) => [u.line_index, u.tag_number, u.quantity])).toEqual([[0, 'DSL-0101', 1], [0, 'DSL-0102', 1]]);
+    expect(units.every((u: any) => u.manufacturer_model === 'QSC K12.2' && u.category === 'Audio' && u.replacement_value === 949
+      && u.recovery_period === 7)).toBe(true);
   });
 });

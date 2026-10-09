@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EquipmentDetailsDialog, { type EquipmentDetails } from './EquipmentDetailsDialog';
-import { emptyItemDraft, type ItemOption } from '../equipment/form/ItemSection';
+import { emptyItemDraft, type ItemOption } from '../equipment/form/itemDraft';
 
 const getTypeUsage = vi.fn(async (_org: string, category: string) =>
   category === 'Power'
