@@ -69,11 +69,9 @@ The estimate is only a projection. When you finalize, you enter the units actual
 
 Everyone in your organization who can open the gig sees a read-only **Staffing** card, headed with a summary such as "3 of 4 filled · 2 confirmed". Each row shows the role, the person (or **Open**), their phone and email, a status badge and any notes. Use **Columns** to hide the ones you don't need; the choice is remembered in this browser.
 
-The **Rate / Fee** column shows a rate with its unit, such as "$400 / day", and a fee as "$350 fee". A **Staff cost** line under the table gives the finalized, projected and total amounts. On the printed financials page, **Staff costs** shows how each rate's amount was reached, such as "3 days × $400 / day".
-<!-- TODO: #219 — the print's Staff costs rows still count an unfinalized rate as one unit. --> **Rate / Fee** and the staff cost line are for Admins and Managers only. Staff and Viewers don't see pay.
+The **Rate / Fee** column shows a rate with its unit, such as "$400 / day", and a fee as "$350 fee". A **Staff cost** line under the table gives the finalized, projected and total amounts. On the printed financials page, **Staff costs** shows how each amount was reached: a finalized rate as the units worked, such as "3 days × $400 / day", and a booked one at its estimate, such as "est. 9.5 hr × $35.00 / hr". **Rate / Fee** and the staff cost line are for Admins and Managers only. Staff and Viewers don't see pay.
 
-![The read-only Staffing card: "5 of 6 filled · 4 confirmed", each role with the person, phone, email, status and pay, such as $350 fee, $400 / day, $35 / hr and $200 / ½ day, and an open Stage Hand place](../../../assets/screenshots/gigs/staffing-view-card.png)
-<!-- TODO: #219 — retake with the Staff cost line once it shows two decimals. -->
+![The read-only Staffing card: "5 of 6 filled · 4 confirmed", each role with the person, phone, email, status and pay, such as $350 fee, $400 / day, $35 / hr and $200 / ½ day, an open Stage Hand place, and the Staff cost line](../../../assets/screenshots/gigs/staffing-view-card.png)
 
 ## Related
 
