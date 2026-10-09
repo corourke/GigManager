@@ -258,7 +258,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-08",
-    "appCommit": "6302a25"
+    "appCommit": "80ee21e"
   },
   "gigs/staffing-view-card": {
     "page": "gigs/staffing-and-participants.md",
@@ -269,7 +269,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-08",
-    "appCommit": "6302a25"
+    "appCommit": "80ee21e"
   },
   "gigs/the-gig-list-row-menu": {
     "page": "gigs/the-gig-list.md",
