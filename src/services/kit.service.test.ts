@@ -478,6 +478,26 @@ describe('kit.service', () => {
       setup({ data: null, error: { code: '23514', message: 'kit_components_exactly_one_target' } });
       await expect(duplicateKit('k1')).rejects.toMatchObject({ message: 'kit_components_exactly_one_target' });
     });
+
+    it('removes the new kit when its lines can\'t be copied, so no empty copy is left', async () => {
+      const kitChains: any[] = [];
+      const componentsChain = makeChain({ data: null, error: { code: '23514', message: 'refused' } });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          const chain = makeChain({ data: originalKit, error: null });
+          chain.insert = vi.fn().mockReturnValue(makeChain({ data: { id: 'k2', name: 'Main PA (Copy)', organization_id: 'org-1' }, error: null }));
+          kitChains.push(chain);
+          return chain;
+        }
+        if (table === 'kit_components') return componentsChain;
+        return makeChain({ data: { name: 'Acme' }, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+      await expect(duplicateKit('k1')).rejects.toMatchObject({ message: 'refused' });
+      const deleted = kitChains.filter((c) => c.delete.mock.calls.length > 0);
+      expect(deleted).toHaveLength(1);
+      expect(deleted[0].eq).toHaveBeenCalledWith('id', 'k2');
+    });
   });
 
   describe('"any" lines (#184)', () => {
@@ -542,6 +562,62 @@ describe('kit.service', () => {
       expect(summary.totalItems).toBe(5);
       expect(summary.totalValue).toBe(500 + 4 * 1100);
       expect(summary.itemQuantities?.get('item-tops')).toBe(4);
+    });
+  });
+
+  describe('updateKit with "any" lines (#184)', () => {
+    const existing = [{ id: 'kc-1', asset_id: null, child_kit_id: null, equipment_item_id: 'item-k12' }];
+    const setup = (opts: { updateError?: any; deleteError?: any } = {}) => {
+      const component = { chains: [] as any[] };
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') return makeChain({ data: { id: 'k1', name: 'Main PA', organization_id: 'org-1', organization: { name: 'Acme' } }, error: null });
+        if (table === 'kit_components') {
+          const chain = makeChain({ data: existing, error: null });
+          chain.update = vi.fn().mockReturnValue(makeChain({ data: null, error: opts.updateError ?? null }));
+          chain.delete = vi.fn().mockReturnValue(makeChain({ data: null, error: opts.deleteError ?? null }));
+          chain.insert = vi.fn().mockReturnValue(makeChain({ data: null, error: null }));
+          component.chains.push(chain);
+          return chain;
+        }
+        if (table === 'equipment_items') return makeChain({ data: { manufacturer_model: 'QSC K12.2' }, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+      return component;
+    };
+    const calls = (c: { chains: any[] }, method: 'insert' | 'update' | 'delete') => c.chains.flatMap((ch) => ch[method].mock.calls);
+
+    it('adds an "any" line, and logs it', async () => {
+      const c = setup();
+      await updateKit('k1', { components: [{ equipment_item_id: 'item-sub', quantity: 2 }] }, []);
+      expect(calls(c, 'insert')).toEqual([[expect.objectContaining({ kit_id: 'k1', equipment_item_id: 'item-sub', asset_id: null, child_kit_id: null, quantity: 2 })]]);
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'kit.asset_added', context: expect.objectContaining({ asset_model: 'any QSC K12.2', quantity: 2 }) }));
+    });
+
+    it('changes an "any" line\'s quantity', async () => {
+      const c = setup();
+      await updateKit('k1', { components: [{ id: 'kc-1', equipment_item_id: 'item-k12', quantity: 6 }] }, ['kc-1']);
+      expect(calls(c, 'update')).toEqual([[expect.objectContaining({ equipment_item_id: 'item-k12', quantity: 6 })]]);
+    });
+
+    it('removes an "any" line, and logs it', async () => {
+      const c = setup();
+      await updateKit('k1', { components: [] }, ['kc-1']);
+      expect(calls(c, 'delete')).toHaveLength(1);
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'kit.asset_removed', context: expect.objectContaining({ asset_model: 'any QSC K12.2' }) }));
+    });
+
+    it('a refused quantity change is an error, not "Kit updated"', async () => {
+      setup({ updateError: { code: '42501', message: 'permission denied' } });
+      await expect(updateKit('k1', { components: [{ id: 'kc-1', equipment_item_id: 'item-k12', quantity: 6 }] }, ['kc-1']))
+        .rejects.toMatchObject({ message: 'permission denied' });
+    });
+
+    it('a refused removal is an error, before anything is added', async () => {
+      const c = setup({ deleteError: { code: '42501', message: 'permission denied' } });
+      await expect(updateKit('k1', { components: [{ equipment_item_id: 'item-sub', quantity: 1 }] }, ['kc-1']))
+        .rejects.toMatchObject({ message: 'permission denied' });
+      expect(calls(c, 'insert')).toHaveLength(0);
     });
   });
 

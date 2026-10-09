@@ -336,7 +336,8 @@ export async function updateKit(kitId: string, kitData: {
 
       if (idsToDelete.length > 0) {
         const removed = (existingComponents ?? []).filter((c: any) => idsToDelete.includes(c.id));
-        await supabase.from('kit_components').delete().in('id', idsToDelete);
+        const { error: deleteError } = await supabase.from('kit_components').delete().in('id', idsToDelete);
+        if (deleteError) throw deleteError;
         for (const c of removed) {
           try {
             if (c.asset_id) {
@@ -362,7 +363,8 @@ export async function updateKit(kitId: string, kitData: {
           notes: component.notes || null,
         };
         if (component.id && existingIds.includes(component.id)) {
-          await supabase.from('kit_components').update(componentData).eq('id', component.id);
+          const { error: updateError } = await supabase.from('kit_components').update(componentData).eq('id', component.id);
+          if (updateError) throw updateError;
         } else {
           const { error: insertError } = await supabase.from('kit_components').insert({ kit_id: kitId, ...componentData });
           if (insertError) throw insertError;
@@ -465,7 +467,11 @@ export async function duplicateKit(kitId: string, newName?: string) {
         notes: c.notes,
       }));
       const { error: componentsError } = await supabase.from('kit_components').insert(kitComponents);
-      if (componentsError) throw componentsError;
+      if (componentsError) {
+        // No empty "(Copy)" left behind, as in createKit.
+        await supabase.from('kits').delete().eq('id', newKit.id);
+        throw componentsError;
+      }
     }
 
     return newKit;
