@@ -437,6 +437,9 @@ export default function AssetScreen({
                 idPrefix="units"
                 kind={kind}
                 onKindChange={(k) => {
+                  // A lot has no serial or tag: saving one as a lot drops them.
+                  if (isEditMode && k === 'lot' && kind === 'units' && (formData.serial_number?.trim() || formData.tag_number?.trim())
+                    && !window.confirm('Make this unit a lot? Its serial number and tag are removed when you save.')) return;
                   setKind(k);
                   if (isEditMode && k === 'lot') handleChange('quantity', formData.quantity || '1');
                 }}

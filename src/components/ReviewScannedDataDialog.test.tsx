@@ -626,7 +626,6 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     expect(await screen.findByText('The line is now 2; it has 3 units.')).toBeInTheDocument();
     const confirm = screen.getByRole('button', { name: /Confirm & Save/ });
-    expect(confirm).toBeDisabled();
     await userEvent.click(screen.getByRole('radio', { name: 'Update the equipment: remove 1 unit' }));
     expect(confirm).toBeDisabled();
     await removeUnit('DSL-0102');
@@ -752,6 +751,27 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
     await waitFor(() => expect(assets.deleteAsset).toHaveBeenCalledWith('u3'));
     expect(svc.updatePurchase).not.toHaveBeenCalled();
+  });
+
+  it('a line lowered in this edit must have a choice before saving', async () => {
+    await openSaved(3, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]);
+    const qty = screen.getByPlaceholderText('1');
+    await userEvent.clear(qty);
+    await userEvent.type(qty, '2');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    expect(await screen.findByText('The line is now 2; it has 3 units.')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Leave the equipment as it is' })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: /Confirm & Save/ })).toBeDisabled();
+  });
+
+  it('a line left with more units on an earlier save starts at "Leave the equipment as it is"', async () => {
+    const svc = await openSaved(2, [unitRec('u1', 'DSL-0101'), unitRec('u2', 'DSL-0102'), unitRec('u3', 'DSL-0103')]);
+    const assets = await import('../services/asset.service');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    expect(await screen.findByRole('radio', { name: 'Leave the equipment as it is' })).toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: /Confirm & Save/ }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('h1', expect.anything()));
+    expect(assets.deleteAsset).not.toHaveBeenCalled();
   });
 
   it('fewer pieces on the line: or leave the equipment as it is', async () => {

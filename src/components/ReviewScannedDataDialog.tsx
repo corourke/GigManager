@@ -119,6 +119,8 @@ interface ScannedItem {
   _gigId?: string | null;
   /** The units, or the lot, the saved line already has (#183). */
   _records?: any[];
+  /** The line's quantity as loaded. */
+  _loadedQuantity?: number;
   /** The equipment as loaded: per-unit values are sent only when the pop-up changed them. */
   _savedEquipment?: EquipmentDetails;
 }
@@ -161,6 +163,8 @@ interface LineMismatch {
   records: { id: string; label: string; quantity: number }[];
   /** The record the line points at (purchases.asset_id). */
   markerId: string | null;
+  /** Saved like this before (the line wasn't changed here): left as it is then. */
+  leftBefore: boolean;
 }
 
 const recordLabel = (r: any) =>
@@ -389,6 +393,7 @@ export default function ReviewScannedDataDialog({
               _records: records.length ? records : undefined,
               _purchaseId: it.id,
               _assetId: it.asset_id || null,
+              _loadedQuantity: it.quantity || 1,
               _gigId: it.gig_id || null,
             };
           }),
@@ -814,6 +819,7 @@ export default function ReviewScannedDataDialog({
         lineId: item._purchaseId, description: item.description || '(item)', kind: lot ? 'lot' : 'units', quantity: item.quantity,
         records: records.map(r => ({ id: r.id, label: recordLabel(r), quantity: Number(r.quantity) || 1 })),
         markerId: item._assetId ?? null,
+        leftBefore: item._loadedQuantity === item.quantity,
       }];
     });
 
@@ -923,7 +929,8 @@ export default function ReviewScannedDataDialog({
     if (!formData) return;
     const plan = buildUpdatePlan(formData);
     if (plan.assetChanges.length > 0 || plan.gigChanges.length > 0 || plan.mismatches.length > 0) {
-      setLineDecisions({});
+      // A line left as it is on an earlier save starts at Leave, so one click can't remove units.
+      setLineDecisions(Object.fromEntries(plan.mismatches.filter(m => m.leftBefore).map(m => [m.lineId, { mode: 'leave' as const, remove: [] }])));
       setPendingPlan(plan); // show confirmation first
     } else {
       commitUpdate(plan);

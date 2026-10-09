@@ -96,6 +96,24 @@ describe('AssetScreen', () => {
     }).not.toThrow()
   })
 
+  it('editing a unit: switching it to Lot asks first, because its serial and tag go', async () => {
+    const svc = await import('../services/asset.service')
+    vi.mocked(svc.getAsset).mockResolvedValue({
+      id: 'u1', organization_id: 'org-1', equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
+      serial_number: 'S1', tag_number: 'T1', quantity: 1, status: 'Active', acquisition_date: '2026-03-01',
+    } as any)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const ue = userEvent.setup()
+    render(<AssetScreen {...mockProps} assetId="u1" />)
+    expect(await screen.findByDisplayValue('S1')).toBeInTheDocument()
+    await ue.click(screen.getByRole('radio', { name: /Lot/ }))
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/serial number and tag/))
+    expect(screen.getByRole('radio', { name: /Unit/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByDisplayValue('S1')).toBeInTheDocument()
+    confirm.mockRestore()
+    vi.mocked(svc.getAsset).mockResolvedValue({} as any)
+  })
+
   describe('Add Item (#183)', () => {
     it('a new item takes its insurance class and description in What it is, and has no Lifecycle', () => {
       render(<AssetScreen {...mockProps} />)
