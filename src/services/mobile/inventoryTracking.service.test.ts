@@ -449,6 +449,10 @@ describe('inventoryTrackingService', () => {
       expect(inventoryTrackingService.getScanProgress(list(tracking), 'Checked Out')).toEqual({ done: 7 + 1 + 3, total: 16 })
     })
 
+    it('on Unload, a Not Returned row counts what came back: the line less what is still out', () => {
+      expect(inventoryTrackingService.getScanProgress(list([row('rack', 'xlr', 'Not Returned', 3)]), 'In Warehouse').done).toBe(7)
+    })
+
     it('a row with no quantity (before #185) counts as the whole line', () => {
       expect(inventoryTrackingService.getScanProgress(list([row('rack', 'xlr', 'Checked Out')]), 'Checked Out').done).toBe(10)
     })

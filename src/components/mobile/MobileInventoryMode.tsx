@@ -11,8 +11,12 @@ import {
   ChevronUp,
   FileText,
   Wrench,
+  Minus,
+  Plus,
 } from 'lucide-react';
-import { SCANNING_MODES, ScanningMode } from '../../config/inventoryWorkflow';
+import { NOT_RETURNED_STATUS, RETURNED_STATUS, SCANNING_MODES, ScanningMode } from '../../config/inventoryWorkflow';
+import { writeOffPieces } from '../../services/writeOff.service';
+import { canManage } from '../../utils/permissions';
 import { packingListService } from '../../services/mobile/packingList.service';
 import { inventoryTrackingService } from '../../services/mobile/inventoryTracking.service';
 import { idbStore } from '../../utils/idb/store';
@@ -97,6 +101,12 @@ const isKitFullyScanned = (tracking: TrackingRecord[], packingList: any, kit: an
 
 type AnySlot = { kit_id: string; item_id: string; item_name: string; quantity: number };
 
+/** A lot line being counted (#185): `start` is what the kit holds now, or the full line. */
+type CounterState = { kitId: string; assetId: string; name: string; line: number; start: number; count: number };
+
+/** Fewer came back on Unload than went out: what happens to the rest (#185). */
+type ShortReturnState = { kitId: string; assetId: string; name: string; stillOut: number };
+
 const formatScannedBy = (trackingRecord?: TrackingRecord | null) => {
   if (!trackingRecord) {
     return '—';
@@ -124,7 +134,7 @@ const formatScannedAt = (value?: string) => {
 };
 
 export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps) {
-  const { user, selectedOrganization } = useAuth();
+  const { user, selectedOrganization, userRole } = useAuth();
   const [selectedMode, setSelectedMode] = useState<ScanningMode>(SCANNING_MODES[0]);
   const [locationInput, setLocationInput] = useState<string>(SCANNING_MODES[0].locationLabel);
   const [packingList, setPackingList] = useState<any>(null);
@@ -135,6 +145,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   const [expandedKits, setExpandedKits] = useState<Set<string>>(new Set());
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [noteDialog, setNoteDialog] = useState<NoteDialogState>({ open: false, note: '', maintenanceRequired: false });
+  const [counter, setCounter] = useState<CounterState | null>(null);
+  const [shortReturn, setShortReturn] = useState<ShortReturnState | null>(null);
 
   const refreshPackingList = useCallback(async (id: string) => {
     const updated = await idbStore.getPackingList(id);
@@ -286,6 +298,70 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     toast.success('Item checked');
   }, [gigId, locationInput, packingList, refreshPackingList, selectedMode, selectedOrganization, user]);
 
+  const scanLot = useCallback(async (kitId: string, assetId: string, quantity: number, status: string) => {
+    if (!gigId || !selectedOrganization || !user) return;
+    await inventoryTrackingService.submitScan({
+      gigId,
+      kitId,
+      assetId,
+      quantity,
+      status,
+      organizationId: selectedOrganization.id,
+      scannedBy: user.id,
+      location: locationInput || null,
+    });
+    await refreshPackingList(gigId);
+  }, [gigId, locationInput, refreshPackingList, selectedOrganization, user]);
+
+  // A lot line is counted, not ticked (#185). It starts at what the kit holds from an earlier
+  // step (on Unload: what went out), or the full line.
+  const openCounter = useCallback((kitId: string, assetId: string, name: string, line: number) => {
+    const latest = getLatestTrackingRecordForItem(packingList?.tracking || [], kitId, assetId);
+    const holds = latest && latest.status !== RETURNED_STATUS && latest.status !== selectedMode.resultingStatus
+      ? Math.max(1, Number((latest as any).quantity ?? line) || 1)
+      : 0;
+    const start = holds || line;
+    setCounter({ kitId, assetId, name, line, start, count: start });
+  }, [packingList, selectedMode]);
+
+  const confirmCounter = useCallback(async () => {
+    if (!counter) return;
+    const { kitId, assetId, name, start, count } = counter;
+    setCounter(null);
+    if (selectedMode.resultingStatus === RETURNED_STATUS && count < start) {
+      setShortReturn({ kitId, assetId, name, stillOut: start - count });
+      return;
+    }
+    if (count <= 0) return;
+    await scanLot(kitId, assetId, count, selectedMode.resultingStatus);
+    toast.success(count < counter.line ? `${name}: ${count} of ${counter.line}` : 'Item checked');
+  }, [counter, scanLot, selectedMode]);
+
+  // Leave at the gig: one Not Returned row with what's still out; the rest are home.
+  const leaveAtGig = useCallback(async () => {
+    if (!shortReturn) return;
+    const { kitId, assetId, stillOut } = shortReturn;
+    setShortReturn(null);
+    await scanLot(kitId, assetId, stillOut, NOT_RETURNED_STATUS);
+    toast(`${stillOut} left at the gig`);
+  }, [scanLot, shortReturn]);
+
+  // Mark missing: online only, Admin or Manager (the write-off RPC checks too). It writes the
+  // bucket's closing row itself, so the list is reloaded from the server.
+  const markMissing = useCallback(async () => {
+    if (!shortReturn || !gigId) return;
+    const { kitId, assetId, stillOut } = shortReturn;
+    setShortReturn(null);
+    try {
+      await writeOffPieces({ assetId, quantity: stillOut, gigId, kitId, stillOut: 0 });
+      toast.success(`${stillOut} marked missing`);
+    } catch (error) {
+      console.error('Write-off failed:', error);
+      toast.error('Could not mark them missing. Try again, or leave them at the gig.');
+    }
+    await loadPackingList(gigId);
+  }, [gigId, shortReturn]);
+
   // An "any" line (#185): checking it fills it from what the kit holds, then lots at home (most
   // at home first, no prompt); un-checking deletes the rows that filled it in this mode.
   const handleAnyToggle = useCallback(async (slot: AnySlot) => {
@@ -387,15 +463,28 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       if (kit.tag_number === tag) {
         return { type: 'kit' as const, kitId: kit.id, assetId: undefined, label: kit.name || 'Kit' };
       }
+    }
 
-      for (const assetAssignment of (kit.assets || [])) {
-        const asset = assetAssignment.asset || {};
-        const assetId = assetAssignment.asset_id || asset.id || assetAssignment.id;
-        if (asset.tag_number === tag) {
+    // A tagged line goes under the kit a kit scan would write it under: the top kit, or the
+    // nearest container it's sealed in (getCascadeTargets), never a nested kit's own id.
+    const roots: string[] = packingList.top_level_kit_ids?.length
+      ? packingList.top_level_kit_ids
+      : packingList.kits.map((a: any) => a.kit_id ?? a.kit?.id);
+    const assetsById = new Map<string, any>();
+    for (const assignment of packingList.kits) {
+      for (const a of assignment.kit?.assets || []) {
+        const asset = a.asset || {};
+        assetsById.set(a.asset_id || asset.id || a.id, asset);
+      }
+    }
+    for (const root of roots) {
+      for (const target of inventoryTrackingService.getCascadeTargets(packingList, root)) {
+        const asset = target.asset_id ? assetsById.get(target.asset_id) : null;
+        if (asset?.tag_number === tag) {
           return {
             type: 'asset' as const,
-            kitId: kit.id,
-            assetId,
+            kitId: target.kit_id,
+            assetId: target.asset_id ?? undefined,
             label: asset.manufacturer_model || asset.name || asset.description || 'Asset',
           };
         }
@@ -403,9 +492,6 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     }
     // A tagged unit of an "any" line's item fills a slot under the line's kit (#185): the first
     // line of that item that isn't full yet in this mode.
-    const roots: string[] = packingList.top_level_kit_ids?.length
-      ? packingList.top_level_kit_ids
-      : packingList.kits.map((a: any) => a.kit_id);
     const slots: AnySlot[] = roots.flatMap((root) => inventoryTrackingService.getAnySlots(packingList, root));
     for (const slot of slots) {
       const unit = (packingList.item_records?.[slot.item_id] || []).find((r: any) => r.tag_number === tag);
@@ -504,10 +590,10 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       // every nested asset too, so the expanded list needs to be able to
       // show a match that lives inside a nested sub-kit that didn't itself
       // match by name/tag.
-      return filteredKits.map((assignment: any) => ({ assignment, depth: 0, assetsSource: 'flattened' as const, rootId: assignment.kit_id, multiplier: 1 }));
+      return filteredKits.map((assignment: any) => ({ assignment, depth: 0, assetsSource: 'flattened' as const, rootId: assignment.kit_id ?? assignment.kit?.id, multiplier: 1 }));
     }
 
-    const byId = new Map<string, any>(packingList.kits.map((a: any) => [a.kit_id, a]));
+    const byId = new Map<string, any>(packingList.kits.map((a: any) => [a.kit_id ?? a.kit?.id, a]));
     const childrenOf = new Map<string, { id: string; quantity: number }[]>();
     for (const edge of packingList.hierarchy_edges || []) {
       const parentAssignment = byId.get(edge.parent_kit_id);
@@ -521,7 +607,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     // before this field existed — same flat-but-correct behavior as before.
     const rootIds: string[] = packingList.top_level_kit_ids?.length
       ? packingList.top_level_kit_ids
-      : packingList.kits.map((a: any) => a.kit_id);
+      : packingList.kits.map((a: any) => a.kit_id ?? a.kit?.id);
 
     const rows: { assignment: any; depth: number; assetsSource: 'direct' | 'flattened'; rootId: string; multiplier: number }[] = [];
     const visited = new Set<string>();
@@ -663,9 +749,12 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                 const kitProgress = isLogicalKit && packingList
                   ? inventoryTrackingService.getKitProgress(packingList, kit.id, selectedMode.resultingStatus)
                   : { done: 0, total: 0 };
+                // A nested kit that isn't a container has no rows of its own: its lines are
+                // tracked under the top kit, as a kit scan writes them.
+                const trackKitId = kit.is_container ? kit.id : rootId;
                 // This kit's own "any" lines, under the kit their pieces are tracked in (#185).
                 const anySlots: AnySlot[] = (kit.any_lines || []).map((line: any) => ({
-                  kit_id: kit.is_container ? kit.id : rootId,
+                  kit_id: trackKitId,
                   item_id: line.item_id,
                   item_name: line.item_name,
                   quantity: Math.max(1, Number(line.quantity ?? 1) || 1) * (kit.is_container ? 1 : multiplier),
@@ -742,16 +831,26 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                           const assetId = assetAssignment.asset_id || asset.id || assetAssignment.id;
                           const assetName = asset.manufacturer_model || asset.name || asset.description || asset.category || assetAssignment.notes || 'Unnamed Asset';
                           const assetTag = asset.tag_number;
-                          const assetTracking = getDisplayedTrackingRecord(packingList?.tracking || [], kit.id, assetId);
-                          const latestExactAssetTracking = getLatestTrackingRecordForItem(packingList?.tracking || [], kit.id, assetId);
-                          const isAssetChecked = assetTracking?.status === selectedMode.resultingStatus;
+                          const assetTracking = getDisplayedTrackingRecord(packingList?.tracking || [], trackKitId, assetId);
+                          const latestExactAssetTracking = getLatestTrackingRecordForItem(packingList?.tracking || [], trackKitId, assetId);
                           const assetNoTag = !assetTag;
+                          // A line of more than one is a lot: counted, not ticked (#185). It's
+                          // checked when all of it is there; 7 of 10 shows as 7 / 10.
+                          const line = Math.max(1, Number(assetAssignment.quantity ?? 1) || 1) * (kit.is_container ? 1 : multiplier);
+                          const isLotLine = line > 1;
+                          const piecesHere = assetTracking?.status === selectedMode.resultingStatus
+                            ? Number((assetTracking as any).quantity ?? line) || line
+                            : 0;
+                          const isAssetChecked = piecesHere >= line;
 
                           return (
                             <div key={assetId} className={cn('flex items-stretch rounded-lg border text-sm transition-all', isAssetChecked ? 'bg-emerald-50/50 border-emerald-100' : 'bg-muted/20 border-border/50')}>
                               <button
+                                aria-label={`${isAssetChecked ? 'Uncheck' : 'Check'} ${assetName}`}
                                 className="w-10 flex items-center justify-center shrink-0 active:scale-90 transition-transform"
-                                onClick={() => handleManualToggle(kit.id, assetId)}
+                                onClick={() => (isLotLine && !isAssetChecked
+                                  ? openCounter(trackKitId, assetId, assetName, line)
+                                  : handleManualToggle(trackKitId, assetId))}
                               >
                                 <div className={cn(isAssetChecked ? 'text-emerald-500' : 'text-muted-foreground')}>
                                   {isAssetChecked ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
@@ -760,7 +859,9 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                               <div className="flex-1 min-w-0 py-2.5 pr-2.5">
                                 <p className="font-medium leading-tight truncate">{assetName}</p>
                                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                  <span className="text-[10px] text-muted-foreground">Qty: {assetAssignment.quantity}</span>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {isLotLine && piecesHere > 0 && piecesHere < line ? `${piecesHere} / ${line}` : `Qty: ${line}`}
+                                  </span>
                                   <TrackingStatusBadge status={assetTracking?.status} />
                                   {asset?.status === 'Maintenance' ? (
                                     <Badge variant="outline" className="text-[10px] py-0 h-4 px-1.5 font-normal border-orange-200 bg-orange-50 text-orange-700 gap-1">
@@ -784,7 +885,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                                 aria-label={`Edit note for ${assetName}`}
                                 className="px-3 text-[11px] font-medium text-sky-700 border-l border-border/50 active:bg-sky-50 transition-colors"
                                 onClick={() => openNoteDialog({
-                                  kitId: kit.id,
+                                  kitId: trackKitId,
                                   assetId,
                                   itemName: assetName,
                                   trackingRecord: latestExactAssetTracking,
@@ -834,6 +935,65 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
           error={scannerError}
         />
       </div>
+
+      <Dialog open={counter !== null} onOpenChange={(open) => (!open ? setCounter(null) : undefined)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{counter?.name}</DialogTitle>
+          </DialogHeader>
+          {counter ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-3">
+                <Button variant="outline" className="h-12 w-12" aria-label="One fewer"
+                  onClick={() => setCounter((c) => (c ? { ...c, count: Math.max(0, c.count - 1) } : c))}>
+                  <Minus className="w-5 h-5" />
+                </Button>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  aria-label="How many"
+                  className="w-20 h-12 text-center text-xl font-semibold rounded-md border border-border bg-background"
+                  value={counter.count}
+                  min={0}
+                  onChange={(event) => {
+                    const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                    setCounter((c) => (c ? { ...c, count: n } : c));
+                  }}
+                />
+                <Button variant="outline" className="h-12 w-12" aria-label="One more"
+                  onClick={() => setCounter((c) => (c ? { ...c, count: c.count + 1 } : c))}>
+                  <Plus className="w-5 h-5" />
+                </Button>
+              </div>
+              <p className="text-center text-xs text-muted-foreground">
+                {selectedMode.resultingStatus === RETURNED_STATUS ? `${counter.start} went out` : `Line calls for ${counter.line}`}
+              </p>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="h-11" onClick={() => setCounter(null)}>Cancel</Button>
+            <Button className="h-11" onClick={() => void confirmCounter()}>Confirm</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={shortReturn !== null} onOpenChange={(open) => (!open ? setShortReturn(null) : undefined)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{shortReturn?.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm font-medium">{shortReturn?.stillOut} not back</p>
+          <p className="text-sm text-muted-foreground">
+            Leave them at the gig to pick up later, or mark them missing to take them out of inventory.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            {canManage(userRole) && navigator.onLine ? (
+              <Button variant="outline" className="h-11" onClick={() => void markMissing()}>Mark missing</Button>
+            ) : null}
+            <Button className="h-11" onClick={() => void leaveAtGig()}>Leave at the gig</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={noteDialog.open} onOpenChange={(open) => (!open ? closeNoteDialog() : undefined)}>
         <DialogContent className="sm:max-w-md">

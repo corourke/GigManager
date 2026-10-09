@@ -1,7 +1,7 @@
 import { idbStore } from '../../utils/idb/store';
 import { offlineSyncService } from './offlineSync.service';
 import { createClient } from '../../utils/supabase/client';
-import { RETURNED_STATUS } from '../../config/inventoryWorkflow';
+import { NOT_RETURNED_STATUS, RETURNED_STATUS } from '../../config/inventoryWorkflow';
 import { recordKind } from '../../utils/equipmentItems';
 import { placementOf, type TrackingRow } from '../../utils/locations';
 import { pickLots } from '../../utils/pickLots';
@@ -168,9 +168,16 @@ const getAnySlots = (packingList: any, kitId: string, owningKitId: string = kitI
   return slots;
 };
 
-/** How many pieces a tracking row says are there: a row from before #185 has no count, so the whole line. */
-const piecesIn = (record: TrackingRecord | null, status: string, line: number) =>
-  record?.status === status ? Math.min(line, record.quantity ?? line) : 0;
+/**
+ * How many pieces a tracking row says are there: a row from before #185 has no count, so the
+ * whole line. On Unload, a Not Returned row holds what's still out, so the rest came back.
+ */
+const piecesIn = (record: TrackingRecord | null, status: string, line: number) => {
+  if (status === RETURNED_STATUS && record?.status === NOT_RETURNED_STATUS) {
+    return Math.max(0, line - Number(record.quantity ?? line));
+  }
+  return record?.status === status ? Math.min(line, record.quantity ?? line) : 0;
+};
 
 /** How many of an "any" line's pieces are in `status` under its kit: each of the item's records' newest row. */
 const getAnySlotFilled = (packingList: any, slot: AnySlot, status: string) =>
