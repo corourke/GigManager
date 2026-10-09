@@ -1,6 +1,7 @@
 /**
  * Tax-year reports under Financials → Reporting (#125): Income, Expenses,
- * Assets and Grey zone, cash basis. GigWrangler supplies the data a tax program asks for; it
+ * Assets and Grey zone, cash basis (the Schedule C summary and Needs attention
+ * are built from these, in utils/taxSummaryReports). GigWrangler supplies the data a tax program asks for; it
  * doesn't calculate tax. The counting rules are in docs/technical/financials.md §5:
  *
  *   INCOME      = amount_settled of paid money-in gig rows, by paid date
@@ -52,6 +53,8 @@ export interface ReportGigRow {
   stage: string;
   amount_settled: number | null;
   paid_at: string | null;
+  /** The row's own date: for mileage, the trip's date, which sets its IRS rate. */
+  date?: string | null;
   description: string | null;
   category: string | null;
   mileage: number | null;

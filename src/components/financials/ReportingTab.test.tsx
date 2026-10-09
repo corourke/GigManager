@@ -51,6 +51,13 @@ const onlyRows = (lines: unknown[], gigRows: unknown[] = []) => vi.mocked(getTax
   lines, gigRows, categories: [{ name: 'Supplies', schedule_c_line: '22' }], scheduleC: [{ code: '22', label: 'Supplies' }], equipmentCategories: ['Audio'],
 } as any);
 
+/** Any data, with Supplies (line 22) and Car and truck (line 9) on the lists. */
+const withData = (d: { lines?: unknown[]; gigRows?: unknown[]; assets?: unknown[]; invoices?: unknown[] }) => vi.mocked(getTaxReportData).mockResolvedValueOnce({
+  lines: [], gigRows: [], assets: [], invoices: [], ...d,
+  categories: [{ name: 'Supplies', schedule_c_line: '22' }],
+  scheduleC: [{ code: '9', label: 'Car and truck expenses' }, { code: '22', label: 'Supplies' }], equipmentCategories: ['Audio'],
+} as any);
+
 describe('ReportingTab (#125)', () => {
   beforeEach(() => vi.clearAllMocks());
   const year = String(new Date().getFullYear());
@@ -159,6 +166,82 @@ describe('ReportingTab (#125)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Assets' }));
     expect(screen.getByText('Disposed of in 2023')).toBeInTheDocument();
     expect(screen.getByText('Crown XLS')).toBeInTheDocument();
+  });
+
+  describe('the Schedule C summary', () => {
+    it('shows receipts, expenses by line with line 9 mileage, the totals and the net, and downloads it', async () => {
+      withData({
+        lines: [purchaseLine({ id: 'p1', purchase_date: '2026-03-01', description: 'Gaff tape', category: 'Supplies', item_cost: 40, line_cost: 40, tax_treatment: 'expense' })],
+        gigRows: [
+          { ...gigOut({ id: 'in1', amount_settled: 1500, paid_at: '2026-04-02' }), direction: 'in' },
+          gigOut({ id: 'm1', category: 'Car and truck expenses', description: 'Mileage', mileage: 100, date: '2026-07-01', amount_settled: 76, paid_at: '2026-07-02' }),
+        ],
+      });
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Schedule C' }));
+      const table = screen.getByRole('table', { name: 'Schedule C summary' });
+      const row = (label: string) => within(table).getByText(label).closest('tr')!;
+      expect(row('Gross receipts')).toHaveTextContent('$1,500.00');
+      expect(row('Line 9: Car and truck expenses')).toHaveTextContent('100 mi');
+      expect(row('Line 9: Car and truck expenses')).toHaveTextContent('$76.00');
+      expect(row('Line 22: Supplies')).toHaveTextContent('$40.00');
+      expect(row('Total expenses')).toHaveTextContent('$116.00');
+      expect(row('Net (before depreciation)')).toHaveTextContent('$1,384.00');
+      expect(screen.getByText('Depreciation and Section 179 are worked out by your tax program from the Assets report.')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: /Download CSV/ }));
+      expect(downloadCsv).toHaveBeenCalledWith(expect.stringContaining('Net (before depreciation)'), 'act4-audio-schedule-c-2026.csv');
+    });
+
+    it('shows the no-category row only when there is one', async () => {
+      withData({ lines: [purchaseLine({ id: 'p5', purchase_date: '2026-03-05', description: 'Strings', category: 'Gear', item_cost: 12, line_cost: 12, tax_treatment: 'expense' })] });
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Schedule C' }));
+      expect(screen.getByText('No category (no Schedule C line)').closest('tr')).toHaveTextContent('$12.00');
+    });
+  });
+
+  describe('Needs attention', () => {
+    const problems = () => withData({
+      lines: [purchaseLine({ id: 'p5', parent_id: 'h1', purchase_date: '2026-03-05', description: 'Strings', category: 'Gear', item_cost: 12, line_cost: 12, tax_treatment: 'expense' })],
+      invoices: [{ id: 'h1', purchase_date: '2026-03-05', vendor: 'Sweetwater', description: null, total_inv_amount: 12 }],
+      assets: [{ id: 'a9', manufacturer_model: 'Crown XLS', description: null, category: 'Audio', acquisition_date: '2019-06-01', item_cost: 900,
+        status: 'Disposed', retired_on: null, recovery_period: 7, purchase_line_id: null }],
+    });
+
+    it('groups what needs fixing, with counts and links to fix it, and downloads it', async () => {
+      problems();
+      const onEditAsset = await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Needs attention' }));
+      const noCategory = screen.getByRole('table', { name: 'Expensed with no expense category' });
+      expect(screen.getByRole('heading', { name: /Expensed with no expense category/ })).toHaveTextContent('1');
+      expect(within(noCategory).getByText('Strings (Sweetwater)')).toBeInTheDocument();
+      const disposed = screen.getByRole('table', { name: 'Disposed or returned with no date disposed' });
+      expect(within(disposed).getByText('Crown XLS')).toBeInTheDocument();
+      await userEvent.click(within(disposed).getByRole('button', { name: 'Edit the equipment: Crown XLS' }));
+      expect(onEditAsset).toHaveBeenCalledWith('a9');
+
+      await userEvent.click(within(noCategory).getByRole('button', { name: 'Edit the purchase: Strings (Sweetwater)' }));
+      expect(await screen.findByRole('dialog', { name: 'Edit purchase' })).toHaveTextContent('h1');
+
+      await userEvent.click(screen.getByRole('button', { name: /Download CSV/ }));
+      expect(downloadCsv).toHaveBeenCalledWith(expect.stringContaining('Strings (Sweetwater)'), 'act4-audio-needs-attention-2026.csv');
+    });
+
+    it('says so when nothing needs attention', async () => {
+      withData({});
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Needs attention' }));
+      expect(screen.getByText('Nothing needs attention for 2026.')).toBeInTheDocument();
+    });
+
+    it('doesn\'t offer to edit a purchase in a filed year', async () => {
+      withData({ lines: [purchaseLine({ id: 'p7', parent_id: 'h7', purchase_date: '2025-03-05', description: 'Picks', category: 'Gear', item_cost: 5, line_cost: 5, tax_treatment: 'expense' })] });
+      await open();
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tax year' }), '2025');
+      await userEvent.click(screen.getByRole('button', { name: 'Needs attention' }));
+      const row = within(screen.getByRole('table', { name: 'Expensed with no expense category' })).getByText('Picks (Sweetwater)').closest('tr')!;
+      expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+    });
   });
 
   describe('the "Need a category" hint says where to choose one (issue #194)', () => {
