@@ -95,6 +95,10 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
     - recovery period on every depreciated unit;
     - mileage at the IRS rate;
     - two Needs attention examples.
+  - **Review fixes (10-09 08:40):**
+    - PR #234 is cut down to `scripts/seed-demo.sql` only. The guide changes had come along by mistake.
+    - PR #235 now says "equipment shared by both kits" (it will follow the Equipment Lead's answer on lots) and describes "none spare · N are in container kits".
+    - Before #235 merges, I'll retake its shots from main after the deploy, so `taken.json`'s `appCommit` names a commit on main.
   - **Kits draft (#184, "N × any" lines):** on branch `claude/docs-kits-draft`, no PR, held with Equipment.
   - **STYLE.md has no rule on timing guide changes against prod.** Proposal for Cameron: "The guide describes production; guide changes for features not yet in prod wait in a PR marked 'merge after the next prod deploy'."
 - **Equipment conflicts, two questions from checking #230 on dev (Docs Lead, 10-09):**
