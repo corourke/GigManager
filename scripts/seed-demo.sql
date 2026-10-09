@@ -51,6 +51,11 @@ $$;
 CREATE FUNCTION pg_temp.at(dt date, hour numeric) RETURNS timestamptz LANGUAGE sql IMMUTABLE AS $$
   SELECT (dt + interval '1 hour' * hour) AT TIME ZONE 'America/Los_Angeles'
 $$;
+-- IRS standard mileage rate on a date, as in src/utils/financials.utils.ts (IRS_MILEAGE_RATES).
+CREATE FUNCTION pg_temp.irs(dt date) RETURNS numeric LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE WHEN dt < DATE '2024-01-01' THEN 0.655 WHEN dt < DATE '2025-01-01' THEN 0.67
+              WHEN dt < DATE '2026-01-01' THEN 0.70 WHEN dt < DATE '2026-07-01' THEN 0.725 ELSE 0.76 END
+$$;
 
 -- -----------------------------------------------------------------------------
 -- 1. CLEAN: remove everything demo (children before parents)
@@ -586,23 +591,25 @@ SELECT pg_temp.d(6, l.n), pg_temp.d(1,1), pg_temp.d(6, l.hdr), CASE WHEN l.gig I
        l.descr, l.category, h.created_by, h.created_by, 'expense'
   FROM (VALUES
     (201, 2, 4,        14.99, 6, 'Gaffer tape, 2 in, black',      'Expendables and supplies'),
-    (202, 2, NULL::int, 8.25, 4, 'AA batteries, 24-pack',         'Expendables and supplies'),
+    (202, 2, NULL::int, 8.25, 4, 'AA batteries, 24-pack',         NULL),  -- no category yet: shows under Needs attention
     (301, 3, 5,       172.00, 2, 'Cargo truck rental, per day',   'Vehicle and truck rental')
   ) AS l(n, hdr, gig, price, qty, descr, category)
   JOIN _p p ON p.n = l.hdr
   JOIN public.purchases h ON h.id = pg_temp.d(6, l.hdr);
 
--- Depreciated equipment gets its recovery period once its purchase line exists
--- (the database checks the line is set to Depreciate, so only each line's own asset).
+-- Depreciated equipment gets its recovery period once its purchase line exists:
+-- every unit on a depreciated line (the database follows purchase_line_id, 20261017).
 UPDATE public.assets a
    SET recovery_period = p.years
   FROM _pl l
   JOIN _p p ON p.n = l.pur
- WHERE a.id = l.line_asset AND l.treatment = 'depreciate';
+ WHERE a.purchase_line_id = pg_temp.d(6, 100 + l.n) AND l.treatment = 'depreciate';
 
--- Invoice totals = sum of the burdened line costs.
+-- Invoice totals = sum of the burdened line costs, except the truck rental, whose
+-- $45 cleaning fee hasn't been entered as a line (Needs attention: "doesn't add up").
 UPDATE public.purchases h
    SET total_inv_amount = (SELECT sum(l.line_cost) FROM public.purchases l WHERE l.parent_id = h.id)
+                          + CASE WHEN h.id = pg_temp.d(6, 3) THEN 45 ELSE 0 END
  WHERE h.id IN (SELECT pg_temp.d(6, n) FROM _p);
 
 -- -----------------------------------------------------------------------------
@@ -614,13 +621,13 @@ UPDATE public.purchases h
 INSERT INTO public.gig_financials
   (id, gig_id, organization_id, amount, date, notes, created_by, category, reference_number, counterparty_id,
    external_entity_name, currency, description, due_date, paid_at, direction, stage, amount_settled, mileage)
-SELECT pg_temp.d(7, f.n), pg_temp.d(3, f.g), pg_temp.d(1,1), f.amount, g.gd + f.date_off, NULL, pg_temp.d(2,1),
+SELECT pg_temp.d(7, f.n), pg_temp.d(3, f.g), pg_temp.d(1,1), amt.amount, g.gd + f.date_off, NULL, pg_temp.d(2,1),
        f.category::fin_category, f.ref, CASE WHEN f.cp IS NOT NULL THEN pg_temp.d(1, f.cp) END,
        f.ext, 'USD', f.descr,
        CASE WHEN f.due_off IS NOT NULL THEN g.gd + f.due_off END,
        CASE WHEN f.paid_off IS NOT NULL THEN pg_temp.at(g.gd + f.paid_off, 11) END,
        f.dir::fin_direction, f.stage::fin_stage,
-       CASE WHEN f.stage = 'paid' THEN f.amount END, f.mileage
+       CASE WHEN f.stage = 'paid' THEN amt.amount END, f.mileage
   FROM (VALUES
     -- 1 Summer Wrap (Settled): fee in two payments, fuel
     (1,  1, 'in',  'paid',          2400.00, -30, -21, -24, NULL::text, 'Deposit (50%)',                 6, NULL::text, 'INV-2026-0388', NULL::numeric),
@@ -669,7 +676,10 @@ SELECT pg_temp.d(7, f.n), pg_temp.d(3, f.g), pg_temp.d(1,1), f.amount, g.gd + f.
     -- 17 Rooftop Mixer (Proposed)
     (31, 17,'in',  'quoted',        3200.00, -12, NULL, NULL, NULL,     'Quote for sound and crew',      6, NULL,       NULL, NULL)
   ) AS f(n, g, dir, stage, amount, date_off, due_off, paid_off, category, descr, cp, ext, ref, mileage)
-  JOIN _g g ON g.n = f.g;
+  JOIN _g g ON g.n = f.g
+  -- Mileage is recorded at the IRS rate on the trip's date, as the app records it.
+  CROSS JOIN LATERAL (SELECT CASE WHEN f.mileage IS NOT NULL THEN round(f.mileage * pg_temp.irs(g.gd + f.date_off), 2)
+                                  ELSE f.amount END AS amount) amt;
 
 -- Expense rows that came from purchase lines (gig accounting only; amount mirrors the line cost).
 INSERT INTO public.gig_financials
