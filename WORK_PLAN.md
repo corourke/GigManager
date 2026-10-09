@@ -28,7 +28,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 ## 2. Waiting on Cameron
 
-1. **Main bundle size (coordinator, 10-09):** the prod build's main JS is 2,043,982 bytes, 53 KB under the 2,097,152-byte PWA precache limit (local builds read ~1.97 MB; prod is larger with the real env). The next features will likely cross it; a code-splitting pass should come before #184–#186 land.
+1. *(none blocking; bundle size is being handled in §3c)*
 2. **Sentry (optional):** `VITE_SENTRY_DSN` is live in the prod web app (10-09). Still optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check.
 
 **Decided 10-08, recorded here until done:**
@@ -65,6 +65,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 7. `purchase`
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
+
+**Code-splitting (approved by Cameron 10-09; coordinator, by sub-agents).** Prod main chunk 2,043,982 B vs the 2,097,152 B PWA precache limit. (1) **PR 1, building:** lazy-load the remaining screens in `src/routes/screens.tsx`, a reload boundary for chunk-load failures, landing-screen prefetch, and `scripts/check-bundle-size.mjs` + CI step (entry chunk ≤ 1.2 MB, CI builds with a dummy Sentry DSN). Measured: main ~0.84 MB prod-shaped. (2) **PR 2, later:** lazy calendar view, Markdown, `ReviewScannedDataDialog` at its other import sites, and CSV export; touches files in the Equipment Lead's area, so schedule it between their merges. Skipped: lazy Sentry. Future considerations: `pdf.worker.min.mjs` isn't precached (offline PDF preview); `CalendarScreen.tsx` looks unused.
 
 **[#175](https://github.com/corourke/GigManager/issues/175): gig owner organization; delete, cancel, leave and Inactive** (approved by Cameron 10-08; start only after #186 merges). Coordinator only, by sub-agents, 3 PRs in order: (1) migration `gigs.owner_organization_id` + `gig_participants.inactive`, delete/status/participant rules, RLS test 62 (migration to dev by the coordinator; prod rides the next prod deploy); (2) services: calendar cleanup after a successful delete (test first), duplicate uses the owner, remove/inactivate calls, Inactive left out of conflict checks and calendar sync, unused `DELETE /gigs/:id` removed; (3) UI: Delete Gig / Cancel Gig / Leave Gig / Mark Inactive, participant Remove / Mark Inactive / Reactivate, Inactive banner, status read-only for non-owners. The detailed plan is with the coordinator.
 
