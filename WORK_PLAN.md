@@ -20,7 +20,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#125](https://github.com/corourke/GigManager/issues/125) | Financials → Reporting: tax-program data export | Part 1 merged (PR #167): recovery period on equipment, and Income / Expenses / Assets reports with CSV | In dev and prod 10-08 (2024–25 set to 7-year per the filed returns). Grey zone merged (PR #201); date-ranged mileage rates merged (PR #202); F1 run on prod 10-08. Next if wanted: Schedule C summary, Needs attention |
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
 | [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
-| [#182](https://github.com/corourke/GigManager/issues/182)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (a) Items tab, item page, unit/lot form, dashboard total (closes #157); (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | (a) can start (#180 on dev 10-08); b and c after a; d after c; e after d | Equipment Lead |
+| [#183](https://github.com/corourke/GigManager/issues/183)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | #182 done; #183 A, B, C merged (PRs #216, #221) and **in prod 10-09**; #183 D (CSV import) off the critical path; follow-ups in [#226](https://github.com/corourke/GigManager/issues/226) | Equipment Lead: **#184 next**; D by a coordinator sub-agent when the Lead says it's clear |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
 | [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c) |
@@ -78,62 +78,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
-- **Docs Lead, 10-08 late: coordinator's next queue.**
-  - **Item 1, staff rate units (#171):** PR #214 (merged), which added demo rates per hour, day and half day, retakes the staffing shots and fixes the wording.
-  - **Item 2, Equipment Items pages: held.** Cameron chose to keep holding all of Equipment until #183–#186 land.
-  - **Item 3, #206:** fixed in PR #215; the guide follows in PR #217.
-  - **#213:** merged in PR #218; the guide follows in PR #220.
-- **PR #221 pre-merge test on dev (Docs Lead, 10-09 00:45–01:05 UTC; for the coordinator).**
-  - **Setup:** branch `claude/equipment-purchase-forms` at 5d6e3c7, run against dev on localhost:3000. Port 3001 can't reach dev's edge function, whose CORS allows only `http://localhost:3000`. Tested as the Admin, plus Manager, Staff and Viewer. CSV import was skipped, per Cameron.
-  - **Verdict: one blocking bug.** Everything else passes or can follow.
-  - **BLOCKING: removing the line's own unit fails part-way through a save.**
-    - Steps: Edit Purchase → lower a **depreciated** units line by 1 → "Update the equipment" → tick the unit that `purchases.asset_id` points at (the line's first unit) → Confirm & Save.
-    - The DELETE fails: `400 {"code":"23514","message":"A depreciated purchase line must keep its equipment record (purchase …). Mark the equipment disposed instead, or change the line to an expense."}` (the `purchases_check_depreciate_has_asset` check, `20261006000000`).
-    - By then the header and line are already saved: the line quantity drops and the notes change. The unit stays.
-    - A lot change in the same save ("make the lot 3") is silently skipped, leaving the lot at 5 against a line that says 3.
-    - It reproduced twice. Ticking any other unit works.
-    - Fix: make the save all-or-nothing, and move `asset_id` to a remaining unit before deleting (or don't offer that unit).
-  - **Passed:**
-    - Add Item as 3 units, with number-tags-in-sequence and paste-serials.
-    - Add Item as a lot of 10.
-    - A unit with neither serial nor tag is refused: "Unit 1 needs a serial number or a tag (either will do)".
-    - The same tag twice in one save is blocked; the check ignores case.
-    - Item page → Add unit or lot.
-    - Edit a unit and a lot: status, lifecycle, insurance, quantity, disposal and recovery period all persist after a reload.
-    - A Manager can add items. Staff and Viewer see no add, edit or delete controls.
-    - New purchase with a units line of 2 with serials, which used to fail with a database error. Each unit's `purchase_line_id` is set.
-    - A lot line on an existing item, an expensed line, and a depreciated line, which needs a recovery period.
-    - Raise units 2→3, entering the new unit.
-    - Lower and remove a chosen non-first unit.
-    - "Leave it as it is" leaves the equipment untouched.
-    - Removing a tracked line keeps its equipment.
-    - No asset disappeared without being chosen; this was checked against an SQL snapshot after every save.
-    - **No "column … does not exist" or "schema cache" errors on any screen for any role.** The only console noise is a React duplicate-key warning (`kit-null`) on a nested kit's page.
-  - **Can follow:**
-    1. **A tag already in use in the organization gets no warning.** DSL-0011 saved a second time silently. Mockup 3 shows an amber warning. There's no unique index either, and scanning matches the first unit with that tag.
-    2. **Switching an existing unit to Lot erases its serial and tag** without asking; the switch only takes effect alongside another change. This logic is also on main, from #182.
-    3. **"Leave it as it is" isn't remembered:** every later save of that purchase asks again, and one wrong click deletes units. The Equipment details pop-up also shows the old quantity ("qty 2") afterwards.
-    4. **Removing a tracked line unlinks its units or lot without a notice,** including depreciated units.
-    5. **Clearing a money field on the unit edit page doesn't save:** the field is dropped as `undefined`. Also on main.
-    6. **Staff and Viewer can open `/assets/new` and `/assets/:id/edit` by URL;** the database (RLS) blocks the save. Also on main.
-    7. **The units table's Purchase column** shows vendor · date for units added by hand.
-    8. **Mockup differences:**
-       - A saved line doesn't list its units ("6 units: DSL-0141 to DSL-0146") or link to the item.
-       - "An item we already have" is a plain select, not a search.
-       - A new line defaults to Lot.
-       - The unit edit page has no Purchase / tax-treatment section; the recovery period sits under Lifecycle.
-    9. **Not from this PR:**
-       - A purchase whose invoice total is $0 still saves, despite the "Mismatch" warning.
-       - A tracked expensed line saves with no expense category.
-       - Staff and Viewer can open `/financials` by URL; it shows empty and doesn't redirect.
-  - **TEST-221 records left on dev for cleanup:**
-    - Items "TEST-221 Units Speaker", "TEST-221 Lot Cable 25ft", "TEST-221 Manager Units", "TEST-221 Lot 3000" and "TEST-221 Wireless Mic", with their units and lots.
-    - Unit TEST-221-H01 on the demo HX-12P.
-    - Purchase `e6a4ed86-173e-455f-a184-b88a0c05afcb` ("TEST-221 Vendor"), left mismatched by the blocking-bug rerun.
-    - Re-running `./scripts/seed-demo.sh` removes all of these, because they belong to the demo organization.
-- **"N × any" kit lines before #184–#185 (Docs Lead, 10-08):** expected gaps in the demo data (kit page "Unknown Kit × N", packing list omits them, overlap check ignores them); passed to the Equipment Lead 10-09 for #184/#185.
-
-- **Correction to the private membership finding (§2 item 3), Docs Lead, 10-08.** Tested on dev as the demo Manager, the escalation I reported on 10-07 is **not exploitable**: the `guard_organization_membership` trigger (`20260929000000`) blocks it on every path tried. What remains are low-severity defence-in-depth gaps. The full write-up (paths, test results, suggested fixes) went to Cameron privately on 10-08 to pass on. No migration is urgent; fold the fixes into the next membership or security migration.
+- **TEST-221 records on dev (Docs Lead, 10-09):** left by the #221 pre-merge test; re-run `./scripts/seed-demo.sh` to clear them (asked of the Docs Lead 10-09).
 
 ## 4. Agents and documentation
 
