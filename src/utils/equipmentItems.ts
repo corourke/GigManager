@@ -10,6 +10,8 @@ export interface ItemRecord {
   tag_number?: string | null;
   status?: string | null;
   replacement_value?: number | string | null;
+  /** Set when the equipment is retired: gone, like Disposed (Cameron, 10-09). */
+  retired_on?: string | null;
 }
 
 export type RecordKind = 'unit' | 'lot';
@@ -26,6 +28,16 @@ export const IN_SERVICE_STATUSES = ['Active', 'Inactive', 'Maintenance'] as cons
 
 export function isInService(status: string | null | undefined): boolean {
   return (IN_SERVICE_STATUSES as readonly string[]).includes(status ?? 'Active');
+}
+
+/** Gone for good: Disposed, Returned, or retired (a retirement date). */
+export function isRetired(r: Pick<ItemRecord, 'status' | 'retired_on'>): boolean {
+  return !isInService(r.status) || filled(r.retired_on);
+}
+
+/** Available for use: Active and not retired. Inactive and Maintenance aren't (#184). */
+export function isAvailable(r: Pick<ItemRecord, 'status' | 'retired_on'>): boolean {
+  return (r.status ?? 'Active') === 'Active' && !filled(r.retired_on);
 }
 
 const num = (v: number | string | null | undefined): number => {
@@ -58,7 +70,7 @@ export function summarizeItem(records: readonly ItemRecord[], inContainers = 0):
   let minValue: number | null = null;
   let maxValue: number | null = null;
   for (const r of records) {
-    if (!isInService(r.status)) continue;
+    if (isRetired(r)) continue;
     const n = pieces(r);
     owned += n;
     if (recordKind(r) === 'unit') units++; else lots++;
@@ -114,4 +126,15 @@ export function itemMatchesSearch(
   const has = (s: string | null | undefined) => !!s && s.toLowerCase().includes(q);
   return has(item.manufacturer_model) || has(item.category) || has(item.type)
     || records.some((r) => has(r.serial_number) || has(r.tag_number) || has(r.vendor));
+}
+
+/** The average value of one piece of an item, over the pieces still owned ("any" kit lines, #184). */
+export function pieceValue(records: readonly ItemRecord[]): number {
+  let n = 0, total = 0;
+  for (const r of records) {
+    if (isRetired(r) || r.replacement_value == null || r.replacement_value === '') continue;
+    n += pieces(r);
+    total += num(r.replacement_value) * pieces(r);
+  }
+  return n ? total / n : 0;
 }

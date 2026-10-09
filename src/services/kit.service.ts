@@ -4,6 +4,7 @@ import { requireAuth } from '../utils/supabase/auth-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
 import { logActivity } from './activityLog.service';
 import type { FieldChange } from '../utils/supabase/types';
+import { pieceValue } from '../utils/equipmentItems';
 
 const getSupabase = () => createClient();
 
@@ -110,7 +111,9 @@ export async function getKit(kitId: string) {
           notes,
           asset_id,
           child_kit_id,
+          equipment_item_id,
           asset:assets(*),
+          item:equipment_items(id, manufacturer_model, category, type),
           child_kit:kits!kit_components_child_kit_id_fkey(id, name, is_container, category, rental_value)
         )
       `)
@@ -155,10 +158,14 @@ export async function getDistinctKitValues(
   }
 }
 
-/** A row in a kit's component list — exactly one of asset_id/child_kit_id is set. */
+/**
+ * A row in a kit's component list. Exactly one of asset_id (a specific unit or
+ * lot), equipment_item_id ("N × any" of an item, #184) or child_kit_id is set.
+ */
 export type KitComponentInput = {
   id?: string;
   asset_id?: string;
+  equipment_item_id?: string;
   child_kit_id?: string;
   quantity: number;
   notes?: string;
@@ -219,6 +226,7 @@ export async function createKit(kitData: {
       const kitComponents = components.map(c => ({
         kit_id: kit.id,
         asset_id: c.asset_id ?? null,
+        equipment_item_id: c.equipment_item_id ?? null,
         child_kit_id: c.child_kit_id ?? null,
         // A kit is a singular entity — it's either nested in the parent or
         // not, never nested "N times" as one row. Enforced here too, not
@@ -238,6 +246,12 @@ export async function createKit(kitData: {
   } catch (err) {
     return handleApiError(err, 'create kit');
   }
+}
+
+/** An item's model, for the activity log. */
+async function itemModel(supabase: any, itemId: string): Promise<string> {
+  const { data } = await supabase.from('equipment_items').select('manufacturer_model').eq('id', itemId).single();
+  return data?.manufacturer_model ?? '';
 }
 
 /**
@@ -313,7 +327,7 @@ export async function updateKit(kitId: string, kitData: {
 
     if (components) {
       const { data: existingComponents } = await (supabase.from('kit_components') as any)
-        .select('id, asset_id, child_kit_id')
+        .select('id, asset_id, equipment_item_id, child_kit_id')
         .eq('kit_id', kitId);
       const existingIds = existingComponents?.map((c: any) => c.id) || [];
       const incomingIds = components.filter(c => c.id).map(c => c.id!);
@@ -328,6 +342,8 @@ export async function updateKit(kitId: string, kitData: {
             if (c.asset_id) {
               const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', c.asset_id).single();
               await logActivity({ organization_id: organizationId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' } });
+            } else if (c.equipment_item_id) {
+              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: `any ${await itemModel(supabase, c.equipment_item_id)}` } });
             } else if (c.child_kit_id) {
               const { data: subKitRow } = await (supabase.from('kits') as any).select('name').eq('id', c.child_kit_id).single();
               await logActivity({ organization_id: organizationId, event_type: 'kit.subkit_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '' } });
@@ -339,6 +355,7 @@ export async function updateKit(kitId: string, kitData: {
       for (const component of components) {
         const componentData = {
           asset_id: component.asset_id ?? null,
+          equipment_item_id: component.equipment_item_id ?? null,
           child_kit_id: component.child_kit_id ?? null,
           // See createKit — a kit component is always exactly one instance.
           quantity: component.child_kit_id ? 1 : component.quantity,
@@ -353,6 +370,8 @@ export async function updateKit(kitId: string, kitData: {
             if (component.asset_id) {
               const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', component.asset_id).single();
               await logActivity({ organization_id: organizationId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: component.quantity } });
+            } else if (component.equipment_item_id) {
+              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: `any ${await itemModel(supabase, component.equipment_item_id)}`, quantity: component.quantity } });
             } else if (component.child_kit_id) {
               const { data: subKitRow } = await (supabase.from('kits') as any).select('name').eq('id', component.child_kit_id).single();
               await logActivity({ organization_id: organizationId, event_type: 'kit.subkit_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '', quantity: component.quantity } });
@@ -439,12 +458,14 @@ export async function duplicateKit(kitId: string, newName?: string) {
     if (originalKit.kit_components && originalKit.kit_components.length > 0) {
       const kitComponents = originalKit.kit_components.map((c: any) => ({
         kit_id: newKit.id,
-        asset_id: c.asset_id,
-        child_kit_id: c.child_kit_id,
+        asset_id: c.asset_id ?? null,
+        child_kit_id: c.child_kit_id ?? null,
+        equipment_item_id: c.equipment_item_id ?? null,
         quantity: c.quantity,
         notes: c.notes,
       }));
-      await supabase.from('kit_components').insert(kitComponents);
+      const { error: componentsError } = await supabase.from('kit_components').insert(kitComponents);
+      if (componentsError) throw componentsError;
     }
 
     return newKit;
@@ -482,6 +503,8 @@ export interface KitFlattenedSummary {
   assetIds: Set<string>;
   /** A readable name per asset id ("Shure SM58 (#M-12)"), to say what two kits share. */
   assetLabels: Map<string, string>;
+  /** Pieces asked for by "any" lines, per item, through nested kits (#184). */
+  itemQuantities?: Map<string, number>;
 }
 
 /** How an asset is named when telling the user what overlaps: model, plus tag when it has one. */
@@ -513,13 +536,43 @@ export async function getKitsFlattenedSummary(kitIds: string[]): Promise<Map<str
       .in('kit_id', kitIds);
 
     if (error) throw error;
+    const summaryOf = (kitId: string) => {
+      const existing = result.get(kitId) || { totalValue: 0, totalItems: 0, assetIds: new Set<string>(), assetLabels: new Map<string, string>(), itemQuantities: new Map<string, number>() };
+      result.set(kitId, existing);
+      return existing;
+    };
     for (const row of (data || []) as any[]) {
-      const existing = result.get(row.kit_id) || { totalValue: 0, totalItems: 0, assetIds: new Set<string>(), assetLabels: new Map<string, string>() };
+      const existing = summaryOf(row.kit_id);
       existing.totalValue += (row.asset?.replacement_value || 0) * row.total_quantity;
       existing.totalItems += row.total_quantity;
       existing.assetIds.add(row.asset_id);
       existing.assetLabels.set(row.asset_id, assetLabel(row.asset));
-      result.set(row.kit_id, existing);
+    }
+
+    // "Any" lines: N pieces of an item, valued at its average piece.
+    const { data: itemRows, error: itemError } = await supabase
+      .from('kit_flattened_item_cache')
+      .select('kit_id, equipment_item_id, total_quantity')
+      .in('kit_id', kitIds);
+    if (itemError) throw itemError;
+    const itemIds = Array.from(new Set(((itemRows || []) as any[]).map((r) => r.equipment_item_id)));
+    const values = new Map<string, number>();
+    if (itemIds.length) {
+      const { data: records, error: recordsError } = await supabase
+        .from('assets')
+        .select('equipment_item_id, quantity, replacement_value, status, retired_on')
+        .in('equipment_item_id', itemIds);
+      if (recordsError) throw recordsError;
+      const byItem = new Map<string, any[]>();
+      for (const r of (records || []) as any[]) byItem.set(r.equipment_item_id, [...(byItem.get(r.equipment_item_id) ?? []), r]);
+      for (const id of itemIds) values.set(id, pieceValue(byItem.get(id) ?? []));
+    }
+    for (const row of (itemRows || []) as any[]) {
+      const existing = summaryOf(row.kit_id);
+      existing.totalItems += row.total_quantity;
+      existing.totalValue += (values.get(row.equipment_item_id) ?? 0) * row.total_quantity;
+      const quantities = (existing.itemQuantities ??= new Map<string, number>());
+      quantities.set(row.equipment_item_id, (quantities.get(row.equipment_item_id) ?? 0) + row.total_quantity);
     }
     return result;
   } catch (err) {
@@ -588,9 +641,11 @@ export async function getKitsThatWouldCycle(parentKitId: string, candidateKitIds
 
 export interface KitComponentTreeNode {
   clientKey: string;
-  type: 'asset' | 'kit';
+  /** 'item': "N × any" of an item (#184); quantity is N. */
+  type: 'asset' | 'item' | 'kit';
   quantity: number;
   asset?: any;
+  item?: { id: string; manufacturer_model: string; category: string | null; type?: string | null };
   kit?: { id: string; name: string; category: string | null; is_container: boolean; tag_number?: string | null };
   /** Populated (possibly empty) for kit-type nodes only. */
   children: KitComponentTreeNode[];
@@ -621,7 +676,7 @@ export async function getKitComponentTree(kitId: string): Promise<KitComponentTr
 
     const [{ data: kitsData, error: kitsError }, { data: componentRows, error: componentsError }] = await Promise.all([
       supabase.from('kits').select('id, name, category, is_container, tag_number').in('id', allKitIds),
-      supabase.from('kit_components').select('kit_id, asset_id, child_kit_id, quantity, asset:assets(*)').in('kit_id', allKitIds),
+      supabase.from('kit_components').select('kit_id, asset_id, child_kit_id, equipment_item_id, quantity, asset:assets(*), item:equipment_items(id, manufacturer_model, category, type)').in('kit_id', allKitIds),
     ]);
     if (kitsError) throw kitsError;
     if (componentsError) throw componentsError;
@@ -642,6 +697,15 @@ export async function getKitComponentTree(kitId: string): Promise<KitComponentTr
             type: 'asset' as const,
             quantity: row.quantity,
             asset: row.asset,
+            children: [],
+          };
+        }
+        if (row.equipment_item_id) {
+          return {
+            clientKey: `item-${row.equipment_item_id}`,
+            type: 'item' as const,
+            quantity: row.quantity,
+            item: row.item ?? { id: row.equipment_item_id, manufacturer_model: 'Unknown item', category: null },
             children: [],
           };
         }
@@ -681,7 +745,7 @@ export async function getKitComponentTree(kitId: string): Promise<KitComponentTr
  */
 export function countInventoryItems(nodes: KitComponentTreeNode[]): number {
   return nodes.reduce((total, node) => {
-    if (node.type === 'asset') return total + node.quantity;
+    if (node.type === 'asset' || node.type === 'item') return total + node.quantity;
     if (node.kit?.is_container) return total + node.quantity;
     return total + node.quantity * countInventoryItems(node.children);
   }, 0);
@@ -726,6 +790,9 @@ export function flattenToScanUnits(nodes: KitComponentTreeNode[], owningKit: { i
         tag_number: node.asset?.tag_number ?? null,
         quantity: node.quantity,
       });
+    } else if (node.type === 'item') {
+      // "Any" lines are packed by scanning or counting pieces of the item: #185.
+      continue;
     } else if (node.kit?.is_container) {
       units.push({
         kit_id: node.kit.id,
