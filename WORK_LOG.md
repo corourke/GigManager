@@ -5,6 +5,10 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 10-09 ~20:30 UTC** (Cameron): #225, #228, #230, #232, #233, #236, #237, #238 (plus #231, #234, no prod effect). No migrations; prod at 20261017000000. Coordinator verified: new code-split build served (entry 839 KB), Equipment needed table, Needs attention present. Caveat until #240: "N × any" kit lines count in conflicts but aren't on packing lists.
+
+- **User guide, PR #235** (Docs Lead, merged after the prod deploy): per-item conflicts and same-unit rule, Schedule C and Needs attention, manager-only URLs.
+
 - **#238** (Equipment Lead, merged 10-09): same-unit conflicts list only tracked units; a container kit booked on two overlapping gigs counts as one shared unit.
 
 - **#231 shared location rule and #236 overlap follow-ups** (Equipment Lead, merged 10-09): where a unit or lot is (append-only history, lot count summed per gig and kit, ties broken like `compareTrackingRecords`); "in containers" counts every piece again, gig-day heading for UTC+12, every short pair reported, batch same-unit check scoped to the organization.
