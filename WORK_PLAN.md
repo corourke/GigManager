@@ -159,13 +159,13 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong / next |
 |---|---|---|---|
 | `equipment/assets.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/assigning-to-a-gig.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/assigning-to-a-gig.md` | published (PR #250) | 2026-10-10 (Docs Lead; matches prod 10-10) | kit assignment, equipment table, Not returned, write-offs; Out on gigs and scanning to come with #185/#186 |
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/inventory-reports.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/inventory-reports.md` | published (PR #250), packing list only | 2026-10-10 (Docs Lead; matches prod 10-10) | packing-list shot held for #249; manifest and maintenance queue to come |
 | `equipment/kits.md` | draft, written (branch `claude/docs-kits-draft`) | 2026-10-09 (Docs Lead) | held until #185/#186; N × any lines, kit editor, kit page |
 | `equipment/location-explorer.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/overview.md` | published | — | held: equipment rework (#162/#180) |
+| `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
 | `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #220) | projected staff estimate documented |
