@@ -942,6 +942,8 @@ export default function ReviewScannedDataDialog({
   const calculatedTotalCost = formData.items.reduce((sum, item) => sum + ((item.item_cost ?? 0) * item.quantity), 0);
   const diff = Math.abs(calculatedTotalCost - formData.total_inv_amount);
   const hasMismatch = diff > 0.05;
+  // A $0 or empty invoice total over lines that cost something is a missed field (#226).
+  const missingTotal = !(formData.total_inv_amount > 0) && calculatedTotalCost > 0.005;
   const undecided = formData.items.filter(item => !item.tax_treatment).length;
   // New equipment records need a category (lines already tracked have one).
   const noEquipCategory = formData.items
@@ -950,7 +952,7 @@ export default function ReviewScannedDataDialog({
   const noPeriod = formData.items.filter(item => item.tax_treatment === 'depreciate' && !periodOf(item)).length;
   // Units need a serial or a tag each (#183).
   const noUnits = formData.items.filter(item => unitProblemOf(item)).length;
-  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noEquipCategory === 0 && noPeriod === 0 && noUnits === 0;
+  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noEquipCategory === 0 && noPeriod === 0 && noUnits === 0 && !missingTotal;
   const isImage = file?.type.startsWith('image/');
   const isPdf = file?.type === 'application/pdf';
 
@@ -1380,6 +1382,19 @@ export default function ReviewScannedDataDialog({
                   {hasMismatch && <span style={{ color: '#d97706' }}> (diff: ${diff.toFixed(2)})</span>}
                 </span>
               </div>
+              {missingTotal && (
+                <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
+                  <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
+                  <span>Enter the invoice total, or set it to match the lines (${calculatedTotalCost.toFixed(2)}).</span>
+                  <button
+                    type="button"
+                    onClick={() => handleHeaderChange('total_inv_amount', Number(calculatedTotalCost.toFixed(2)))}
+                    style={{ marginLeft: 'auto', fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}
+                  >
+                    Use ${calculatedTotalCost.toFixed(2)}
+                  </button>
+                </div>
+              )}
               {undecided > 0 && (
                 <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
                   <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
