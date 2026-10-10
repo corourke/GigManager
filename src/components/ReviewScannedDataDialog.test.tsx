@@ -98,6 +98,28 @@ describe('ReviewScannedDataDialog in a page (Scan invoices, 10-02)', () => {
   });
 });
 
+describe('ReviewScannedDataDialog: $0 invoice total (#226)', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const renderWith = (data: any) => render(
+    <ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" scannedData={data} file={null} />,
+  );
+
+  it('blocks Save when the total is $0 but the lines add up, and "Use $25.00" fixes it', async () => {
+    renderWith({ ...scanned, total_inv_amount: 0 });
+    expect(await screen.findByText('Enter the invoice total, or set it to match the lines ($25.00).')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Purchase' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Use $25.00' }));
+    expect(screen.queryByText(/Enter the invoice total/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Purchase' })).toBeEnabled();
+  });
+
+  it('still saves a total that matches its lines, including all $0', async () => {
+    renderWith({ ...scanned, total_inv_amount: 0, items: [{ ...scanned.items[0], item_price: 0, item_cost: 0 }] });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save Purchase' })).toBeEnabled());
+    expect(screen.queryByText(/Enter the invoice total/)).not.toBeInTheDocument();
+  });
+});
+
 // #128: CSV-imported lines carry a cost but no printed price. Opening such a
 // purchase for edit recomputed every cost from the (missing) price, so saving
 // wrote $0 costs and proposed $0 to the linked assets.
