@@ -46,9 +46,12 @@ vi.mock('../services/notification.service', async (importOriginal) => {
 
 const org = makeOrganization({ id: 'org-1', name: 'Acme Productions' });
 
-// DropdownMenuContent (Radix) only mounts its items once the trigger opens.
+// DropdownMenuContent (Radix) only mounts its items once the trigger opens. While it opens,
+// Radix sets pointer-events: none on the body and turns the menu's own back on a render later;
+// under load a click can land in between, so wait for the menu to take clicks.
 async function openBell(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Notifications' }));
+  await waitFor(() => expect(screen.getByRole('menu').style.pointerEvents).not.toBe('none'));
 }
 
 describe('NotificationBell (issue #52 — generic notifications)', () => {
