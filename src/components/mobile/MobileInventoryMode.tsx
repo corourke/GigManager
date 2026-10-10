@@ -871,26 +871,33 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     });
   }, [gigId, guardPack, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
 
-  // From "+ Add": a unit or lot already on the gig is scanned there, as its tag would be; anything
-  // else is added on its own (a lot asks how many first).
+  // Something on the gig, by its tag or from "+ Add": a lot line in a kit is counted, as the list
+  // counts it (#246 re-review); anything else is scanned.
+  const scanOrCount = useCallback(async (match: NonNullable<ReturnType<typeof matchLocally>>) => {
+    const line = 'line' in match ? match.line ?? 1 : 1;
+    if (line > 1 && match.kitId && match.assetId) {
+      const { kitId, assetId, label } = match;
+      setIsScannerOpen(false);
+      await guardPack(kitId, assetId, async () => openCounter(kitId, assetId, label, line));
+      return;
+    }
+    await scanMatch(match);
+  }, [guardPack, openCounter, scanMatch]);
+
+  // From "+ Add": a unit or lot already on the gig is scanned or counted there, as its tag would
+  // be; anything else is added on its own (a lot asks how many first).
   const addOrScanRecord = useCallback((record: IndexRecord) => {
     const match = matchLocally({ assetId: record.id });
-    const line = match && 'line' in match ? match.line ?? 1 : 1;
-    if (match && line > 1 && match.kitId && match.assetId) {
-      // A lot line in a kit on the gig: its counter, as the list opens it (#246 re-review).
-      const { kitId, assetId, label } = match;
+    if (match) {
       setAddSearch(null);
-      void guardPack(kitId, assetId, async () => openCounter(kitId, assetId, label, line));
-    } else if (match) {
-      setAddSearch(null);
-      void scanMatch(match);
+      void scanOrCount(match);
     } else if (Number(record.quantity ?? 1) > 1) {
       setLotToAdd({ record, count: Number(record.quantity ?? 1) });
     } else {
       setAddSearch(null);
       void addLoose(record, 1);
     }
-  }, [addLoose, guardPack, matchLocally, openCounter, scanMatch]);
+  }, [addLoose, matchLocally, scanOrCount]);
 
   const handleScan = async (tagNumber: string) => {
     if (!gigId || !packingList || !selectedOrganization || !user) {
@@ -933,7 +940,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         return;
       }
 
-      await scanMatch(match);
+      await scanOrCount(match);
     } catch (error) {
       console.error('Scan processing failed:', error);
       setScannerError('Failed to process scan. Please try again.');

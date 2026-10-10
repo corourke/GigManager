@@ -986,6 +986,20 @@ describe('MobileInventoryMode', () => {
       expect(inventoryTrackingService.addExtraAsset).not.toHaveBeenCalled()
     })
 
+    it('scanning the tag of a lot that\'s a line in a kit opens its counter, as the list does', async () => {
+      const xlr = { id: 'lot-x', manufacturer_model: 'XLR Cable', tag_number: 'BOX-1', quantity: 20 }
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({
+        kits: [{ kit_id: 'top', kit: { id: 'top', name: 'Stage Box', is_container: false,
+          direct_assets: [{ asset_id: 'lot-x', quantity: 10, asset: xlr }], assets: [{ asset_id: 'lot-x', quantity: 10, asset: xlr }] } }],
+      }))
+      const user = await renderIn()
+      await act(async () => { await scannerProps.onScan('BOX-1') })
+      expect(screen.getByLabelText('How many')).toHaveValue(10)
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Confirm' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'top', assetId: 'lot-x', quantity: 10 }))
+    })
+
     it('"+ Add" on a lot already added on its own scans it again with its count, without asking how many', async () => {
       vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({
         extra_assets: { 'lot-x': { id: 'lot-x', manufacturer_model: 'XLR Cable', tag_number: 'BOX-1', quantity: 20 } },
