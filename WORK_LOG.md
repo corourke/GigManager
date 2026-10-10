@@ -5,13 +5,15 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #247** (coordinator's sub-agent, merged 10-10): missing build files return a real 404 (build output moved from /assets/ to /static/, Cameron's choice; `public/static/404.html`; the no-op `_redirects` removed); the app self-repairs once on a chunk-load error (clears caches, unregisters the service worker, reloads); `deploy_prod.sh` checks every deployed JS/CSS file and that a missing one gets 404. Fixes the ItemDetailScreen chunk error Cameron hit after the 10-10 deploy (the SPA HTML had been cached under the chunk URL for 4 h). **Needs a prod deploy.**
+
 - **#185 PR 1b, PR #240** (Equipment Lead, merged 10-10): web packing list with "any" lines, counted lines, lot sizes, container contents, pieces summary, print blanks; packed counts from the shared location rule; Holds column.
 
 - **PR #244** (coordinator's sub-agents, merged 10-10): Status and Location columns on the gig's Equipment table (Cameron 10-09; off by default, counts from the packing list); #242 items 1–4 (History labels for write-offs, confirm before Write off, Missing records' retired date and disposal amount locked, honest filed-year wording).
 
 - **User guide, PR #241** (Docs Lead, merged 10-10): Equipment overview uses items, units and lots; gig Equipment tab lists Equipment needed.
 
-- **Next prod deploy ready 10-10** (pending Cameron): #239, #240, #244 + migration 20261018000000 (write-offs). Read-only prod pre-checks clean (no tracking rows break the new rule; no recovery period without a line; no Missing yet).
+- **Prod deploy, 10-10 ~05:00 UTC** (Cameron): #239, #240, #241, #244 + migration 20261018000000 (write-offs). Coordinator verified read-only: prod at 20261018000000, write-off functions and columns present, `update_asset_status` search_path pinned, new build served. Pre-checks were clean. Cameron saw one chunk-load error (ItemDetailScreen) right after the deploy; the chunk served correctly minutes later (CDN propagation). User guide #243 merged after the deploy.
 
 - **#185 PR 1, PR #239** (Equipment Lead, merged 10-09): write off missing equipment (whole or part of a lot, disposal with no proceeds, undo unless the tax year is filed), the gig's Not returned list, Missing out of owned/available/insured, Disposals by record; tracking rows reference their own organization's equipment; status changes into or out of retired statuses follow the write-off rules. **Migration 20261018000000 on dev; prod with the next deploy (Cameron).**
 

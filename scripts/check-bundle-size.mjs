@@ -4,17 +4,14 @@
 // For a prod-shaped measurement build with a (dummy) VITE_SENTRY_DSN, since a
 // real DSN keeps ~72 KB of @sentry in the main chunk.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { checkSizes, findEntryChunk, LIMITS } from './bundleSize.mjs';
 
 const buildDir = resolve(process.argv[2] ?? 'build');
-const assetsDir = join(buildDir, 'assets');
 
 let indexHtml;
-let assetNames;
 try {
   indexHtml = readFileSync(join(buildDir, 'index.html'), 'utf8');
-  assetNames = readdirSync(assetsDir);
 } catch (err) {
   console.error(`Cannot read the build output in ${buildDir} (${err.message}). Run "npm run build" first.`);
   process.exit(1);
@@ -26,10 +23,21 @@ if (!entryFile) {
   process.exit(1);
 }
 
+// The JS/CSS live next to the entry chunk (vite.config.ts build.assetsDir)
+const assetsSubdir = dirname(entryFile);
+const assetsDir = join(buildDir, assetsSubdir);
+let assetNames;
+try {
+  assetNames = readdirSync(assetsDir);
+} catch (err) {
+  console.error(`Cannot read ${assetsDir} (${err.message}).`);
+  process.exit(1);
+}
+
 const entries = assetNames
   .filter((name) => /\.(js|css)$/.test(name))
   .map((name) => {
-    const file = `assets/${name}`;
+    const file = `${assetsSubdir}/${name}`;
     return { file, bytes: statSync(join(assetsDir, name)).size, isEntry: file === entryFile };
   });
 
