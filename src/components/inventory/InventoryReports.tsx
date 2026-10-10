@@ -28,6 +28,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
+import { RETURNED_STATUS } from '../../config/inventoryWorkflow';
 import {
   getGigsForReportPicker,
   getManifestReport,
@@ -415,6 +416,44 @@ interface PackingLine {
   tag?: string | null;
 }
 
+/** An "any" line's progress (#185): "1 of 2" when scanned, "7 counted · 3 short" when counted. */
+function anyProgress(row: PackingListRow): string {
+  const packed = row.packed ?? 0;
+  if (!row.counted) return `${packed} of ${row.quantity}`;
+  const short = Math.max(0, row.quantity - packed);
+  return short ? `${packed} counted · ${short} short` : `${packed} counted`;
+}
+
+/** Under a line's name (#185): the units packed for an "any" line, a lot's size, a container's
+ *  contents; and, on paper, a write-in blank per piece to scan or a box to count. */
+function PackingLineDetail({ row }: { row: PackingListRow }) {
+  const scanned = row.kind === 'any' && !row.counted;
+  const tags = (row.packed_units ?? []).map((u) => u.tag_number ?? u.serial_number ?? `${u.quantity} from a lot`);
+  return (
+    <>
+      {tags.length > 0 && (
+        <div className="mt-0.5 flex flex-wrap gap-1 pl-6 text-xs text-muted-foreground">
+          {tags.map((t, i) => <span key={i} className="rounded bg-muted px-1 font-mono">{t}</span>)}
+        </div>
+      )}
+      {row.kind === 'lot' && row.lot_of != null && <div className="pl-6 text-xs text-muted-foreground">{`from a lot of ${row.lot_of}`}</div>}
+      {row.kind === 'container' && (row.contents?.length ?? 0) > 0 && (
+        <div className="text-xs text-muted-foreground">{row.contents!.join(' · ')}</div>
+      )}
+      {scanned && (
+        <div className="print-only hidden pl-6">
+          {Array.from({ length: Math.min(row.quantity, 24) }, (_, i) => (
+            <span key={i} data-testid="write-in" className="mr-2 inline-block w-16 border-b border-black">&nbsp;</span>
+          ))}
+        </div>
+      )}
+      {row.counted && (
+        <div data-testid="count-box" className="print-only hidden pl-6">☐ count ______</div>
+      )}
+    </>
+  );
+}
+
 function PackingListTab({
   organizationId,
   organizationName,
@@ -518,6 +557,12 @@ function PackingListTab({
       });
   }, [rows]);
 
+  // Pieces, not lines (#185): what the kits ask for, and how many of them are packed.
+  const pieces = useMemo(() => rows.reduce((acc, r) => {
+    const packed = r.packed ?? (r.status && r.status !== RETURNED_STATUS ? r.quantity : 0);
+    return { total: acc.total + r.quantity, packed: acc.packed + Math.min(packed, r.quantity) };
+  }, { total: 0, packed: 0 }), [rows]);
+
   const selectedGig = fixedGig;
   const selectedGigTitle = selectedGig.title;
   const show = (col: PackingColumn) => visibleColumns.has(col);
@@ -592,6 +637,10 @@ function PackingListTab({
         </div>
       )}
 
+      {gigId && !loading && rows.length > 0 && (
+        <p className="text-sm text-muted-foreground">{`${pieces.total} pieces · ${pieces.packed} packed`}</p>
+      )}
+
       {gigId && !loading && (
         <div className="rounded-md border overflow-hidden">
           {packingLines.length === 0 ? (
@@ -634,14 +683,18 @@ function PackingListTab({
                         <div className={`flex items-center gap-2 ${line.depth === 1 ? 'pl-6 relative before:absolute before:left-2 before:top-1/2 before:w-3 before:border-t before:border-border' : ''}`}>
                           <span data-item-name>{line.name}</span>
                           {(line.depth === 0 || isContainer) && <KitTypeBadge isContainer={line.depth === 0 ? !line.kitId : true} />}
+                          {row?.kind === 'any' && <span className="rounded border border-sky-300 bg-sky-50 px-1.5 text-[11px] font-medium text-sky-800">Any</span>}
                           {conflict && <ConflictBadge />}
                         </div>
+                        {row && <PackingLineDetail row={row} />}
                       </TableCell>
                       <TableCell>{(row ? row.tag_number : line.tag) ?? '—'}</TableCell>
                       <TableCell className="text-center">{row ? row.quantity : 1}</TableCell>
                       {show('status') && (
                         <TableCell>
-                          {!row ? blankCell : row.status ? (
+                          {!row ? blankCell : row.kind === 'any' ? (
+                            <span className="text-xs">{anyProgress(row)}</span>
+                          ) : row.status ? (
                             <TrackingStatusBadge status={row.status} />
                           ) : (
                             <span className="text-xs text-muted-foreground">Not scanned</span>
