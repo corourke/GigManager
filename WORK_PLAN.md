@@ -91,6 +91,14 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **Pre-deploy test of main @ 248994e (Docs Lead, 10-10 22:30 UTC).** The full report is on PR #250.
+  - **#251 and #252: pass** for Admin and Manager, filed-year cases included. Staff and Viewer have no Financials.
+  - **#253 and #254: partial.**
+    - Pass: a case and tagged units show once, at their newest record; a newer case-only record doesn't move the case's contents; the status and location filters use where things are now; lot splits show at each gig.
+    - Fail, filed as **#255**: untagged items in a case are listed once per gig they've been to; they bring back a stale copy of the case; the gig filter still lists them.
+    - **Not a regression:** prod already keys everything per gig. Whether #255 holds the deploy is Cameron's call.
+  - **Also filed: #256.** On desktop, Track a gig → Scan: manual entry can't be typed into or submitted. Pre-existing; the phone layout works.
+  - **Dev data:** the test tracking rows are left for repro. Harbor Truck has a $0 total and an edited line description until `./scripts/seed-demo.sh` is re-run.
 - **Docs Lead status, 10-09 20:45 UTC.**
   - **Post-release screenshot check (prod 10-09):** I retook all 41 shots from main. None needs replacing: #235 had already retaken the changed screens, and 3 of the 4 diffs are invisible anti-aliasing.
   - **Known gap: the team members table's Last Login** shows the screenshot runs' real sign-in times (Oct 8–9), later than the pinned date (Oct 7), and they change each run. Signing in is what updates it.
