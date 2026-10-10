@@ -5,6 +5,7 @@ vi.mock('../../utils/idb/store', () => ({
     getPackingList: vi.fn().mockResolvedValue(null),
     putPackingList: vi.fn(),
     putGigs: vi.fn(),
+    getOutbox: vi.fn().mockResolvedValue([]),
   },
 }))
 
@@ -219,6 +220,29 @@ describe('packingListService.fetchGigPackingList', () => {
 
     // Units only: a lot's pieces elsewhere show in what's at home, not as a warning.
     expect(result.elsewhere).toEqual({ k12: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'On Site' } });
+  });
+
+  // #246 review: a kit added at pack-out offline stays on the list until its add has synced.
+  it('keeps a kit added at pack-out whose add is still queued', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } }], error: null },
+      kit_components: { data: [], error: null },
+    };
+    const pending = { kit_id: 'case-9', added_at_pack_out: true, assigned_by: 'user-1', contents_pending: true, kit: { id: 'case-9', name: 'Case 9', is_container: true, assets: [] } };
+    const { idbStore } = await import('../../utils/idb/store');
+    vi.mocked(idbStore.getPackingList).mockResolvedValue({ gig_id: 'gig-1', top_level_kit_ids: ['rack', 'case-9'], kits: [pending], tracking: [] });
+    vi.mocked(idbStore.getOutbox).mockResolvedValue([
+      { id: 1, type: 'KIT_ASSIGNMENT_ADD', payload: { gig_id: 'gig-1', kit_id: 'case-9' }, timestamp: 1, attempts: 0 },
+      { id: 2, type: 'KIT_ASSIGNMENT_ADD', payload: { gig_id: 'gig-2', kit_id: 'other' }, timestamp: 2, attempts: 0 },
+    ] as any);
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+    expect(result.kits.map((k: any) => k.kit_id)).toEqual(['rack', 'case-9']);
+    expect(result.top_level_kit_ids).toEqual(['rack', 'case-9']);
+    vi.mocked(idbStore.getPackingList).mockResolvedValue(null);
+    vi.mocked(idbStore.getOutbox).mockResolvedValue([]);
   });
 
   // #246 review: where things are now reads every row, a page at a time.

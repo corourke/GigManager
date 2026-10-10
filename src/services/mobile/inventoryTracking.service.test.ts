@@ -677,7 +677,7 @@ describe('inventoryTrackingService', () => {
       )
       const saved = vi.mocked(idbStore.putPackingList).mock.calls[0][1] as any
       expect(saved.top_level_kit_ids).toEqual(['main', 'case-1'])
-      expect(saved.kits[1]).toMatchObject({ kit_id: 'case-1', added_at_pack_out: true, assigned_by: 'user-1', kit: { id: 'case-1', name: 'Mic Case', is_container: true } })
+      expect(saved.kits[1]).toMatchObject({ kit_id: 'case-1', added_at_pack_out: true, assigned_by: 'user-1', contents_pending: true, kit: { id: 'case-1', name: 'Mic Case', is_container: true } })
     })
 
     it('removePackOutKit clears what was scanned for it, then queues the removal', async () => {

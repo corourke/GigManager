@@ -848,6 +848,16 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         return;
       }
 
+      // A kit added offline: its contents aren't known until it syncs, so there's nothing to scan yet.
+      const pendingKit = match.type === 'kit'
+        ? packingList.kits.find((a: any) => (a.kit_id ?? a.kit?.id) === match.kitId && a.contents_pending)
+        : null;
+      if (pendingKit) {
+        setIsScannerOpen(false);
+        toast(`${match.label} added. Its contents load when online.`);
+        return;
+      }
+
       await guardPack(match.kitId, match.assetId, async () => {
         await inventoryTrackingService.submitScan({
           gigId,
@@ -1092,7 +1102,10 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               <h2 className="text-sm font-semibold">Added at pack-out</h2>
               {addedKits.map((assignment: any) => (
                 <div key={`added-${assignment.kit_id}`} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="truncate">{assignment.kit?.name ?? 'Kit'} <span className="text-xs text-muted-foreground">· kit</span></span>
+                  <span className="truncate">
+                    {assignment.kit?.name ?? 'Kit'} <span className="text-xs text-muted-foreground">· kit</span>
+                    {assignment.contents_pending && <span className="block text-xs text-muted-foreground">Contents load when online</span>}
+                  </span>
                   {canAddHere && assignment.assigned_by === user?.id ? (
                     <Button size="sm" variant="ghost" className="h-8" aria-label={`Remove ${assignment.kit?.name ?? 'kit'}`}
                       onClick={() => void removeAddedKit(assignment.kit_id)}>Remove</Button>

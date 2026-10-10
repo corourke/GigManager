@@ -299,6 +299,17 @@ export const packingListService = {
       (left: any, right: any) => new Date(right.scanned_at).getTime() - new Date(left.scanned_at).getTime()
     );
 
+    // Kits added at pack-out whose add hasn't synced yet stay on the list until it has (#246 review).
+    const queuedAdds = new Set(((await idbStore.getOutbox()) || [])
+      .filter((item: any) => item.type === 'KIT_ASSIGNMENT_ADD' && item.payload?.gig_id === gigId)
+      .map((item: any) => item.payload.kit_id as string));
+    const serverKitIds = new Set(kitAssignments.map((a: any) => a.kit_id));
+    for (const pending of (cached?.kits || []) as any[]) {
+      if (!queuedAdds.has(pending.kit_id) || serverKitIds.has(pending.kit_id)) continue;
+      kitAssignments.push(pending);
+      topLevelIds.add(pending.kit_id);
+    }
+
     const packingListData = {
       gig_id: gigId,
       gig_title: gigData?.title || null,

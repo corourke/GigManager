@@ -589,7 +589,8 @@ export const inventoryTrackingService = {
         ...packingList,
         top_level_kit_ids: [...(packingList.top_level_kit_ids || []), kit.id],
         kits: [...(packingList.kits || []), {
-          kit_id: kit.id, notes: null, added_at_pack_out: true, assigned_by: userId,
+          // Its contents come with the next fetch, once the add has synced.
+          kit_id: kit.id, notes: null, added_at_pack_out: true, assigned_by: userId, contents_pending: true,
           kit: { ...kit, assets: [], direct_assets: [], any_lines: [] },
         }],
       });

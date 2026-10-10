@@ -875,6 +875,22 @@ describe('MobileInventoryMode', () => {
       expect(screen.queryByText('Not on the list')).not.toBeInTheDocument()
     })
 
+    // #246 review: added offline, its contents aren't known yet: nothing to scan, and it says so.
+    it('a kit added offline says its contents load when online, not "Scanned"', async () => {
+      const { toast } = await import('sonner')
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({
+        top_level_kit_ids: ['top', 'amps'],
+        kits: [...list().kits, { kit_id: 'amps', added_at_pack_out: true, assigned_by: 'user-1', contents_pending: true,
+          kit: { id: 'amps', name: 'Amp Rack', tag_number: 'AMP-1', is_container: false, assets: [], direct_assets: [], any_lines: [] } }],
+      }))
+      await renderIn()
+      expect(screen.getByText('Contents load when online')).toBeInTheDocument()
+      await act(async () => { await scannerProps.onScan('AMP-1') })
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalledWith('Scanned: Amp Rack')
+      expect(toast).toHaveBeenCalledWith('Amp Rack added. Its contents load when online.')
+    })
+
     it('a Viewer is not offered to add anything', async () => {
       auth.role = 'Viewer'
       try {
