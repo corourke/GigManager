@@ -21,7 +21,7 @@ function makeQueryChain(result: { data: any; error: any }) {
   const methods = [
     'select', 'insert', 'update', 'upsert', 'delete',
     'eq', 'neq', 'in', 'not', 'is', 'or', 'gte', 'lte', 'lt',
-    'order', 'limit',
+    'order', 'limit', 'range',
   ];
   methods.forEach((m) => { chain[m] = vi.fn().mockReturnValue(chain); });
   chain.single = vi.fn().mockResolvedValue(result);
@@ -785,7 +785,7 @@ describe('inventoryManagement.service', () => {
         id: `${gig_id}-${kit_id}-${asset_id}-${at}`, gig_id, kit_id, asset_id, status: 'Checked Out', quantity: 1, scanned_at: `2026-10-09T${at}:00Z`,
         created_at: `2026-10-09T${at}:00Z`, asset, ...over,
       });
-      const setup = (tracking: any[]) => {
+      const setup = (tracking: any[], extraComponents: any[] = []) => {
         mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
         mockSupabase.from.mockImplementation((table: string) => makeQueryChain(({
           gig_kit_assignments: { data: [
@@ -800,6 +800,7 @@ describe('inventoryManagement.service', () => {
             { kit_id: 'kit-a', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 1, item: sm57 },
             { kit_id: 'kit-b', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 1, item: sm57 },
             { kit_id: 'kit-a', asset_id: 'cables', child_kit_id: null, quantity: 4, asset: { id: 'cables', ...lot } },
+            ...extraComponents,
           ], error: null },
           assets: { data: [{ equipment_item_id: 'item-sm57', tag_number: 'MIC-1', status: 'Active', retired_on: null }], error: null },
           inventory_tracking: { data: tracking, error: null },
@@ -820,6 +821,66 @@ describe('inventoryManagement.service', () => {
         setup([row('gig-1', 'kit-a', 'u1', '10:00', u1), row('gig-2', 'kit-x', 'u1', '11:00', u1)]);
         const rows = await getPackingListReport('org-1', 'gig-1');
         expect(packedOn(rows, 'kit-a', (r) => r.item_id === 'item-sm57')).toBe(0);
+      });
+
+      // #240 follow-up: a unit's status says where it is now, not where it was last scanned here.
+      it('a unit line since moved to another gig shows no status here', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        const u2 = { ...u1, tag_number: 'MIC-2' };
+        setup(
+          [row('gig-1', 'kit-b', 'u2', '10:00', u2), row('gig-2', 'kit-x', 'u2', '11:00', u2), row('gig-1', 'kit-b', 'u3', '10:00', u2, { status: 'In Warehouse' })],
+          [{ kit_id: 'kit-b', asset_id: 'u2', child_kit_id: null, quantity: 1, asset: { id: 'u2', ...u2 } },
+            { kit_id: 'kit-b', asset_id: 'u3', child_kit_id: null, quantity: 1, asset: { id: 'u3', ...u2, tag_number: 'MIC-3' } }],
+        );
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(rows.find((r) => r.asset_id === 'u2')).toMatchObject({ packed: 0, status: null, location: null });
+        // Returned from here and not moved since: it says so.
+        expect(rows.find((r) => r.asset_id === 'u3')).toMatchObject({ packed: 0, status: 'In Warehouse' });
+      });
+
+      // #240 follow-up: every row of what's tracked here, past the first page of 1000.
+      it('reads every tracking row of the records here, a page at a time', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        setup([]);
+        const old = Array.from({ length: 1000 }, (_, i) => ({ ...row('gig-3', 'kit-y', 'u1', '09:00', u1), id: `old-${i}` }));
+        mockSupabase.from.mockImplementation((table: string) => {
+          if (table !== 'inventory_tracking') return makeQueryChain(({
+            gig_kit_assignments: { data: [{ kit_id: 'kit-a', kit: { id: 'kit-a', name: 'Kit A', is_container: false, tag_number: null, organization_id: 'org-1' } }], error: null },
+            kits: { data: [{ id: 'kit-a', name: 'Kit A', category: null, is_container: false, tag_number: null }], error: null },
+            kit_components: { data: [{ kit_id: 'kit-a', asset_id: 'u1', child_kit_id: null, quantity: 1, asset: { id: 'u1', ...u1 } }], error: null },
+          } as Record<string, any>)[table] ?? { data: [], error: null });
+          let select = '';
+          let from: number | null = null;
+          const chain = makeQueryChain({ data: [], error: null });
+          chain.select = vi.fn((cols: string) => { select = cols; return chain; });
+          chain.range = vi.fn((a: number) => { from = a; return chain; });
+          chain.then = (res: any, rej: any) => {
+            const data = select.includes('asset:') ? [row('gig-1', 'kit-a', 'u1', '10:00', u1)]
+              : from === 1000 ? [row('gig-2', 'kit-x', 'u1', '11:00', u1)] : old;
+            return Promise.resolve({ data, error: null }).then(res, rej);
+          };
+          return chain;
+        });
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(rows.find((r) => r.asset_id === 'u1')).toMatchObject({ packed: 0, status: null });
+      });
+
+      // #240 follow-up: a container is one case, packed only where its newest row puts it.
+      it('a container since moved to another gig is not packed here', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        const caseRow = (gig_id: string, at: string, over: Record<string, unknown> = {}) =>
+          ({ id: `${gig_id}-case-${at}`, gig_id, kit_id: 'case-1', asset_id: null, status: 'Checked Out', quantity: 1, scanned_at: `2026-10-09T${at}:00Z`, created_at: `2026-10-09T${at}:00Z`, ...over });
+        mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+        const tables = (tracking: any[]) => mockSupabase.from.mockImplementation((table: string) => makeQueryChain(({
+          gig_kit_assignments: { data: [{ kit_id: 'case-1', kit: { id: 'case-1', name: 'Mic Case', is_container: true, tag_number: 'MC-1', organization_id: 'org-1' } }], error: null },
+          inventory_tracking: { data: tracking, error: null },
+        } as Record<string, any>)[table] ?? { data: [], error: null }));
+
+        tables([caseRow('gig-1', '10:00'), caseRow('gig-2', '11:00')]);
+        expect((await getPackingListReport('org-1', 'gig-1')).find((r) => r.kit_id === 'case-1')).toMatchObject({ packed: 0, status: null });
+
+        tables([caseRow('gig-2', '09:00'), caseRow('gig-1', '10:00', { location: 'Truck' })]);
+        expect((await getPackingListReport('org-1', 'gig-1')).find((r) => r.kit_id === 'case-1')).toMatchObject({ packed: 1, status: 'Checked Out', location: 'Truck' });
       });
 
       it('written-off pieces are never packed', async () => {

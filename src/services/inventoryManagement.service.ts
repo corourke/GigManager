@@ -128,6 +128,8 @@ export interface PackingListRow {
 
 /** Units and lots added at pack-out on their own (no-kit rows) are one group, after the kits (#185). */
 export const LOOSE_GROUP_NAME = 'Added at pack-out';
+/** Tracking rows per request: PostgREST's default most. */
+const TRACKING_PAGE = 1000;
 export const looseGroupId = (gigId: string) => `loose:${gigId}`;
 
 export interface MaintenanceRow {
@@ -669,16 +671,45 @@ export async function getPackingListReport(organizationId: string, gigId: string
     // So every row of what's been tracked here, from any gig.
     const recordById = new Map<string, ItemRecord>();
     for (const r of gigRows) if (r.asset_id && r.asset) recordById.set(r.asset_id, { id: r.asset_id, ...r.asset });
-    let everyRow: TrackingRow[] = [];
-    if (recordById.size > 0) {
-      const { data: allRows, error: allRowsError } = await supabase
-        .from('inventory_tracking')
-        .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
-        .eq('organization_id', organizationId)
-        .in('asset_id', [...recordById.keys()]);
-      if (allRowsError) throw allRowsError;
-      everyRow = (allRows ?? []) as TrackingRow[];
-    }
+    // A page at a time: a busy record has more rows than one response holds (#240 follow-up).
+    const everyRowOf = async (narrow: (q: any) => any): Promise<TrackingRow[]> => {
+      const out: TrackingRow[] = [];
+      for (let from = 0; ; from += TRACKING_PAGE) {
+        const { data, error } = await narrow(supabase
+          .from('inventory_tracking')
+          .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
+          .eq('organization_id', organizationId))
+          .order('id', { ascending: true })
+          .range(from, from + TRACKING_PAGE - 1);
+        if (error) throw error;
+        out.push(...((data ?? []) as TrackingRow[]));
+        if ((data ?? []).length < TRACKING_PAGE) return out;
+      }
+    };
+    const everyRow = recordById.size > 0 ? await everyRowOf((q) => q.in('asset_id', [...recordById.keys()])) : [];
+    // A unit's newest row anywhere, and a container's (its case row): where it is now.
+    const newestByKey = (rows: readonly TrackingRow[], key: (r: TrackingRow) => string | null) => {
+      const out = new Map<string, TrackingRow>();
+      for (const r of rows) {
+        const k = key(r);
+        if (k == null) continue;
+        const seen = out.get(k);
+        if (!seen || r.scanned_at > seen.scanned_at || (r.scanned_at === seen.scanned_at && (r.created_at ?? '') > (seen.created_at ?? ''))) out.set(k, r);
+      }
+      return out;
+    };
+    const newestOfRecord = newestByKey(everyRow, (r) => r.asset_id ?? null);
+    const containerIds = [
+      ...[...containerContents.keys()],
+      ...[...scanUnitsByKit.values()].flat().filter((u) => u.kind === 'container').map((u) => u.kit_id),
+    ];
+    const newestOfContainer = newestByKey(
+      containerIds.length ? await everyRowOf((q) => q.in('kit_id', [...new Set(containerIds)]).is('asset_id', null)) : [],
+      (r) => (r.asset_id ? null : r.kit_id ?? null),
+    );
+    /** This gig's row for a unit or container, if that's where it is now; else none. */
+    const hereNow = (record: DbInventoryTracking | undefined, newest: TrackingRow | undefined) =>
+      record && (!newest || (newest.gig_id === gigId && (newest.kit_id ?? null) === (record.kit_id ?? null))) ? record : undefined;
     const packedIn = (assetId: string | null, kitId: string | null) => {
       const record = assetId ? recordById.get(assetId) : undefined;
       if (!record) return 0;
@@ -716,7 +747,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
       };
 
       if (kit.is_container) {
-        const kitRecord = latest.find((r) => r.kit_id === kitId && !r.asset_id);
+        const kitRecord = hereNow(latest.find((r) => r.kit_id === kitId && !r.asset_id), newestOfContainer.get(kitId));
         rows.push({
           kit_id: kitId,
           kit_name: kit.name,
@@ -765,7 +796,11 @@ export async function getPackingListReport(organizationId: string, gigId: string
             });
             continue;
           }
-          const unitRecord = latest.find((r) => r.kit_id === unit.kit_id && (r.asset_id ?? null) === unit.asset_id);
+          const lastHere = latest.find((r) => r.kit_id === unit.kit_id && (r.asset_id ?? null) === unit.asset_id);
+          // A unit or container says where it is now: this row only if that's still here.
+          const unitRecord = unit.kind === 'container' ? hereNow(lastHere, newestOfContainer.get(unit.kit_id))
+            : unit.kind === 'unit' && unit.asset_id ? hereNow(lastHere, newestOfRecord.get(unit.asset_id))
+              : lastHere;
           rows.push({
             kit_id: unit.kit_id,
             kit_name: unit.kit_name,
@@ -797,14 +832,15 @@ export async function getPackingListReport(organizationId: string, gigId: string
       const asset = (r as any).asset;
       const kind = recordKind(asset) === 'unit' && Number(asset.quantity ?? 1) <= 1 ? 'unit' : 'lot';
       const quantity = kind === 'unit' ? 1 : Math.max(1, Number(r.quantity ?? 1) || 1);
+      const shown = kind === 'unit' ? hereNow(r, newestOfRecord.get(r.asset_id!)) : r;
       rows.push({
         kit_id: looseId, kit_name: LOOSE_GROUP_NAME, is_container: false, kind,
         lot_of: kind === 'lot' ? Number(asset.quantity ?? 1) : null,
         packed: packedIn(r.asset_id, null),
         asset_id: r.asset_id, asset_name: asset.manufacturer_model ?? null, tag_number: asset.tag_number ?? null,
         quantity,
-        status: r.status, location: r.location ?? null, scanned_at: r.scanned_at ?? null,
-        scanned_by_name: formatUserName((r as any).scanned_by_user), notes: r.notes ?? null,
+        status: shown?.status ?? null, location: shown?.location ?? null, scanned_at: shown?.scanned_at ?? null,
+        scanned_by_name: shown ? formatUserName((shown as any).scanned_by_user) : null, notes: shown?.notes ?? null,
         has_conflict: false,
         group_kit_id: looseId, group_kit_name: LOOSE_GROUP_NAME, group_is_container: false, group_tag_number: null, group_is_loose: true,
       });
