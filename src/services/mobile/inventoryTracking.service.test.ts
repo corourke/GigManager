@@ -688,10 +688,11 @@ describe('inventoryTrackingService', () => {
         tracking: [{ id: 'r1', gig_id: 'gig-1', kit_id: 'case-1', asset_id: null, status: 'Checked Out', scanned_at: '2026-10-10T10:00:00.000Z', scanned_by: 'user-1' }],
       }
       vi.mocked(idbStore.getPackingList).mockResolvedValue(withAdded)
-      await inventoryTrackingService.removePackOutKit({ gigId: 'gig-1', kitId: 'case-1', userId: 'user-1' })
-      const calls = vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => c[1])
-      expect(calls).toEqual(['INVENTORY_CLEAR', 'KIT_ASSIGNMENT_REMOVE'])
-      expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls[1][0]).toEqual({ gig_id: 'gig-1', kit_id: 'case-1', assigned_by: 'user-1' })
+      await inventoryTrackingService.removePackOutKit({ gigId: 'gig-1', organizationId: 'org-1', kitId: 'case-1', userId: 'user-1' })
+      // One step: the removal, then (on the server) the kit's rows, so a refused removal keeps them.
+      expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls).toEqual([
+        [{ organization_id: 'org-1', gig_id: 'gig-1', kit_id: 'case-1', assigned_by: 'user-1' }, 'KIT_ASSIGNMENT_REMOVE'],
+      ])
       const saved = vi.mocked(idbStore.putPackingList).mock.calls.at(-1)![1] as any
       expect(saved.top_level_kit_ids).toEqual(['main'])
       expect(saved.kits.map((k: any) => k.kit_id)).toEqual(['main'])
@@ -712,11 +713,10 @@ describe('inventoryTrackingService', () => {
         ],
       }
       vi.mocked(idbStore.getPackingList).mockResolvedValue(withAdded)
-      await inventoryTrackingService.removePackOutKit({ gigId: 'gig-1', kitId: 'amps', userId: 'user-1' })
+      await inventoryTrackingService.removePackOutKit({ gigId: 'gig-1', organizationId: 'org-1', kitId: 'amps', userId: 'user-1' })
       const saved = vi.mocked(idbStore.putPackingList).mock.calls.at(-1)![1] as any
       expect(saved.tracking.map((r: any) => r.id)).toEqual(['r9'])
-      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledWith({ gig_id: 'gig-1', kit_id: 'amps', all_for_kit: true }, 'INVENTORY_CLEAR')
-      expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => c[1])).toEqual(['INVENTORY_CLEAR', 'KIT_ASSIGNMENT_REMOVE'])
+      expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => c[1])).toEqual(['KIT_ASSIGNMENT_REMOVE'])
     })
 
     it('a unit or lot added at pack-out is a no-kit row', async () => {

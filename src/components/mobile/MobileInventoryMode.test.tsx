@@ -795,7 +795,7 @@ describe('MobileInventoryMode', () => {
       expect(within(group).queryByRole('button', { name: 'Remove DI Case' })).not.toBeInTheDocument()
 
       await user.click(within(group).getByRole('button', { name: 'Remove Mic Case' }))
-      expect(inventoryTrackingService.removePackOutKit).toHaveBeenCalledWith({ gigId: 'gig-1', kitId: 'case-1', userId: 'user-1' })
+      expect(inventoryTrackingService.removePackOutKit).toHaveBeenCalledWith({ gigId: 'gig-1', organizationId: 'org-1', kitId: 'case-1', userId: 'user-1' })
 
       await user.click(within(group).getByRole('button', { name: 'Uncheck XLR Cable' }))
       expect(inventoryTrackingService.clearTracking).toHaveBeenCalledWith({ gigId: 'gig-1', kitId: null, assetId: 'lot-x' })
@@ -888,7 +888,8 @@ describe('MobileInventoryMode', () => {
       await act(async () => { await scannerProps.onScan('AMP-1') })
       expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
       expect(toast.success).not.toHaveBeenCalledWith('Scanned: Amp Rack')
-      expect(toast).toHaveBeenCalledWith('Amp Rack added. Its contents load when online.')
+      // It was added when it was added; a scan only says what's still to come.
+      expect(toast).toHaveBeenCalledWith('Amp Rack: its contents load when online.')
     })
 
     it('a Viewer is not offered to add anything', async () => {

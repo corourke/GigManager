@@ -854,7 +854,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         : null;
       if (pendingKit) {
         setIsScannerOpen(false);
-        toast(`${match.label} added. Its contents load when online.`);
+        toast(`${match.label}: its contents load when online.`);
         return;
       }
 
@@ -982,7 +982,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
 
   async function removeAddedKit(kitId: string) {
     if (!gigId || !user) return;
-    await inventoryTrackingService.removePackOutKit({ gigId, kitId, userId: user.id });
+    if (!selectedOrganization) return;
+    await inventoryTrackingService.removePackOutKit({ gigId, organizationId: selectedOrganization.id, kitId, userId: user.id });
     await refreshPackingList(gigId);
     toast('Kit removed from this gig');
   }

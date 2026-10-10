@@ -54,15 +54,6 @@ registerSyncHandler('INVENTORY_SCAN', async (payload: any) => {
 });
 
 registerSyncHandler('INVENTORY_CLEAR', async (payload: any) => {
-  // A kit added at pack-out, removed: every row it wrote at the gig (#185 PR 2). Rows queued
-  // before this sync first, so they go too.
-  if (payload.all_for_kit) {
-    const { error } = await supabase.from('inventory_tracking').delete()
-      .eq('gig_id', payload.gig_id)
-      .eq('kit_id', payload.kit_id);
-    if (error) throw error;
-    return;
-  }
   if (payload.record_id) {
     const { error } = await supabase
       .from('inventory_tracking')
@@ -160,18 +151,28 @@ registerSyncHandler('KIT_ASSIGNMENT_ADD', async (payload: any) => {
 });
 
 // Removing a kit added at pack-out: only the adder's own flagged assignment.
+// A kit added at pack-out, removed (#185 PR 2): the assignment, then every row the kit wrote at
+// the gig (rows queued before this sync first, so they go too). A removal that's refused, or
+// deletes nothing, keeps the rows: the next fetch shows the kit again.
 registerSyncHandler('KIT_ASSIGNMENT_REMOVE', async (payload: any) => {
-  const { error } = await (supabase.from('gig_kit_assignments') as any)
+  const { data: removed, error } = await (supabase.from('gig_kit_assignments') as any)
     .delete()
+    .eq('organization_id', payload.organization_id)
     .eq('gig_id', payload.gig_id)
     .eq('kit_id', payload.kit_id)
     .eq('added_at_pack_out', true)
-    .eq('assigned_by', payload.assigned_by);
-  if ((error as any)?.code === '42501') {
-    toast.error(`Kit not removed from the gig: ${(error as any).message}`);
+    .eq('assigned_by', payload.assigned_by)
+    .select('id');
+  if ((error as any)?.code === '42501' || (!error && (removed ?? []).length === 0)) {
+    toast.error(`Kit not removed from the gig${error ? `: ${(error as any).message}` : '.'}`);
     return;
   }
   if (error) throw error;
+  const { error: rowsError } = await supabase.from('inventory_tracking').delete()
+    .eq('organization_id', payload.organization_id)
+    .eq('gig_id', payload.gig_id)
+    .eq('kit_id', payload.kit_id);
+  if (rowsError) throw rowsError;
 });
 
 registerSyncHandler('STAFF_ASSIGNMENT_UPDATE', async (payload: any) => {

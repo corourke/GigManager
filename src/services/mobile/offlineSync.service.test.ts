@@ -179,25 +179,6 @@ describe('offlineSyncService — INVENTORY_CLEAR handler (by record_id)', () => 
   })
 })
 
-// #246 review: removing a kit added at pack-out removes every row it wrote at the gig.
-describe('offlineSyncService — INVENTORY_CLEAR handler (all of a kit)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('deletes every row of the kit at the gig', async () => {
-    const chain = makeChain({ data: null, error: null })
-    mockFrom.mockReturnValue(chain)
-
-    await offlineSyncService.syncItem(outboxItem('INVENTORY_CLEAR', { gig_id: 'gig-1', kit_id: 'kit-1', all_for_kit: true }))
-
-    expect(mockFrom).toHaveBeenCalledTimes(1)
-    expect(chain.delete).toHaveBeenCalled()
-    expect(chain.eq).toHaveBeenCalledWith('gig_id', 'gig-1')
-    expect(chain.eq).toHaveBeenCalledWith('kit_id', 'kit-1')
-  })
-})
-
 describe('offlineSyncService — INVENTORY_CLEAR handler (bulk, no record_id)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -322,12 +303,25 @@ describe('offlineSyncService: kits added at pack-out (#185)', () => {
     await expect(offlineSyncService.syncItem(outboxItem('KIT_ASSIGNMENT_ADD', payload))).resolves.toBeUndefined()
   })
 
-  it('KIT_ASSIGNMENT_REMOVE deletes only the adder\'s own pack-out addition', async () => {
-    const chain = makeChain({ data: null, error: null })
-    mockFrom.mockReturnValue(chain)
-    await offlineSyncService.syncItem(outboxItem('KIT_ASSIGNMENT_REMOVE', { gig_id: 'gig-1', kit_id: 'case-1', assigned_by: 'user-1' }))
-    expect(chain.delete).toHaveBeenCalled()
-    expect(chain.eq.mock.calls).toEqual([['gig_id', 'gig-1'], ['kit_id', 'case-1'], ['added_at_pack_out', true], ['assigned_by', 'user-1']])
+  // #246 review: the kit's rows at the gig go only once its removal went through, scoped to the
+  // organization; a refused removal leaves them.
+  it('KIT_ASSIGNMENT_REMOVE deletes the adder\'s own pack-out addition, then the kit\'s rows at the gig', async () => {
+    const assignment = makeChain({ data: [{ id: 'a1' }], error: null })
+    const rows = makeChain({ data: null, error: null })
+    mockFrom.mockReturnValueOnce(assignment).mockReturnValueOnce(rows)
+    await offlineSyncService.syncItem(outboxItem('KIT_ASSIGNMENT_REMOVE', { organization_id: 'org-1', gig_id: 'gig-1', kit_id: 'case-1', assigned_by: 'user-1' }))
+    expect(mockFrom.mock.calls.map((c: any[]) => c[0])).toEqual(['gig_kit_assignments', 'inventory_tracking'])
+    expect(assignment.eq.mock.calls).toEqual([['organization_id', 'org-1'], ['gig_id', 'gig-1'], ['kit_id', 'case-1'], ['added_at_pack_out', true], ['assigned_by', 'user-1']])
+    expect(rows.delete).toHaveBeenCalled()
+    expect(rows.eq.mock.calls).toEqual([['organization_id', 'org-1'], ['gig_id', 'gig-1'], ['kit_id', 'case-1']])
+  })
+
+  it('a removal that deletes nothing keeps the kit\'s rows and says so', async () => {
+    const { toast } = await import('sonner')
+    mockFrom.mockReturnValueOnce(makeChain({ data: [], error: null }))
+    await offlineSyncService.syncItem(outboxItem('KIT_ASSIGNMENT_REMOVE', { organization_id: 'org-1', gig_id: 'gig-1', kit_id: 'case-1', assigned_by: 'user-1' }))
+    expect(mockFrom).toHaveBeenCalledTimes(1)
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Kit not removed'))
   })
 
   it('a refused add is dropped with a message, not retried', async () => {

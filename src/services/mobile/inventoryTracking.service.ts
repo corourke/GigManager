@@ -602,9 +602,9 @@ export const inventoryTrackingService = {
     await syncIfOnline();
   },
 
-  /** Remove a kit you added at pack-out: what was scanned for it first, then the assignment. */
-  async removePackOutKit(params: { gigId: string; kitId: string; userId: string }) {
-    const { gigId, kitId, userId } = params;
+  /** Remove a kit you added at pack-out: the assignment, then every row it wrote at the gig. */
+  async removePackOutKit(params: { gigId: string; organizationId: string; kitId: string; userId: string }) {
+    const { gigId, organizationId, kitId, userId } = params;
     // Every row it wrote here, in every mode: it was never meant to be on the gig.
     const packingList = await idbStore.getPackingList(gigId);
     if (packingList) {
@@ -615,8 +615,8 @@ export const inventoryTrackingService = {
         tracking: (packingList.tracking || []).filter((r: TrackingRecord) => !(r.gig_id === gigId && r.kit_id === kitId)),
       });
     }
-    await offlineSyncService.queueTrackingUpdate({ gig_id: gigId, kit_id: kitId, all_for_kit: true }, 'INVENTORY_CLEAR');
-    await offlineSyncService.queueTrackingUpdate({ gig_id: gigId, kit_id: kitId, assigned_by: userId }, 'KIT_ASSIGNMENT_REMOVE');
+    // One step on the server: the removal, then the kit's rows, so a refused removal keeps them.
+    await offlineSyncService.queueTrackingUpdate({ organization_id: organizationId, gig_id: gigId, kit_id: kitId, assigned_by: userId }, 'KIT_ASSIGNMENT_REMOVE');
     await syncIfOnline();
   },
 
