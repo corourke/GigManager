@@ -52,15 +52,19 @@ type ClearTrackingParams = {
   assetId?: string;
 };
 
-type UpdateLatestNoteParams = {
+type SaveNoteParams = {
   gigId: string;
   kitId: string;
   assetId?: string;
   notes?: string | null;
   organizationId: string;
   scannedBy: string;
-  fallbackStatus: string;
 };
+
+/** A saved note, or why nothing was written: the unit is out at another gig. */
+type SaveNoteResult =
+  | { saved: true; record: TrackingRecord }
+  | { saved: false; elsewhere: { gig_id: string; gig_title: string | null; status: string } };
 
 type AssetStatusParams = {
   gigId: string;
@@ -393,27 +397,6 @@ const appendTrackingEntries = (packingList: any, entries: TrackingRecord[]) => {
   };
 };
 
-const replaceTrackingRecord = (packingList: any, targetRecord: TrackingRecord, nextRecord: TrackingRecord) => {
-  if (!packingList) {
-    return packingList;
-  }
-
-  return {
-    ...packingList,
-    tracking: (packingList.tracking || [])
-      .map((record: TrackingRecord) => {
-        if (record === targetRecord) {
-          return nextRecord;
-        }
-        if (targetRecord.id && record.id === targetRecord.id) {
-          return nextRecord;
-        }
-        return record;
-      })
-      .sort(compareTrackingRecords),
-  };
-};
-
 const removeTrackingRecords = (packingList: any, recordsToRemove: TrackingRecord[]) => {
   if (!packingList || recordsToRemove.length === 0) {
     return packingList;
@@ -626,67 +609,35 @@ export const inventoryTrackingService = {
     return entries[0];
   },
 
-  async updateLatestNote(params: UpdateLatestNoteParams) {
-    const { gigId, kitId, assetId, organizationId, scannedBy, fallbackStatus } = params;
-    const notes = normalizeNotes(params.notes);
+  /**
+   * Save a note (#246, Cameron 10-10): always a new row, carrying the item's last state forward
+   * unchanged, so a note never counts as a scan. The newest row for it at this gig and kit gives
+   * status, count and place; with none, it's at home (In Warehouse). A unit out at another gig
+   * would be moved here by a row at this gig, so nothing is written for it.
+   */
+  async saveNote(params: SaveNoteParams): Promise<SaveNoteResult> {
+    const { gigId, kitId, assetId, organizationId, scannedBy } = params;
     const packingList = await idbStore.getPackingList(gigId);
-    const latestRecord = getLatestTrackingRecord(packingList?.tracking || [], kitId, assetId);
+    const here = getLatestTrackingRecord(packingList?.tracking || [], kitId, assetId);
+    const away = !here && assetId ? packingList?.elsewhere?.[assetId] : null;
+    if (away) return { saved: false, elsewhere: away };
 
-    if (!latestRecord) {
-      const record = await this.submitScan({
-        gigId,
-        kitId,
-        assetId,
-        status: fallbackStatus,
-        organizationId,
-        scannedBy,
-      });
-
-      const refreshedPackingList = await idbStore.getPackingList(gigId);
-      const createdLatest = getLatestTrackingRecord(refreshedPackingList?.tracking || [], kitId, assetId);
-
-      if (!createdLatest) {
-        return record;
-      }
-
-      const updatedRecord = { ...createdLatest, notes };
-      await idbStore.putPackingList(gigId, replaceTrackingRecord(refreshedPackingList, createdLatest, updatedRecord));
-      await offlineSyncService.queueTrackingUpdate(
-        {
-          gig_id: gigId,
-          kit_id: kitId,
-          asset_id: assetId || null,
-          record_id: createdLatest.id,
-          notes,
-        },
-        'INVENTORY_NOTE_UPDATE'
-      );
-      await syncIfOnline();
-      return updatedRecord;
-    }
-
-    const updatedRecord = {
-      ...latestRecord,
-      notes,
+    const record: TrackingRecord = {
+      organization_id: organizationId,
+      gig_id: gigId,
+      kit_id: kitId,
+      asset_id: assetId ?? null,
+      status: here?.status ?? RETURNED_STATUS,
+      quantity: Math.max(1, Number(here?.quantity ?? 1) || 1),
+      location: here?.location ?? null,
+      scanned_at: new Date().toISOString(),
+      scanned_by: scannedBy,
+      notes: normalizeNotes(params.notes),
     };
-
-    if (packingList) {
-      await idbStore.putPackingList(gigId, replaceTrackingRecord(packingList, latestRecord, updatedRecord));
-    }
-
-    await offlineSyncService.queueTrackingUpdate(
-      {
-        gig_id: gigId,
-        kit_id: kitId,
-        asset_id: assetId || null,
-        record_id: latestRecord.id,
-        notes,
-      },
-      'INVENTORY_NOTE_UPDATE'
-    );
+    if (packingList) await idbStore.putPackingList(gigId, appendTrackingEntries(packingList, [record]));
+    await offlineSyncService.queueTrackingUpdate(record, 'INVENTORY_SCAN');
     await syncIfOnline();
-
-    return updatedRecord;
+    return { saved: true, record };
   },
 
   async clearTracking(params: ClearTrackingParams) {

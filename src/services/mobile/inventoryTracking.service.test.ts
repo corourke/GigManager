@@ -212,69 +212,56 @@ describe('inventoryTrackingService', () => {
     expect(queued).toEqual([['cables', 7], ['k12', 1]])
   })
 
-  it('updates only the latest record note for the selected item', async () => {
-    vi.mocked(idbStore.getPackingList).mockResolvedValue({
+  // #246 (Cameron, 10-10): saving a note always appends a new row that carries the item's last
+  // status (and count and place) forward. It never edits a row, and never invents a scan.
+  describe('saveNote', () => {
+    const at = (m: number) => `2026-10-10T10:0${m}:00.000Z`
+    const list = (tracking: any[], over: Record<string, unknown> = {}) => ({
       gig_id: 'gig-1',
-      kits: [
-        {
-          kit: {
-            id: 'kit-1',
-            assets: [{ asset_id: 'asset-1' }],
-          },
-        },
-      ],
-      tracking: [
-        {
-          id: 'latest-kit',
-          gig_id: 'gig-1',
-          kit_id: 'kit-1',
-          asset_id: null,
-          status: 'In Warehouse',
-          scanned_at: '2026-03-09T10:00:00.000Z',
-          scanned_by: 'user-1',
-          notes: null,
-        },
-        {
-          id: 'latest-asset',
-          gig_id: 'gig-1',
-          kit_id: 'kit-1',
-          asset_id: 'asset-1',
-          status: 'In Warehouse',
-          scanned_at: '2026-03-09T10:00:00.000Z',
-          scanned_by: 'user-1',
-          notes: null,
-        },
-      ],
+      kits: [{ kit: { id: 'kit-1', is_container: false, assets: [{ asset_id: 'u1', quantity: 1 }, { asset_id: 'lot', quantity: 4 }] } }],
+      tracking,
+      ...over,
+    })
+    const save = (over: Record<string, unknown> = {}) => inventoryTrackingService.saveNote({
+      gigId: 'gig-1', kitId: 'kit-1', assetId: 'u1', notes: 'Fan rattles', organizationId: 'org-1', scannedBy: 'user-2', ...over,
+    })
+    const appended = () => (vi.mocked(idbStore.putPackingList).mock.calls.at(-1)![1] as any).tracking
+
+    it('carries the newest row here forward: status, count and place; the old row is untouched', async () => {
+      const old = { id: 'r1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'lot', status: 'Checked Out', quantity: 4, location: 'Truck', notes: null, scanned_at: at(0), scanned_by: 'user-1' }
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list([old]))
+      await save({ assetId: 'lot' })
+      const rows = appended()
+      expect(rows).toHaveLength(2)
+      expect(rows.find((r: any) => r.id === 'r1')).toEqual(old)
+      const added = rows.find((r: any) => r.id !== 'r1')
+      expect(added).toMatchObject({ gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'lot', status: 'Checked Out', quantity: 4, location: 'Truck', notes: 'Fan rattles', scanned_by: 'user-2' })
+      expect(Date.parse(added.scanned_at)).toBeGreaterThan(Date.parse(at(0)))
+      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledWith(expect.objectContaining({ asset_id: 'lot', status: 'Checked Out', quantity: 4, notes: 'Fan rattles' }), 'INVENTORY_SCAN')
+      expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => c[1])).not.toContain('INVENTORY_NOTE_UPDATE')
     })
 
-    await inventoryTrackingService.updateLatestNote({
-      gigId: 'gig-1',
-      kitId: 'kit-1',
-      notes: 'Kit note only',
-      organizationId: 'org-1',
-      scannedBy: 'user-1',
-      fallbackStatus: 'In Warehouse',
+    it('an item not scanned here, and home, gets an In Warehouse row: a note never packs it', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list([]))
+      await save()
+      expect(appended()).toEqual([expect.objectContaining({ kit_id: 'kit-1', asset_id: 'u1', status: 'In Warehouse', quantity: 1, notes: 'Fan rattles' })])
+      expect(inventoryTrackingService.getScanProgress(list(appended()), 'Checked Out').done).toBe(0)
     })
 
-    expect(idbStore.putPackingList).toHaveBeenCalledWith(
-      'gig-1',
-      expect.objectContaining({
-        tracking: expect.arrayContaining([
-          expect.objectContaining({ id: 'latest-kit', notes: 'Kit note only' }),
-          expect.objectContaining({ id: 'latest-asset', notes: null }),
-        ]),
-      })
-    )
-    expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledWith(
-      {
-        gig_id: 'gig-1',
-        kit_id: 'kit-1',
-        asset_id: null,
-        record_id: 'latest-kit',
-        notes: 'Kit note only',
-      },
-      'INVENTORY_NOTE_UPDATE'
-    )
+    it('a unit out at another gig is not moved here by a note: nothing is written', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list([], { elsewhere: { u1: { gig_id: 'gig-2', gig_title: 'Other Gig', status: 'On Site' } } }))
+      const result = await save()
+      expect(result).toEqual({ saved: false, elsewhere: { gig_id: 'gig-2', gig_title: 'Other Gig', status: 'On Site' } })
+      expect(idbStore.putPackingList).not.toHaveBeenCalled()
+      expect(offlineSyncService.queueTrackingUpdate).not.toHaveBeenCalled()
+    })
+
+    it('a note on a kit row carries that row forward too', async () => {
+      const kitRow = { id: 'k1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: null, status: 'On Site', quantity: 1, location: 'Stage', notes: null, scanned_at: at(0), scanned_by: 'user-1' }
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list([kitRow]))
+      await save({ assetId: undefined, notes: 'Lid cracked' })
+      expect(appended().find((r: any) => r.id !== 'k1')).toMatchObject({ kit_id: 'kit-1', asset_id: null, status: 'On Site', location: 'Stage', notes: 'Lid cracked' })
+    })
   })
 
   it('clearing a non-container kit as a whole clears its scannable units directly (no primary record to anchor on)', async () => {

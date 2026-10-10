@@ -38,6 +38,7 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { cn } from '../ui/utils';
 import { useAuth } from '../../contexts/AuthContext';
+import { getOrganizationMembers } from '../../services/organization.service';
 import { TrackingStatusBadge } from '../inventory/TrackingStatusBadge';
 
 interface MobileInventoryModeProps {
@@ -70,7 +71,9 @@ type NoteDialogState = {
   itemName?: string;
   note: string;
   lastScannedAt?: string;
-  lastScannedBy?: string;
+  /** Who wrote the newest row: their id, and their name if the row came with it. */
+  lastScannedById?: string;
+  lastScannedByName?: string;
   maintenanceRequired: boolean;
   assetStatus?: string | null;
 };
@@ -103,24 +106,25 @@ const isKitFullyScanned = (tracking: TrackingRecord[], packingList: any, kit: an
 
 type AnySlot = { kit_id: string; item_id: string; item_name: string; quantity: number };
 
+/** Added to a note when it sends the item to Maintenance (Cameron, 10-10). */
+const SENT_TO_MAINTENANCE = 'Sent to Maintenance.';
+
 /** A lot line being counted (#185): `start` is what the kit holds now, or the full line. */
 type CounterState = { kitId: string; assetId: string; name: string; line: number; start: number; count: number };
 
 /** Fewer came back on Unload than went out: what happens to the rest (#185). */
 type ShortReturnState = { kitId: string; assetId: string; name: string; stillOut: number };
 
-const formatScannedBy = (trackingRecord?: TrackingRecord | null) => {
-  if (!trackingRecord) {
-    return '—';
-  }
+const personName = (person?: { first_name?: string | null; last_name?: string | null; email?: string | null } | null) =>
+  (person ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || '' : '');
 
-  const user = trackingRecord.scanned_by_user;
-  if (user) {
-    const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
-    return fullName || user.email || trackingRecord.scanned_by;
-  }
-
-  return trackingRecord.scanned_by || '—';
+/**
+ * Who scanned a row, by name (#246): the name the row came with, else the person signed in (rows
+ * written on this phone), else the organization's members. Never the raw id.
+ */
+const scannedByName = (id: string | undefined, rowName: string | undefined, names: ReadonlyMap<string, string>) => {
+  if (!id) return '—';
+  return rowName || names.get(id) || 'Unknown';
 };
 
 const formatScannedAt = (value?: string) => {
@@ -138,6 +142,24 @@ const formatScannedAt = (value?: string) => {
 export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps) {
   const { user, selectedOrganization, userRole } = useAuth();
   const [selectedMode, setSelectedMode] = useState<ScanningMode>(SCANNING_MODES[0]);
+  // Who's who, for "Scanned by" (#246): the person signed in, then the organization's members.
+  const [memberNames, setMemberNames] = useState<Map<string, string>>(new Map());
+  const peopleNames = useMemo(() => {
+    const names = new Map(memberNames);
+    if (user?.id && personName(user as any)) names.set(user.id, personName(user as any));
+    return names;
+  }, [memberNames, user]);
+  useEffect(() => {
+    if (!selectedOrganization?.id || !navigator.onLine) return;
+    let cancelled = false;
+    getOrganizationMembers(selectedOrganization.id)
+      .then((members: any[]) => {
+        if (cancelled) return;
+        setMemberNames(new Map((members || []).map((m: any) => [m.user_id ?? m.user?.id, personName(m.user)] as [string, string]).filter(([id, name]) => id && name)));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedOrganization?.id]);
   // Adding at pack-out (#185): Pack-Out and Load Truck, Staff or above.
   const canAddHere = !!selectedMode.allowsAdHoc && isStaffOrAbove(userRole);
   const [locationInput, setLocationInput] = useState<string>(SCANNING_MODES[0].locationLabel);
@@ -288,7 +310,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       itemName,
       note: trackingRecord?.notes || '',
       lastScannedAt: trackingRecord?.scanned_at,
-      lastScannedBy: formatScannedBy(trackingRecord),
+      lastScannedById: trackingRecord?.scanned_by,
+      lastScannedByName: personName(trackingRecord?.scanned_by_user) || undefined,
       maintenanceRequired: asset?.status === 'Maintenance',
       assetStatus: asset?.status || null,
     });
@@ -677,20 +700,27 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       return;
     }
 
-    await inventoryTrackingService.updateLatestNote({
+    const wantsMaintenance = !!noteDialog.assetId && noteDialog.maintenanceRequired;
+    const isMaintenance = noteDialog.assetStatus === 'Maintenance';
+    // Newly sent to Maintenance: the note says so, in the same row (Cameron, 10-10).
+    const typed = noteDialog.note.trim();
+    const notes = wantsMaintenance && !isMaintenance ? [typed, SENT_TO_MAINTENANCE].filter(Boolean).join(' ') : noteDialog.note;
+
+    // A new row carrying the item's state forward: a note is never a scan (#246).
+    const result = await inventoryTrackingService.saveNote({
       gigId,
       kitId: noteDialog.kitId,
       assetId: noteDialog.assetId,
-      notes: noteDialog.note,
+      notes,
       organizationId: selectedOrganization.id,
       scannedBy: user.id,
-      fallbackStatus: selectedMode.resultingStatus,
     });
+    if (!result.saved) {
+      toast.error(`${noteDialog.itemName || 'This item'} is out at ${result.elsewhere.gig_title || 'another gig'}. Add its note there.`);
+      return;
+    }
 
     if (noteDialog.assetId) {
-      const wantsMaintenance = noteDialog.maintenanceRequired;
-      const isMaintenance = noteDialog.assetStatus === 'Maintenance';
-
       if (wantsMaintenance && !isMaintenance) {
         await inventoryTrackingService.updateAssetStatus({
           gigId,
@@ -710,8 +740,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
 
     await refreshPackingList(gigId);
     closeNoteDialog();
-    toast.success(noteDialog.note.trim() ? 'Note saved' : 'Note cleared');
-  }, [gigId, noteDialog, refreshPackingList, selectedMode, selectedOrganization, user]);
+    toast.success(notes.trim() ? 'Note saved' : 'Note cleared');
+  }, [gigId, noteDialog, refreshPackingList, selectedOrganization, user]);
 
   const handleModeSelect = useCallback((mode: ScanningMode) => {
     setLocationInput((currentLocation) =>
@@ -1619,7 +1649,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
             {/* Equipment status changes take Staff or above (#185 PR 2). */}
             {noteDialog.assetId && isStaffOrAbove(userRole) ? (
               <div className="flex items-center justify-between rounded-lg border border-border/70 px-3 py-3">
-                <Label htmlFor="maintenance-required" className="text-sm font-medium">Maintenance Req'd</Label>
+                <Label htmlFor="maintenance-required" className="text-sm font-medium">Send to Maintenance</Label>
                 <Checkbox
                   id="maintenance-required"
                   checked={noteDialog.maintenanceRequired}
@@ -1635,7 +1665,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Scanned by</span>
-                <span className="text-right font-medium break-all">{noteDialog.lastScannedBy || '—'}</span>
+                <span className="text-right font-medium break-all">{scannedByName(noteDialog.lastScannedById, noteDialog.lastScannedByName, peopleNames)}</span>
               </div>
             </div>
           </div>

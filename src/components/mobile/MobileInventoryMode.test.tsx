@@ -8,7 +8,7 @@ import { SCANNING_MODES } from '../../config/inventoryWorkflow'
 const auth = vi.hoisted(() => ({ role: 'Admin' as string | undefined }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
-    user: { id: 'user-1' },
+    user: { id: 'user-1', first_name: 'Sam', last_name: 'Lee', email: 'sam@example.test' },
     selectedOrganization: { id: 'org-1' },
     userRole: auth.role,
   }),
@@ -20,6 +20,9 @@ vi.mock('../../services/mobile/orgIndex.service', async (importOriginal) => {
   const actual: any = await importOriginal()
   return { orgIndexService: { ...actual.orgIndexService, get: vi.fn(async () => orgIndex.value), refresh: vi.fn(async () => orgIndex.value) } }
 })
+
+const members = vi.hoisted(() => ({ list: vi.fn() }))
+vi.mock('../../services/organization.service', () => ({ getOrganizationMembers: members.list }))
 
 const overlap = vi.hoisted(() => ({ warnings: vi.fn() }))
 vi.mock('../../services/conflictDetection.service', () => ({ additionWarnings: overlap.warnings }))
@@ -54,7 +57,7 @@ vi.mock('../../services/mobile/inventoryTracking.service', async (importOriginal
     removePackOutKit: vi.fn(),
     submitScan: vi.fn(),
     clearTracking: vi.fn(),
-    updateLatestNote: vi.fn(),
+    saveNote: vi.fn(async () => ({ saved: true })),
     updateAssetStatus: vi.fn(),
   },
   }
@@ -164,23 +167,110 @@ describe('MobileInventoryMode', () => {
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText(/notes on item condition/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/maintenance req'd/i)).toBeChecked()
+    expect(screen.getByLabelText('Send to Maintenance')).toBeChecked()
     expect(screen.getByText(format(new Date('2026-03-09T10:00:00.000Z'), 'MMM d, yyyy h:mm a'))).toBeInTheDocument()
     expect(screen.getByText('Alex Crew')).toBeInTheDocument()
   })
 
   // #185 PR 2: equipment status changes take Staff or above, so a Viewer isn't offered one.
-  it('a Viewer\'s note has no Maintenance Req\'d switch', async () => {
+  it('a Viewer\'s note has no Send to Maintenance switch', async () => {
     auth.role = 'Viewer'
     try {
       const user = userEvent.setup()
       render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
       await user.click(await screen.findByRole('button', { name: /edit note for shure qlxd/i }))
       expect(await screen.findByText(/notes on item condition/i)).toBeInTheDocument()
-      expect(screen.queryByLabelText(/maintenance req'd/i)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Send to Maintenance')).not.toBeInTheDocument()
     } finally {
       auth.role = 'Admin'
     }
+  })
+
+  // #246 (Cameron, 10-10): the note popup. Saving appends a row that carries the item's state
+  // forward (saveNote); "Send to Maintenance" adds a line to the note; names, never ids.
+  describe('the note popup', () => {
+    const asset = (status: string) => ({ id: 'asset-1', manufacturer_model: 'Shure QLXD', tag_number: 'ASSET-001', status })
+    const list = (status: string, tracking: any[] = []) => ({
+      gig_id: 'gig-1', gig_title: 'Warehouse Check-In',
+      kits: [{ kit: { id: 'kit-1', name: 'Audio Case', tag_number: 'KIT-001', is_container: false, assets: [{ asset_id: 'asset-1', quantity: 1, asset: asset(status) }] } }],
+      tracking,
+    })
+    const open = async (status = 'Active', tracking: any[] = []) => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list(status, tracking))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByRole('button', { name: /edit note for shure qlxd/i }))
+      await screen.findByText(/notes on item condition/i)
+      return user
+    }
+
+    it('B: saving appends a row through saveNote, with no status of its own', async () => {
+      const user = await open()
+      await user.type(screen.getByLabelText(/notes on item condition/i), 'Fan rattles')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith({
+        gigId: 'gig-1', kitId: 'kit-1', assetId: 'asset-1', notes: 'Fan rattles', organizationId: 'org-1', scannedBy: 'user-1',
+      })
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+      expect(inventoryTrackingService.updateAssetStatus).not.toHaveBeenCalled()
+    })
+
+    it('B: a unit out at another gig says so, and nothing changes', async () => {
+      const { toast } = await import('sonner')
+      vi.mocked(inventoryTrackingService.saveNote).mockResolvedValueOnce({ saved: false, elsewhere: { gig_id: 'gig-2', gig_title: 'Friday Show', status: 'On Site' } } as any)
+      const user = await open()
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(toast.error).toHaveBeenCalledWith('Shure QLXD is out at Friday Show. Add its note there.')
+      expect(inventoryTrackingService.updateAssetStatus).not.toHaveBeenCalled()
+    })
+
+    it('C: newly sending to Maintenance adds "Sent to Maintenance." to the note, and sets the status', async () => {
+      const user = await open('Active')
+      await user.type(screen.getByLabelText(/notes on item condition/i), 'Fan rattles')
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ notes: 'Fan rattles Sent to Maintenance.' }))
+      expect(inventoryTrackingService.updateAssetStatus).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-1', status: 'Maintenance' }))
+    })
+
+    it('C: with no note, the note is just "Sent to Maintenance."', async () => {
+      const user = await open('Active')
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ notes: 'Sent to Maintenance.' }))
+    })
+
+    it('C: unticking adds nothing to the note and sets the status back to Active', async () => {
+      const user = await open('Maintenance')
+      await user.type(screen.getByLabelText(/notes on item condition/i), 'Fixed')
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ notes: 'Fixed' }))
+      expect(inventoryTrackingService.updateAssetStatus).toHaveBeenCalledWith(expect.objectContaining({ status: 'Active' }))
+    })
+
+    const row = (scanned_by: string) => ({ gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'asset-1', status: 'Checked Out', notes: null, scanned_at: '2026-10-10T10:00:00.000Z', scanned_by })
+
+    it('D: a row written here by the current user shows their name, not the id', async () => {
+      await open('Active', [row('user-1')])
+      expect(screen.getByText('Sam Lee')).toBeInTheDocument()
+      expect(screen.queryByText('user-1')).not.toBeInTheDocument()
+    })
+
+    it('D: another member\'s row shows their name from the organization\'s members', async () => {
+      Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+      members.list.mockResolvedValue([{ user_id: 'user-7', user: { id: 'user-7', first_name: 'Ana', last_name: 'Ruiz' } }])
+      vi.mocked(packingListService.fetchGigPackingList).mockImplementation(async () => list('Active', [row('user-7')]) as any)
+      await open('Active', [row('user-7')])
+      expect(await screen.findByText('Ana Ruiz')).toBeInTheDocument()
+    })
+
+    it('D: someone not known shows as Unknown, never the id', async () => {
+      await open('Active', [row('3f2a9c1e-0000-4000-8000-000000000009')])
+      expect(screen.getByText('Unknown')).toBeInTheDocument()
+      expect(screen.queryByText(/3f2a9c1e/)).not.toBeInTheDocument()
+    })
   })
 
   it('initializes location input from the first scanning mode locationLabel', async () => {

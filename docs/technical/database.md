@@ -1127,7 +1127,8 @@ Tracks equipment check-in/check-out status at gigs.
 
 **Notes:**
 - Composite index on (gig_id, kit_id, asset_id, scanned_at DESC) for efficient lookups.
-- **Append-only history.** The unique index from 20260305000000 was dropped in 20260309000000. Every scan or manual move inserts a row. Undo deletes the newest row, and a note edit updates the newest row in place.
+- **Append-only history.** The unique index from 20260305000000 was dropped in 20260309000000. Every scan or manual move inserts a row. Undo deletes the newest row.
+- **Notes (#246, Cameron 10-10).** Saving a note on the phone appends a new row; no row is ever edited. The new row carries the item's last state forward unchanged: the newest row for it at this gig and kit (status, count, location), or, with none, `In Warehouse`. So a note never counts as a scan in any mode. A unit whose newest row is at another gig gets no row (it would be moved here); the phone says where it is. Ticking **Send to Maintenance** adds "Sent to Maintenance." to the end of the note in that same row, then sets the status through `update_asset_status` (Staff or above); unticking sets it back to Active and adds nothing. "Scanned by" shows a name: the row's, the signed-in person's, or the organization's members', else "Unknown".
 - **Reading it (`src/utils/locations.ts`, #186).** The newest row wins, ordered by scanned_at, then created_at, then id. Times are compared as instants.
   - A unit is where its newest row says.
   - A lot's count at a gig is the sum, over kits, of the newest row per (gig_id, kit_id, asset_id). A no-kit manual move is its own bucket.

@@ -86,6 +86,8 @@ registerSyncHandler('INVENTORY_CLEAR', async (payload: any) => {
   }
 });
 
+// Nothing queues this any more: a note is a new row (INVENTORY_SCAN, #246). Kept so a note queued
+// by an earlier version of the app still syncs instead of sitting in the outbox.
 registerSyncHandler('INVENTORY_NOTE_UPDATE', async (payload: any) => {
   const recordId = payload.record_id;
 
