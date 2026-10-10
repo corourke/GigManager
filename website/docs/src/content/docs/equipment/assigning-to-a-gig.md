@@ -68,9 +68,13 @@ When gear is lost or stolen at a gig, write it off. Only Admins and Managers can
 3. For a lot, enter how many are missing in the number box. It starts at the number on
    the row. For a unit, there's nothing to enter.
 4. Select **Write off**. To back out, select **Cancel**.
+5. GigWrangler asks you to confirm, for example "Write off 2 × XLR Cable, 50 ft as
+   missing? They'll leave owned equipment and show as disposed of in 2026's tax
+   reports. You can undo this unless the tax year is filed." Select **Write off**.
 
-There's no confirmation step. You'll see "Written off: 2 missing", for example. The
-row moves to **Written off at this gig**, further down the card.
+You'll see "Written off: 2 missing", for example. The row moves to **Written off at
+this gig**, further down the card, and the gig's [History](/gigs/change-history/) shows
+**Equipment Written Off**.
 
 <!-- 📸 A Not returned row for "XLR Cable, 50 ft" after Mark missing: the "How many are missing" box set to 2, with Write off and Cancel. -->
 
@@ -87,9 +91,9 @@ row moves to **Written off at this gig**, further down the card.
 - **On the item page,** the **Inventory** card adds **Written off** with how many are
   missing, such as "2 missing". In **Units and lots**, the record has a **Missing**
   status badge, and a split-off lot reads like "Lot of 2 · Missing".
-- **Its status is locked.** In the equipment form, **Status** can't be changed, and you
-  see "Written off as missing. To bring it back, use Undo in the gig's Not returned
-  list."
+- **Its record is locked.** In the equipment form, **Status**, **Retired On** and
+  **Disposal or Salvage Amount** can't be changed, and you see "Written off as missing.
+  To bring it back, use Undo in the gig's Not returned list."
 - **In a kit,** a written-off unit shows in red: "Missing: no longer owned. Remove it
   from the kit." If you undo the write-off later, it's still in the kit unless you
   removed it.
@@ -128,7 +132,8 @@ it was written off.
    entry shows how many are missing and the date, such as "written off Oct 11, 2026".
 2. Select **Undo**.
 
-You'll see "Write-off undone", and the entry leaves the list.
+You'll see "Write-off undone", and the entry leaves the list. Undo is only on the gig
+where the equipment was written off.
 
 - **A unit or a whole lot** gets back the status it had before. It's still out at the
   gig, so it returns to the **Not returned** list. Select **Returned** or scan it in.
@@ -138,13 +143,10 @@ You'll see "Write-off undone", and the entry leaves the list.
 <!-- 📸 The Written off at this gig list with one entry: "XLR Cable, 50 ft  2 missing  written off …" and Undo. -->
 
 :::caution[Filed years]
-Once the year of the write-off is locked, **Undo** is turned off. You'll see "2026 is
-locked (filed), so this stays written off. If it turns up, record it as found this year."
+Once the year of the write-off is locked, **Undo** is turned off. You'll see "This
+write-off is in a filed tax year, so it can't be undone. If the equipment turns up, add
+it again as new equipment."
 :::
-
-<!-- TODO: the locked-year message tells the reader to "record it as found this year",
-but there's no way to do that in the app yet. Hold this caution until there is, or
-reword it to match. -->
 
 ## Related
 
