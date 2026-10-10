@@ -21,6 +21,10 @@ function createQueryBuilder(resolveWith: any) {
     in: vi.fn().mockReturnThis(),
     lte: vi.fn().mockReturnThis(),
     gte: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
+    not: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    range: vi.fn().mockReturnThis(),
     then(resolve: any, reject?: any) {
       return Promise.resolve(resolveWith).then(resolve, reject);
     },
@@ -917,7 +921,7 @@ describe('per-item conflicts: review fixes (#184)', () => {
     expect((await checkEquipmentConflicts('gig-1', '2026-10-10T18:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1')).conflicts).toHaveLength(0);
     const needed = await getEquipmentNeeded('gig-1', '2026-10-10T18:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1');
     expect(needed).toMatchObject({ overlapping: 0, rows: [{ thisGig: 4, needed: 4 }] });
-    expect(needs.load).toHaveBeenLastCalledWith(['mine'], 'org-1');
+    expect(needs.load).toHaveBeenLastCalledWith(['mine'], 'org-1', expect.objectContaining({ kits: [] }));
   });
 
   it('batch: the same-unit check counts only the viewing organization\'s kits (#230 follow-up)', async () => {
@@ -1165,5 +1169,79 @@ describe('same-unit conflicts: a container is one unit', () => {
     const aWithB = equipment.find((c) => c.gig_id === 'A' && c.details.other_gig_id === 'B')!
     expect(aWithB.details.conflicting_kits).toEqual([{ kit_id: 'stage', kit_name: 'Stage Kit', shared_assets: ['Mic Case'] }])
     expect(aWithB.details.conflicting_asset_ids).toEqual([])
+  })
+})
+
+// #185 PR 2: units and lots added at pack-out on their own (no-kit tracking rows) are in use at
+// their gig: they count in the same-unit check and in what the gig needs per item.
+describe('equipment added at pack-out counts in the checks', () => {
+  const pd20 = { manufacturer_model: 'PD-20', tag_number: 'DSL-0211', serial_number: null, quantity: 1, equipment_item_id: 'item-pd20' }
+  const loose = (gig_id: string, asset_id: string, asset: any, quantity = 1, minute = 0) =>
+    ({ id: `${gig_id}-${asset_id}-${minute}`, gig_id, kit_id: null, asset_id, status: 'Checked Out', quantity, scanned_at: `2026-10-10T10:0${minute}:00Z`, created_at: `2026-10-10T10:0${minute}:00Z`, asset })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.resetModules()
+  })
+
+  it('single gig: a unit packed in this gig\'s kit and added at pack-out to an overlapping gig', async () => {
+    needs.load.mockResolvedValue(noNeeds())
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'mine', organization_id: 'org-1' }], error: null },
+      gigs: { data: [{ id: 'gig-2', title: 'Other', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
+        kit_assignments: [{ kit_id: 'lights', organization_id: 'org-1', kit: { id: 'lights', name: 'Lights' } }] }], error: null },
+      kit_flattened_cache: { data: [{ kit_id: 'mine', asset_id: 'pd20', asset: pd20 }], error: null },
+      inventory_tracking: { data: [loose('gig-2', 'pd20', pd20)], error: null },
+    }
+    ;(createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) })
+    const { checkEquipmentConflicts } = await import('./conflictDetection.service')
+    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T18:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1')
+    expect(result.conflicts).toHaveLength(1)
+    expect(result.conflicts[0].details.conflicting_kits).toEqual([{ kit_id: 'loose:gig-2', kit_name: 'Added at pack-out', shared_assets: ['PD-20 (#DSL-0211)'] }])
+  })
+
+  it('single gig: what was added at pack-out counts toward each gig\'s needs per item', async () => {
+    needs.load.mockImplementation(async (_kitIds: string[], _org: string, extra: any) => ({
+      ctx: {
+        kits: new Map([['light-a', { id: 'light-a', name: 'Club Lighting Package', is_container: false }], ...extra.kits.map((k: any) => [k.id, k])]),
+        lines: new Map([['light-a', [{ equipment_item_id: 'trio', quantity: 4 }]], ...extra.lines]),
+        assetItem: new Map(extra.assetItem),
+      },
+      counts: new Map([['trio', { name: 'Chauvet Intimidator Trio', owned: 6, available: 6, inMaintenance: 0, inContainers: 0 }]]),
+    }))
+    const trio = { manufacturer_model: 'Trio', tag_number: null, serial_number: null, quantity: 8, equipment_item_id: 'trio' }
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'light-a', organization_id: 'org-1' }], error: null },
+      gigs: { data: [{ id: 'gig-2', title: 'Other Gig', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
+        kit_assignments: [{ kit_id: 'empty', organization_id: 'org-1', kit: { id: 'empty', name: 'Empty' } }] }], error: null },
+      kit_flattened_cache: { data: [], error: null },
+      inventory_tracking: { data: [loose('gig-2', 'trio-lot', trio, 4)], error: null },
+    }
+    ;(createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) })
+    const { checkEquipmentConflicts } = await import('./conflictDetection.service')
+    const result = await checkEquipmentConflicts('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1')
+
+    const extra = needs.load.mock.calls[0][2]
+    expect(extra.lines.get('loose:gig-2')).toEqual([{ asset_id: 'trio-lot', quantity: 4 }])
+    expect(extra.assetItem.get('trio-lot')).toBe('trio')
+    expect(result.conflicts[0].details.items_short[0]).toMatchObject({ item_id: 'trio', needed: 8, available: 6, short: 2 })
+    expect(result.conflicts[0].details.items_short[0].others[0].need.kits).toEqual([{ kit_name: 'Added at pack-out', quantity: 4 }])
+  })
+
+  it('batch: a unit added at pack-out to one gig and packed in a kit on another', async () => {
+    needs.load.mockResolvedValue(noNeeds())
+    ;(createClient as any).mockReturnValue(createBatchMock([
+      { table: 'gig_kit_assignments', response: { data: [
+        { gig_id: 'A', kit_id: 'ka', organization_id: 'org-1', kit: { id: 'ka', name: 'FOH' } },
+        { gig_id: 'B', kit_id: 'kb', organization_id: 'org-1', kit: { id: 'kb', name: 'Lights' } },
+      ], error: null } },
+      { table: 'kit_flattened_cache', response: { data: [{ kit_id: 'ka', asset_id: 'pd20', asset: pd20 }], error: null } },
+      { table: 'inventory_tracking', response: { data: [loose('B', 'pd20', pd20)], error: null } },
+    ]))
+    const { checkAllConflictsForGigs } = await import('./conflictDetection.service')
+    const at = (id: string) => ({ id, title: id, start: '2026-10-10T10:00:00Z', end: '2026-10-10T20:00:00Z' })
+    const result = await checkAllConflictsForGigs([at('A'), at('B')], 'org-1')
+    const onB = result.find((c) => c.type === 'equipment' && c.gig_id === 'B')!
+    expect(onB.details.conflicting_kits).toEqual([{ kit_id: 'loose:B', kit_name: 'Added at pack-out', shared_assets: ['PD-20 (#DSL-0211)'] }])
   })
 })
