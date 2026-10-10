@@ -76,4 +76,17 @@ describe('formatActivityEvent', () => {
     expect(result).toContain('4');
     expect(result).toContain('LD Moving Head');
   });
+
+  it('shows write-offs as sentences, not raw event names (#242)', () => {
+    const written = formatActivityEvent(makeEntry({
+      event_type: 'asset.written_off', entity_type: 'asset',
+      context: { context_version: 1, actor_display_name: 'Jane', actor_org_name: 'Acme', quantity: 2 },
+    }));
+    expect(written).toBe('Equipment written off: 2 pieces missing');
+    const undone = formatActivityEvent(makeEntry({
+      event_type: 'asset.write_off_undone', entity_type: 'asset', gig_id: null,
+      context: { context_version: 1, actor_display_name: 'Jane', actor_org_name: 'Acme', quantity: 2 },
+    }));
+    expect(undone).toBe('Write-off undone: 2 pieces back');
+  });
 });

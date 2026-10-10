@@ -20,6 +20,12 @@ const gone = { record: rec('gone', { manufacturer_model: 'PD-20', tag_number: 'T
 const past = '2026-10-01T23:00:00Z';
 const future = '2099-01-01T23:00:00Z';
 
+// Write off asks first (#242): the red button opens a confirm naming the pieces and the effect.
+const confirmDialog = () => screen.findByRole('alertdialog');
+const confirmWriteOff = async (ue: ReturnType<typeof userEvent.setup>) => {
+  await ue.click(within(await confirmDialog()).getByRole('button', { name: 'Write off' }));
+};
+
 // #185 (Cameron, 10-09): the gig's "Not returned" list. Admins and Managers can mark pieces
 // Returned or Missing, and undo a write-off unless its tax year is locked; Staff only see it.
 describe('NotReturnedSection (#185)', () => {
@@ -68,6 +74,7 @@ describe('NotReturnedSection (#185)', () => {
     await ue.clear(count);
     await ue.type(count, '1');
     await ue.click(within(row).getByRole('button', { name: 'Write off' }));
+    await confirmWriteOff(ue);
     expect(writeOffPieces).toHaveBeenCalledWith({ assetId: 'cables', quantity: 1, gigId: 'gig-1', kitId: 'foh', stillOut: 3 });
   });
 
@@ -78,6 +85,7 @@ describe('NotReturnedSection (#185)', () => {
     await screen.findByText(/XLR Cable/);
     await ue.click(within(row()).getByRole('button', { name: 'Mark missing' }));
     await ue.click(within(row()).getByRole('button', { name: 'Write off' }));
+    await confirmWriteOff(ue);
     await waitFor(() => expect(within(row()).queryByRole('button', { name: 'Write off' })).not.toBeInTheDocument());
     expect(within(row()).getByRole('button', { name: 'Mark missing' })).toBeInTheDocument();
   });
@@ -88,7 +96,52 @@ describe('NotReturnedSection (#185)', () => {
     const row = (await screen.findByText('QSC K12.2 (#DSL-0101)')).closest('li')!;
     await ue.click(within(row).getByRole('button', { name: 'Mark missing' }));
     await ue.click(within(row).getByRole('button', { name: 'Write off' }));
+    await confirmWriteOff(ue);
     expect(writeOffPieces).toHaveBeenCalledWith({ assetId: 'k12', quantity: 1, gigId: 'gig-1', kitId: 'pa', stillOut: 0 });
+  });
+
+  it('Write off asks first, naming the pieces and the effect; Cancel does not write off (#242)', async () => {
+    const ue = userEvent.setup();
+    render(<NotReturnedSection organizationId="org-1" gigId="gig-1" gigEnd={past} canEdit />);
+    const row = (await screen.findByText('XLR Cable, 50 ft')).closest('li')!;
+    await ue.click(within(row).getByRole('button', { name: 'Mark missing' }));
+    const count = within(row).getByRole('spinbutton', { name: 'How many are missing' });
+    await ue.clear(count);
+    await ue.type(count, '2');
+    await ue.click(within(row).getByRole('button', { name: 'Write off' }));
+    const dialog = await confirmDialog();
+    expect(writeOffPieces).not.toHaveBeenCalled();
+    expect(dialog).toHaveTextContent('Write off 2 × XLR Cable, 50 ft as missing?');
+    expect(dialog).toHaveTextContent(`They'll leave owned equipment and show as disposed of in ${new Date().getFullYear()}'s tax reports.`);
+    expect(dialog).toHaveTextContent('You can undo this unless the tax year is filed.');
+    await ue.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(writeOffPieces).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+  });
+
+  it('confirming the write-off calls the service with the right pieces (#242)', async () => {
+    const ue = userEvent.setup();
+    render(<NotReturnedSection organizationId="org-1" gigId="gig-1" gigEnd={past} canEdit />);
+    const row = (await screen.findByText('XLR Cable, 50 ft')).closest('li')!;
+    await ue.click(within(row).getByRole('button', { name: 'Mark missing' }));
+    const count = within(row).getByRole('spinbutton', { name: 'How many are missing' });
+    await ue.clear(count);
+    await ue.type(count, '2');
+    await ue.click(within(row).getByRole('button', { name: 'Write off' }));
+    await confirmWriteOff(ue);
+    expect(writeOffPieces).toHaveBeenCalledTimes(1);
+    expect(writeOffPieces).toHaveBeenCalledWith({ assetId: 'cables', quantity: 2, gigId: 'gig-1', kitId: 'foh', stillOut: 2 });
+  });
+
+  it('a single unit\'s confirm reads in the singular (#242)', async () => {
+    const ue = userEvent.setup();
+    render(<NotReturnedSection organizationId="org-1" gigId="gig-1" gigEnd={past} canEdit />);
+    const row = (await screen.findByText('QSC K12.2 (#DSL-0101)')).closest('li')!;
+    await ue.click(within(row).getByRole('button', { name: 'Mark missing' }));
+    await ue.click(within(row).getByRole('button', { name: 'Write off' }));
+    const dialog = await confirmDialog();
+    expect(dialog).toHaveTextContent('Write off 1 × QSC K12.2 (#DSL-0101) as missing?');
+    expect(dialog).toHaveTextContent("It'll leave owned equipment");
   });
 
   it('Undo brings a write-off back', async () => {
@@ -104,7 +157,9 @@ describe('NotReturnedSection (#185)', () => {
     render(<NotReturnedSection organizationId="org-1" gigId="gig-1" gigEnd={past} canEdit />);
     const row = (await screen.findByText('PD-20 (#T-9)')).closest('li')!;
     await waitFor(() => expect(within(row).getByRole('button', { name: 'Undo' })).toBeDisabled());
-    expect(row).toHaveTextContent('2026 is locked');
+    // #242: no "found" action exists, so the note says what to do instead.
+    expect(row).toHaveTextContent("This write-off is in a filed tax year, so it can't be undone. If the equipment turns up, add it again as new equipment.");
+    expect(row).not.toHaveTextContent(/as found/i);
   });
 
   it('Staff see the list without actions', async () => {

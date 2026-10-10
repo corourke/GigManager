@@ -28,6 +28,7 @@ renames don't rewrite past entries.
 - **Schedule:** entries added.
 - **Staffing:** slots added or removed, people assigned or unassigned.
 - **Financials:** rows added, updated, marked paid or removed.
+- **Equipment:** written off as missing (**Equipment Written Off**, such as "Equipment written off: 2 pieces missing"). Undoing one is logged as **Write-off Undone**.
 
 ## Who sees what
 

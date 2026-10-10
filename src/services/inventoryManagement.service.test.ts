@@ -124,36 +124,64 @@ describe('inventoryManagement.service', () => {
       );
     });
 
-    it('inserts kit-level + per-asset records for logical kits (isContainerKit=false)', async () => {
+    it('a logical kit writes a row per asset, like the phone, with each one\'s quantity, and no kit-only row (#185)', async () => {
       const { createManualTrackingRecord } = await import('./inventoryManagement.service');
-
-      const mockRecords = [
-        { id: 't-1', organization_id: 'org-1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: null, status: 'On Site', scanned_at: '', scanned_by: '', created_at: '' },
-        { id: 't-2', organization_id: 'org-1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'asset-1', status: 'On Site', scanned_at: '', scanned_by: '', created_at: '' },
-        { id: 't-3', organization_id: 'org-1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'asset-2', status: 'On Site', scanned_at: '', scanned_by: '', created_at: '' },
-      ];
-
-      const chain = makeQueryChain({ data: mockRecords, error: null });
+      const chain = makeQueryChain({ data: [{ id: 't-2' }, { id: 't-3' }], error: null });
       mockSupabase.from.mockReturnValue(chain);
 
       const result = await createManualTrackingRecord({
-        organizationId: 'org-1',
-        gigId: 'gig-1',
-        kitId: 'kit-1',
-        status: 'On Site',
-        createdBy: 'user-1',
-        isContainerKit: false,
-        assetIds: ['asset-1', 'asset-2'],
+        organizationId: 'org-1', gigId: 'gig-1', kitId: 'kit-1', status: 'On Site', createdBy: 'user-1',
+        isContainerKit: false, assetIds: ['asset-1', 'cables'], quantities: { cables: 10 },
       });
 
-      expect(result).toHaveLength(3);
-      expect(chain.insert).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ asset_id: null }),
-          expect.objectContaining({ asset_id: 'asset-1' }),
-          expect.objectContaining({ asset_id: 'asset-2' }),
-        ])
-      );
+      expect(result).toHaveLength(2);
+      expect(chain.insert).toHaveBeenCalledWith([
+        expect.objectContaining({ kit_id: 'kit-1', asset_id: 'asset-1', quantity: 1 }),
+        expect.objectContaining({ kit_id: 'kit-1', asset_id: 'cables', quantity: 10 }),
+      ]);
+    });
+
+    it('a kit that has its own row (a whole-kit override) keeps it, with or without units', async () => {
+      const { createManualTrackingRecord } = await import('./inventoryManagement.service');
+      const chain = makeQueryChain({ data: [{ id: 't-1' }], error: null });
+      mockSupabase.from.mockReturnValue(chain);
+
+      await createManualTrackingRecord({
+        organizationId: 'org-1', gigId: 'gig-1', kitId: 'kit-1', status: 'On Site', createdBy: 'user-1',
+        isContainerKit: false, assetIds: [], keepKitRow: true,
+      });
+      expect(chain.insert).toHaveBeenLastCalledWith([expect.objectContaining({ kit_id: 'kit-1', asset_id: null })]);
+
+      await createManualTrackingRecord({
+        organizationId: 'org-1', gigId: 'gig-1', kitId: 'kit-1', status: 'On Site', createdBy: 'user-1',
+        isContainerKit: false, assetIds: ['a1'], keepKitRow: true,
+      });
+      expect(chain.insert).toHaveBeenLastCalledWith([
+        expect.objectContaining({ kit_id: 'kit-1', asset_id: null }),
+        expect.objectContaining({ kit_id: 'kit-1', asset_id: 'a1' }),
+      ]);
+    });
+
+    it('a logical kit with nothing to move (only "any" lines) is refused, not silently saved as nothing', async () => {
+      const { createManualTrackingRecord } = await import('./inventoryManagement.service');
+      const chain = makeQueryChain({ data: [], error: null });
+      mockSupabase.from.mockReturnValue(chain);
+
+      await expect(createManualTrackingRecord({
+        organizationId: 'org-1', gigId: 'gig-1', kitId: 'kit-1', status: 'On Site', createdBy: 'user-1',
+        isContainerKit: false, assetIds: [],
+      })).rejects.toThrow(/no specific units or lots/);
+      expect(chain.insert).not.toHaveBeenCalled();
+    });
+
+    it('records N of a lot (#185: quantity is how many are there)', async () => {
+      const { createManualTrackingRecord } = await import('./inventoryManagement.service');
+      const chain = makeQueryChain({ data: { id: 't-1' }, error: null });
+      mockSupabase.from.mockReturnValue(chain);
+      await createManualTrackingRecord({
+        organizationId: 'org-1', gigId: 'gig-1', kitId: 'kit-1', assetId: 'cables', quantity: 4, status: 'On Site', createdBy: 'user-1',
+      });
+      expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining({ asset_id: 'cables', quantity: 4 }));
     });
 
     it('inserts only one asset-level record when assetId is provided', async () => {
@@ -207,6 +235,24 @@ describe('inventoryManagement.service', () => {
   });
 
   describe('getKitTrackingSummary', () => {
+    it('a non-container kit reads its newest row, so an old kit-level row doesn\'t hide newer item scans (#185)', async () => {
+      const { getKitTrackingSummary } = await import('./inventoryManagement.service');
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          return makeQueryChain({ data: [{ id: 'kit-1', is_container: false, kit_components: [{ asset_id: 'a1' }] }], error: null });
+        }
+        return makeQueryChain({
+          data: [
+            { kit_id: 'kit-1', asset_id: 'a1', gig_id: 'gig-1', status: 'In Warehouse', location: 'Warehouse', scanned_at: '2026-01-03T00:00:00Z', gig: { title: 'Test Gig' } },
+            { kit_id: 'kit-1', asset_id: null, gig_id: 'gig-1', status: 'Checked Out', location: 'Staging Area', scanned_at: '2026-01-01T00:00:00Z', gig: { title: 'Test Gig' } },
+          ],
+          error: null,
+        });
+      });
+      const summary = (await getKitTrackingSummary('org-1')).get('kit-1');
+      expect(summary).toMatchObject({ status: 'In Warehouse', location: 'Warehouse', gigId: null });
+    });
+
     it('clears the gig title/id once the kit\'s latest record is returned to the warehouse', async () => {
       const { getKitTrackingSummary } = await import('./inventoryManagement.service');
 
@@ -600,6 +646,166 @@ describe('inventoryManagement.service', () => {
   });
 
   describe('getPackingListReport', () => {
+    // #185: "any" lines are packing lines, with the units packed for them; lots say how many they hold.
+    const anyKit = (tables: Record<string, any>) => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+      mockSupabase.from.mockImplementation((table: string) => makeQueryChain(tables[table] ?? { data: [], error: null }));
+    };
+    const base = {
+      gig_kit_assignments: { data: [{ kit_id: 'kit-1', kit: { id: 'kit-1', name: 'Main PA', is_container: false, tag_number: null, organization_id: 'org-1' } }], error: null },
+      kits: { data: [{ id: 'kit-1', name: 'Main PA', category: null, is_container: false, tag_number: null }], error: null },
+      kit_components: { data: [
+        { kit_id: 'kit-1', asset_id: null, equipment_item_id: 'item-k12', child_kit_id: null, quantity: 2, item: { id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio' } },
+        { kit_id: 'kit-1', asset_id: null, equipment_item_id: 'item-xlr', child_kit_id: null, quantity: 10, item: { id: 'item-xlr', manufacturer_model: 'XLR Cable, 50 ft', category: 'Audio' } },
+        { kit_id: 'kit-1', asset_id: 'stands', child_kit_id: null, quantity: 2, asset: { id: 'stands', manufacturer_model: 'Speaker Stand', tag_number: null, serial_number: null, quantity: 6 } },
+      ], error: null },
+    };
+    const scan = (asset_id: string, item: string, over: Record<string, unknown> = {}) => ({
+      id: `t-${asset_id}`, gig_id: 'gig-1', kit_id: 'kit-1', asset_id, status: 'Checked Out', quantity: 1, scanned_at: '2026-10-09T10:00:00Z',
+      created_at: '2026-10-09T10:00:00Z', asset: { equipment_item_id: item, tag_number: null, serial_number: null, manufacturer_model: 'x' }, ...over,
+    });
+
+    it('an "any" line of a tagged item lists the units packed for it (#185)', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+      anyKit({
+        ...base,
+        // K12s have tags. The cables' only "tags" are a blank one and one on a disposed record: counted.
+        assets: { data: [
+          { equipment_item_id: 'item-k12', tag_number: 'DSL-0101', status: 'Active', retired_on: null },
+          { equipment_item_id: 'item-xlr', tag_number: '  ', status: 'Active', retired_on: null },
+          { equipment_item_id: 'item-xlr', tag_number: 'OLD-1', status: 'Disposed', retired_on: '2025-01-01' },
+        ], error: null },
+        inventory_tracking: { data: [
+          scan('k1', 'item-k12', { location: 'Staging Area', asset: { equipment_item_id: 'item-k12', tag_number: 'DSL-0101', serial_number: 'S1', manufacturer_model: 'QSC K12.2' } }),
+          scan('k3', 'item-k12', { status: 'In Warehouse', asset: { equipment_item_id: 'item-k12', tag_number: 'DSL-0103', serial_number: null, manufacturer_model: 'QSC K12.2' } }),
+          scan('cables', 'item-xlr', { quantity: 7 }),
+          scan('stands', 'item-stand', { quantity: 2 }),
+        ], error: null },
+      });
+      const rows = await getPackingListReport('org-1', 'gig-1');
+      const k12 = rows.find((r) => r.item_id === 'item-k12')!;
+      expect(k12).toMatchObject({ kind: 'any', asset_id: null, asset_name: 'QSC K12.2', quantity: 2, packed: 1, counted: false });
+      // Each with its own status and place, for the gig's Equipment card (Cameron, 10-09).
+      expect(k12.packed_units).toEqual([{ asset_id: 'k1', tag_number: 'DSL-0101', serial_number: 'S1', quantity: 1, status: 'Checked Out', location: 'Staging Area' }]);
+      expect(rows.find((r) => r.item_id === 'item-xlr')).toMatchObject({ kind: 'any', quantity: 10, packed: 7, counted: true });
+      expect(rows.find((r) => r.asset_id === 'stands')).toMatchObject({ kind: 'lot', lot_of: 6, quantity: 2, packed: 2 });
+    });
+
+    // #240 review: lines are filed under the owning kit, so the same item or lot in two of its
+    // sub-kits must add up, not collapse into one line.
+    it('sums the same "any" item and the same lot across sub-kits of one kit', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [
+        { parent_kit_id: 'band', child_kit_id: 'drums', quantity: 1, depth: 1 },
+        { parent_kit_id: 'band', child_kit_id: 'guitars', quantity: 1, depth: 1 },
+      ], error: null });
+      const sm57 = { id: 'item-sm57', manufacturer_model: 'SM57', category: 'Audio' };
+      const cables = { id: 'cables', manufacturer_model: 'XLR Cable', tag_number: null, serial_number: null, quantity: 20 };
+      mockSupabase.from.mockImplementation((table: string) => makeQueryChain(({
+        gig_kit_assignments: { data: [{ kit_id: 'band', kit: { id: 'band', name: 'Band', is_container: false, tag_number: null, organization_id: 'org-1' } }], error: null },
+        kits: { data: [
+          { id: 'band', name: 'Band', category: null, is_container: false, tag_number: null },
+          { id: 'drums', name: 'Drum mics', category: null, is_container: false, tag_number: null },
+          { id: 'guitars', name: 'Guitar mics', category: null, is_container: false, tag_number: null },
+        ], error: null },
+        kit_components: { data: [
+          { kit_id: 'band', asset_id: null, child_kit_id: 'drums', quantity: 1, asset: null },
+          { kit_id: 'band', asset_id: null, child_kit_id: 'guitars', quantity: 1, asset: null },
+          { kit_id: 'drums', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 3, item: sm57 },
+          { kit_id: 'drums', asset_id: 'cables', child_kit_id: null, quantity: 4, asset: cables },
+          { kit_id: 'guitars', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 2, item: sm57 },
+          { kit_id: 'guitars', asset_id: 'cables', child_kit_id: null, quantity: 3, asset: cables },
+        ], error: null },
+      } as Record<string, any>)[table] ?? { data: [], error: null }));
+
+      const rows = await getPackingListReport('org-1', 'gig-1');
+      expect(rows.filter((r) => r.item_id === 'item-sm57').map((r) => r.quantity)).toEqual([5]);
+      expect(rows.filter((r) => r.asset_id === 'cables').map((r) => r.quantity)).toEqual([7]);
+    });
+
+    // #240 re-review: a tracked unit is one physical thing; listed in two sub-kits it's still
+    // one line of 1, never "1 of 2", which could never be packed.
+    it('a tracked unit in two sub-kits stays one line of 1', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [
+        { parent_kit_id: 'band', child_kit_id: 'drums', quantity: 1, depth: 1 },
+        { parent_kit_id: 'band', child_kit_id: 'guitars', quantity: 1, depth: 1 },
+      ], error: null });
+      const di = { id: 'di-1', manufacturer_model: 'Radial DI', tag_number: 'DI-1', serial_number: null, quantity: 1 };
+      mockSupabase.from.mockImplementation((table: string) => makeQueryChain(({
+        gig_kit_assignments: { data: [{ kit_id: 'band', kit: { id: 'band', name: 'Band', is_container: false, tag_number: null, organization_id: 'org-1' } }], error: null },
+        kits: { data: [
+          { id: 'band', name: 'Band', category: null, is_container: false, tag_number: null },
+          { id: 'drums', name: 'Drum mics', category: null, is_container: false, tag_number: null },
+          { id: 'guitars', name: 'Guitar mics', category: null, is_container: false, tag_number: null },
+        ], error: null },
+        kit_components: { data: [
+          { kit_id: 'band', asset_id: null, child_kit_id: 'drums', quantity: 1, asset: null },
+          { kit_id: 'band', asset_id: null, child_kit_id: 'guitars', quantity: 1, asset: null },
+          { kit_id: 'drums', asset_id: 'di-1', child_kit_id: null, quantity: 1, asset: di },
+          { kit_id: 'guitars', asset_id: 'di-1', child_kit_id: null, quantity: 1, asset: di },
+        ], error: null },
+      } as Record<string, any>)[table] ?? { data: [], error: null }));
+
+      const rows = await getPackingListReport('org-1', 'gig-1');
+      expect(rows.filter((r) => r.asset_id === 'di-1').map((r) => r.quantity)).toEqual([1]);
+    });
+
+    // #240 re-review: a unit is packed only where its newest row puts it, across kits and gigs;
+    // a written-off (retired) record is never packed.
+    describe('packed counts follow where things are now', () => {
+      const sm57 = { id: 'item-sm57', manufacturer_model: 'SM57', category: 'Audio' };
+      const u1 = { equipment_item_id: 'item-sm57', tag_number: 'MIC-1', serial_number: null, manufacturer_model: 'SM57', quantity: 1, status: 'Active', retired_on: null };
+      const lot = { equipment_item_id: 'item-xlr', tag_number: null, serial_number: null, manufacturer_model: 'XLR', quantity: 10, status: 'Active', retired_on: null };
+      const row = (gig_id: string, kit_id: string, asset_id: string, at: string, asset: any, over: Record<string, unknown> = {}) => ({
+        id: `${gig_id}-${kit_id}-${asset_id}-${at}`, gig_id, kit_id, asset_id, status: 'Checked Out', quantity: 1, scanned_at: `2026-10-09T${at}:00Z`,
+        created_at: `2026-10-09T${at}:00Z`, asset, ...over,
+      });
+      const setup = (tracking: any[]) => {
+        mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(({
+          gig_kit_assignments: { data: [
+            { kit_id: 'kit-a', kit: { id: 'kit-a', name: 'Kit A', is_container: false, tag_number: null, organization_id: 'org-1' } },
+            { kit_id: 'kit-b', kit: { id: 'kit-b', name: 'Kit B', is_container: false, tag_number: null, organization_id: 'org-1' } },
+          ], error: null },
+          kits: { data: [
+            { id: 'kit-a', name: 'Kit A', category: null, is_container: false, tag_number: null },
+            { id: 'kit-b', name: 'Kit B', category: null, is_container: false, tag_number: null },
+          ], error: null },
+          kit_components: { data: [
+            { kit_id: 'kit-a', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 1, item: sm57 },
+            { kit_id: 'kit-b', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 1, item: sm57 },
+            { kit_id: 'kit-a', asset_id: 'cables', child_kit_id: null, quantity: 4, asset: { id: 'cables', ...lot } },
+          ], error: null },
+          assets: { data: [{ equipment_item_id: 'item-sm57', tag_number: 'MIC-1', status: 'Active', retired_on: null }], error: null },
+          inventory_tracking: { data: tracking, error: null },
+        } as Record<string, any>)[table] ?? { data: [], error: null }));
+      };
+      const packedOn = (rows: any[], kit: string, pred: (r: any) => boolean) => rows.find((r) => r.kit_id === kit && pred(r))?.packed;
+
+      it('a unit scanned for kit A, then kit B, is packed on B only', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        setup([row('gig-1', 'kit-a', 'u1', '10:00', u1), row('gig-1', 'kit-b', 'u1', '11:00', u1)]);
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(packedOn(rows, 'kit-a', (r) => r.item_id === 'item-sm57')).toBe(0);
+        expect(packedOn(rows, 'kit-b', (r) => r.item_id === 'item-sm57')).toBe(1);
+      });
+
+      it('a unit since moved to another gig is not packed here', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        setup([row('gig-1', 'kit-a', 'u1', '10:00', u1), row('gig-2', 'kit-x', 'u1', '11:00', u1)]);
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(packedOn(rows, 'kit-a', (r) => r.item_id === 'item-sm57')).toBe(0);
+      });
+
+      it('written-off pieces are never packed', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        setup([row('gig-1', 'kit-a', 'cables', '10:00', { ...lot, status: 'Missing', retired_on: '2026-10-09' }, { quantity: 4 })]);
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(packedOn(rows, 'kit-a', (r) => r.asset_id === 'cables')).toBe(0);
+      });
+    });
+
     // Regression: the old query embedded kit_components -> assets directly
     // off gig_kit_assignments, so a nested sub-kit component (no asset_id
     // of its own) produced a bogus row with every field null instead of

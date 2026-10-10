@@ -22,6 +22,8 @@ function formatDate(dateStr: string | undefined): string {
 const money = (n: number | string) =>
   `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const pieces = (n: number) => `${n} ${n === 1 ? 'piece' : 'pieces'}`;
+
 const FINANCIAL_FIELD_LABELS: Record<string, string> = {
   amount: 'Amount',
   amount_settled: 'Amount paid',
@@ -268,6 +270,29 @@ export const ACTIVITY_EVENTS = {
     calendarIndicator: false,
     contextKeys: ['asset_model', 'category', 'from_status', 'to_status'],
     format: (ctx) => `Status changed from ${ctx.from_status} to ${ctx.to_status}`,
+  },
+  // write_off_pieces / undo_write_off log only quantity, kit_id, note and split_from / merged_from
+  // (no gig title or model: the entry sits on the gig's or the equipment's own history).
+  'asset.written_off': {
+    label: 'Equipment Written Off',
+    entityType: 'asset',
+    calendarIndicator: false,
+    contextKeys: ['quantity', 'note'],
+    format: (ctx) => {
+      if (!ctx.quantity) return 'Equipment written off as missing';
+      const note = ctx.note ? ` (${ctx.note})` : '';
+      return `Equipment written off: ${pieces(ctx.quantity)} missing${note}`;
+    },
+  },
+  'asset.write_off_undone': {
+    label: 'Write-off Undone',
+    entityType: 'asset',
+    calendarIndicator: false,
+    contextKeys: ['quantity', 'merged_from'],
+    format: (ctx) => {
+      if (!ctx.quantity) return 'Write-off undone';
+      return `Write-off undone: ${pieces(ctx.quantity)} back${ctx.merged_from ? ' in the lot they came from' : ''}`;
+    },
   },
   'kit.created': {
     label: 'Kit Created',
