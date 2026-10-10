@@ -536,6 +536,12 @@ SELECT pg_temp.d(12, row_number() OVER ()::int), pg_temp.d(1,1), s.gig, s.kit, p
     UNION ALL
     SELECT pg_temp.d(3,5), NULL, 15, c.unit, 1, 'In Warehouse', 8, 14.0, 2, 'DMX input drops out', 'Repair Bench'
       FROM (VALUES (3),(4)) AS c(unit)
+    -- Still out after the festival (the gig's Not returned list): a vocal mic from the
+    -- band package, and one floor monitor last seen on the truck.
+    UNION ALL
+    SELECT pg_temp.d(3,5), pg_temp.d(5,4), 7, 0, 1, 'On Site', 10, 21.0, 3, NULL, 'Festival Main Stage'
+    UNION ALL
+    SELECT pg_temp.d(3,5), pg_temp.d(5,4), 3, 2, 1, 'Checked Out', 9, 9.0, 2, NULL, 'Truck'
   ) s;
 
 -- -----------------------------------------------------------------------------

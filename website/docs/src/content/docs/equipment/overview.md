@@ -26,12 +26,12 @@ or choose **Print → Packing list** on the gig.
 - **Items** — your items, with their units and lots: search, filter, add, edit.
 - **Kits** — logical vs. container kits, and nested kits.
 - **Location Explorer** — where gear lives (the **Locations** tab).
-- **Inventory reports** — manifest, packing list,
-  maintenance queue.
+- **[Inventory reports](/equipment/inventory-reports/)** — the packing list (manifest
+  and maintenance queue to come).
 - **Barcode & QR scanning** — tags and the mobile
   scanner.
-- **Assigning equipment to a gig** — kit
-  assignments and tracking them from **Out on gigs**.
+- **[Assigning equipment to a gig](/equipment/assigning-to-a-gig/)** — kit
+  assignments, the gig's equipment table, what's not returned, and write-offs.
 
 <!-- TODO: 2–3 sentence framing of assets vs kits, and when a rental house vs a
      production company would use each. Plan §4, Prompts 2 & 7. -->
