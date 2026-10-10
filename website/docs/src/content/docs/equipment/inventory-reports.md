@@ -72,14 +72,10 @@ An "any" line asks for a number of whatever units of an item you own. It shows t
 item's name with an **Any** badge, and the number under **Qty**. For example, the
 Main PA asks for 4 × any "Halden HX-12P Powered Speaker".
 
-How you pack it depends on whether the item's units have tags:
-
-- **Tagged items are scanned.** Scan any of your units out to the gig. **Status** shows
-  how many are scanned, such as "1 of 4". The tags of the units you scanned appear
-  under the name.
-- **Items with no tags are counted.** Count the pieces out instead. **Status** shows
-  how many were counted, and how many are still missing, such as "7 counted · 3 short".
-  Once they're all there, it reads "10 counted".
+Its **Status** shows how many are packed so far: for an item whose units have tags,
+how many are scanned, such as "1 of 4", with the tags of those units under the name.
+For an item with no tags, it shows how many were counted and how many are still
+missing, such as "7 counted · 3 short", and then "10 counted" once they're all there.
 
 A unit that's on its own line elsewhere in the same kit doesn't fill an "any" line.
 
