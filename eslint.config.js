@@ -7,6 +7,7 @@ export default tseslint.config(
     ignores: [
       'build/',
       'dev-dist/',
+      '.wrangler/',
       'supabase/functions/',
       'node_modules/',
       'public/',

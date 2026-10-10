@@ -11,13 +11,15 @@
 #      drops / renames / NOT NULL tightening in the same release as the code
 #      that needs them). This keeps a failed `db push` from leaving new code
 #      running against an old schema.
-#   3. A post-deploy smoke check hits the public URL and fails loudly.
+#   3. A post-deploy smoke check hits the public URL, then checks that every
+#      JS/CSS build file the live index.html reaches is served (not the SPA
+#      fallback HTML), and fails loudly.
 #
 # Escape hatches (all opt-in; use sparingly and know why):
 #   SKIP_CI_CHECK=1     skip the "CI is green for HEAD" gate
 #   SKIP_NPM_CI=1       reuse existing node_modules instead of `npm ci`
 #   SKIP_LOCAL_GATES=1  skip local typecheck/lint/tests (rely on CI green)
-#   SKIP_HEALTHCHECK=1  skip the post-deploy smoke check
+#   SKIP_HEALTHCHECK=1  skip the post-deploy smoke check (incl. the build-file check)
 #   AUTO_CONFIRM=yes    skip the interactive confirmation prompt
 #   PROD_URL=<url>      override the smoke-check URL
 
@@ -239,6 +241,13 @@ else
     if [ "$i" -lt 6 ]; then sleep 10; fi
   done
   [ -n "$HEALTHY" ] || die "$PROD_URL did not return 200 after deploy. The deploy completed — VERIFY PRODUCTION MANUALLY NOW."
+
+  # Every JS/CSS file the new index.html loads (and the lazy chunks those
+  # load) must be served as itself, not as the SPA's index.html, and a missing
+  # build file must get a real 404. Retries ~60 s for CDN propagation.
+  echo "--- Checking the deployed JS/CSS build files on $PROD_URL ---"
+  node scripts/check-deployed-assets.mjs "$PROD_URL" 60 \
+    || die "deployed build files are missing or served as HTML at $PROD_URL. The deploy completed — VERIFY PRODUCTION MANUALLY NOW (users may hit 'This screen couldn't load')."
 fi
 
 DEPLOY_STAGE="done"

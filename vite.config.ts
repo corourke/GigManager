@@ -51,6 +51,10 @@
           // back to index.html instead of being silently rejected by the SW's
           // navigation-fallback route — only exclude actual API/asset requests.
           navigateFallbackAllowlist: [/^(?!\/api\/).*/],
+          // public/static/404.html is Cloudflare's not-found page for missing
+          // chunks, never a page the app shows. (Restates Workbox's default
+          // node_modules ignore, which setting globIgnores replaces.)
+          globIgnores: ['**/node_modules/**/*', 'static/404.html'],
         },
         devOptions: {
           enabled: true,
@@ -72,6 +76,11 @@
     build: {
       target: 'esnext',
       outDir: 'build',
+      // Hashed JS/CSS go in /static/, not Vite's default /assets/, because
+      // /assets/... are app routes (equipment). public/static/404.html makes
+      // Cloudflare Pages answer a missing build file with a real 404 there,
+      // while every other path keeps the SPA fallback to index.html.
+      assetsDir: 'static',
     },
     server: {
       port: 3000,

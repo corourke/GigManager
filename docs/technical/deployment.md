@@ -2,7 +2,7 @@
 
 **Purpose**: Single source of truth for how GigWrangler reaches production — the pipeline, every third-party service involved, the complete configuration inventory, and how to recover when something goes wrong.
 
-**Last Updated**: 2026-10-01
+**Last Updated**: 2026-10-10
 
 > For *local development* setup, see [setup-guide.md](./setup-guide.md). This document covers production only.
 
@@ -31,7 +31,7 @@
                     ┌────────────────────────┐
                     │  Cloudflare Pages      │   project: gigwrangler
                     │  static SPA + CDN      │   build/ (Vite output)
-                    │  _redirects → SPA      │   HTTPS + custom domain
+                    │  SPA fallback + 404s   │   HTTPS + custom domain
                     └───────────┬────────────┘
                                 │  VITE_* baked in at BUILD time
                                 │  (from the local env file)
@@ -115,7 +115,7 @@ Both are size-checked; an empty dump aborts the deploy before anything mutates.
 
 ### Stage 5 — Smoke check
 
-Polls `https://gigwrangler.com` up to 6 times (10s apart) for HTTP 200. A failure here is loud but late — the deploy has already completed, so the message tells you to verify production manually.
+Polls `https://gigwrangler.com` up to 6 times (10s apart) for HTTP 200. Then [`scripts/check-deployed-assets.mjs`](../../scripts/check-deployed-assets.mjs) fetches the live `index.html`, follows every JS/CSS build file it loads and, recursively, the lazy chunks those files name, and fails if any is not 200 or comes back as `text/html` (the SPA fallback). It also requests a made-up `/static/deploy-check-missing-<time>.js` and requires a 404. It retries for about 60 seconds so the CDN can finish propagating. A failure here is loud but late — the deploy has already completed, so the message tells you to verify production manually. See [Missing build files return 404](#missing-build-files-return-404).
 
 ### Always — the exit trap
 
@@ -130,7 +130,7 @@ All opt-in, all documented in the script header. Use sparingly and know why:
 | `SKIP_CI_CHECK=1` | Skip the "CI is green for HEAD" gate |
 | `SKIP_NPM_CI=1` | Reuse existing `node_modules` instead of `npm ci` |
 | `SKIP_LOCAL_GATES=1` | Skip local typecheck/lint/tests (rely on CI green) |
-| `SKIP_HEALTHCHECK=1` | Skip the post-deploy smoke check |
+| `SKIP_HEALTHCHECK=1` | Skip the post-deploy smoke check (both the 200 poll and the build-file check) |
 | `AUTO_CONFIRM=yes` | Skip the interactive confirmation prompt |
 | `PROD_URL=<url>` | Override the smoke-check URL |
 
@@ -187,9 +187,22 @@ Hosts the built SPA, terminates HTTPS, serves the CDN, and owns the custom domai
 | Build output directory | `build` |
 | Custom domain | `gigwrangler.com` |
 | DNS | Cloudflare, same account |
-| SPA routing | [`public/_redirects`](../../public/_redirects) → `/*  /index.html  200` |
+| SPA routing | Built in: there is no top-level `404.html`, so Pages serves `index.html` for any path without a file |
+| Missing build files | [`public/static/404.html`](../../public/static/404.html) → a real 404 for a missing `/static/*` file |
 
-`public/` is copied into `build/` verbatim by Vite, which is how `_redirects` reaches the deploy. Without it, Cloudflare returns 404 for every client-side route (`/gigs/123`, `/settings`, …) on hard refresh or deep link.
+**SPA routing needs no `_redirects`.** Cloudflare's [Serving Pages](https://developers.cloudflare.com/pages/configuration/serving-pages/) docs: "If your project does not include a top-level `404.html` file, Pages assumes that you are deploying a single-page application" and serves `/` for every path without a file, so client-side routes (`/gigs/123`, `/settings`, …) survive a hard refresh or deep link. The old `public/_redirects` rule `/*  /index.html  200` never did anything: Wrangler drops it with "Infinite loop detected in this rule and has been ignored", so it was removed on 2026-10-10. Don't add a top-level `404.html`: that switches SPA mode off and every client route would 404.
+
+#### Missing build files return 404
+
+**The problem (10-10 incident).** In SPA mode, a request for a build file that doesn't exist also got `index.html` with status 200. Right after a deploy, a lazy chunk (`ItemDetailScreen-<hash>.js`) was briefly missing at the CDN, so the browser got HTML for it ("Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of text/html", "Failed to fetch dynamically imported module"). Worse, that HTML was cached under the chunk's URL: by the browser (the zone sends `max-age=14400` for `.js`) and possibly by the service worker's precache, which accepts any 200. A hard reload didn't help, because the import happens after load.
+
+**The fix has three parts:**
+
+1. **A real 404 for a missing build file.** Vite writes hashed JS/CSS to `build/static/` (`build.assetsDir: 'static'` in `vite.config.ts`; not Vite's default `assets/`, because `/assets/...` are the app's equipment routes). [`public/static/404.html`](../../public/static/404.html) is the "closest 404.html" that Pages serves for a missing file under `/static/` (it "will continue to look up the directory tree for a matching `404.html` file"), with status 404 and (from Pages' asset server, as `wrangler pages dev` shows) `Cache-Control: no-store`, so nothing should cache it. With no top-level `404.html`, every other path keeps the SPA fallback. This is static: no Pages Function, so nothing counts against the Workers request quota. Checked with `npx wrangler pages dev build/`: an existing chunk is 200 JS, `/static/x.js` is 404, and `/gigs/123`, `/assets/new` and `/assets/<id>/edit` are 200 `index.html`.
+2. **Self-repair in the app.** When a lazy screen fails to load, [`ChunkLoadBoundary`](../../src/routes/ChunkLoadBoundary.tsx) automatically deletes every Cache Storage cache (the Workbox precache included), unregisters the service worker and reloads ([`chunkRecovery.ts`](../../src/routes/chunkRecovery.ts)). It does this once per tab session (a `sessionStorage` flag, `gw.chunkReloadAttempted`). If the screen still fails after that, it shows "This screen couldn't load… Reload", and the Reload button does the same repair. If `sessionStorage` is blocked there is no automatic reload, since nothing could stop a loop. A failed landing-screen prefetch is swallowed and never triggers it. The browser's HTTP cache can't be cleared from script, so a chunk URL already cached as HTML before this fix shipped stays broken for up to 4 hours (the zone's `max-age=14400`).
+3. **The deploy check** (Stage 5 above) catches a missing or HTML-served chunk on the live site.
+
+**The service worker can't cache the HTML any more.** Workbox's precache install only stores responses with status below 400 and fails the whole install on anything else (`bad-precaching-response`); the old service worker stays in charge and the browser retries the install at its next update check. So a 404 makes the install fail safely instead of caching HTML. Rejecting a 200 `text/html` for a `.js` URL in the precache itself would need a custom service worker (`injectManifest`), which isn't worth it now that the server can't send one. `static/404.html` is excluded from the precache (`globIgnores`).
 
 DNS for `gigwrangler.com` is managed in Cloudflare alongside the Pages project, so the custom domain binds without any external nameserver change and HTTPS is issued automatically. One account is therefore the single point of failure for hosting, DNS, and TLS — losing access to it takes the site down with no independent lever to recover.
 
@@ -247,7 +260,7 @@ The build tool. [`vite.config.ts`](../../vite.config.ts) configures:
 
 - `@vitejs/plugin-react-swc` and the Tailwind v4 Vite plugin
 - `vite-plugin-pwa` with `registerType: 'autoUpdate'`, workbox `skipWaiting` + `clientsClaim`, and a `navigateFallbackAllowlist` of `/^(?!\/api\/).*/` so every client-side react-router route falls back to `index.html` instead of being rejected by the service worker
-- `build.outDir: 'build'`, `build.target: 'esnext'`
+- `build.outDir: 'build'`, `build.target: 'esnext'`, `build.assetsDir: 'static'` (see [Missing build files return 404](#missing-build-files-return-404)); workbox `globIgnores` keeps `static/404.html` out of the precache
 - `define.__BUILD_TIMESTAMP__` — injected at build time and used as the Sentry release identifier
 
 Environment variables must be prefixed `VITE_` to be exposed to client code, and are **inlined at build time** — they are not runtime configuration. [`src/utils/supabase/info.tsx`](../../src/utils/supabase/info.tsx) throws on startup if `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` is missing, which turns a misconfigured deploy into an immediate visible failure rather than silent connection to the wrong database.
@@ -281,7 +294,7 @@ Secrets take effect immediately; no function redeploy is needed. Without `SENTRY
 
 #### Verifying
 
-To confirm a `VITE_*` value was baked in, search the deployed bundle for the Sentry ingest host from your DSN: find the script path with `curl -s https://gigwrangler.com/ | grep -o 'assets/[^"]*\.js'`, then `curl -s https://gigwrangler.com/<path> | grep -c '<org>.ingest'` (0 matches in every script means the value did not make it in). Or, on the deployed site, open DevTools → Network and filter for `sentry.io`; a session request should appear within seconds. `window.__SENTRY__` being defined in the console confirms init. For a real end-to-end check, run `throw new Error("Sentry test — delete me")` in the console and confirm it lands in **Issues** within ~30s, then delete it.
+To confirm a `VITE_*` value was baked in, search the deployed bundle for the Sentry ingest host from your DSN: find the script path with `curl -s https://gigwrangler.com/ | grep -o 'static/[^"]*\.js'`, then `curl -s https://gigwrangler.com/<path> | grep -c '<org>.ingest'` (0 matches in every script means the value did not make it in). Or, on the deployed site, open DevTools → Network and filter for `sentry.io`; a session request should appear within seconds. `window.__SENTRY__` being defined in the console confirms init. For a real end-to-end check, run `throw new Error("Sentry test — delete me")` in the console and confirm it lands in **Issues** within ~30s, then delete it.
 
 #### What is and isn't captured
 
@@ -585,7 +598,8 @@ The one-time bring-up, should production ever need to be recreated. This section
 **5. Verify**
 - `https://gigwrangler.com` loads; tab title reads "GigWrangler"
 - Sign-in completes and the user appears in the prod Supabase dashboard → Auth → Users
-- A deep link (e.g. `https://gigwrangler.com/gigs`) survives a hard refresh — confirms `_redirects` shipped
+- A deep link (e.g. `https://gigwrangler.com/gigs`, `https://gigwrangler.com/assets/new`) survives a hard refresh — confirms SPA mode (no top-level `404.html`)
+- `curl -sI https://gigwrangler.com/static/nope.js` returns 404 — confirms `static/404.html` shipped
 - Passkey registration succeeds — confirms `RP_ID` / `ORIGIN` are set
 - An organization invitation email arrives — confirms Resend
 - A deliberate client error appears in Sentry
