@@ -1,21 +1,108 @@
 ---
-title: Field inventory
-description: Check gear in and out from your phone.
-draft: true
+title: Scanning equipment on your phone
+description: Pack a gig's equipment out, load it, and bring it back by scanning tags or counting pieces on your phone.
 sidebar:
   order: 2
 ---
 
-## Cover
+On a phone, the **Scanning** screen tracks a gig's equipment from the warehouse to
+the venue and back. Scan each tag, or tap a line to count it, and everyone can see
+what's packed, what's on the truck and what hasn't come back.
 
-- Mobile Inventory / Warehouse mode.
-- The nested-tree scan view; scanning to check gear in/out against a gig.
-- The load / unload ("Active Gig") flow.
+To open it, go to the gig and select **Packing List**, or tap **Scanning** in the
+bottom bar. The screen lists the gig's kits with everything in them. Its header
+shows how many pieces are done, such as "12 / 89 pieces".
 
-## Screenshots
+<!-- 📸 The Scanning screen in Pack-Out, one kit partly packed. -->
 
-- 📸 Mobile scan screen (nested tree).
+## Choosing the step
 
-## Source
+Tap the step you're doing. Each step records a status and a location:
 
-Plan §8.
+| Step | Status | Location |
+|---|---|---|
+| **Pack-Out** | Checked Out | Staging Area |
+| **Load Truck** | In Transit | Truck |
+| **Load-In** | On Site | Venue Area |
+| **Load-Out** | In Transit | Truck |
+| **Unload** | In Warehouse | Warehouse |
+
+To record a different place, such as `Truck 2`, type it in the location field before
+you scan.
+
+## Scanning tags
+
+Tap **Scan** and point the camera at a tag. If there's no camera, enter the tag under
+"Enter a tag number manually" and tap **Submit**.
+
+- **A unit's tag** checks off that unit.
+- **A kit's tag** checks off everything in the kit at once.
+- **A container's tag**, such as the "Mic Case", checks off the case. What's inside
+  travels with it, so you don't scan the contents.
+
+A tag that isn't on the gig shows "… isn't on this gig." In **Pack-Out** and
+**Load Truck** you can add it instead; see
+[Adding equipment at pack-out](/mobile/adding-at-pack-out/).
+
+You can also tap a unit's circle to check it off by hand, and tap it again to undo.
+
+## Counting pieces
+
+Gear without tags, such as cables and stands, is counted. Tap the line's circle. A
+counter opens at the number the kit calls for. Use **−** and **+**, or type the
+number, and tap **Confirm**.
+
+If you pack fewer than the line calls for, the line shows how many, such as
+"6 / 8", and stays unchecked until the rest are packed.
+
+## "Any" lines
+
+An "any" line asks for a number of any units of an item, such as
+"Halden HX-12P Powered Speaker, Any · 0 / 4".
+
+- **Tagged units:** scan any of your units. Each one fills the line by one.
+- **Items with no tags:** tap the line. GigWrangler takes the pieces from what's at
+  home and fills the line. If there aren't enough, a message says how many are short.
+
+## Before you pack
+
+In **Pack-Out**, GigWrangler asks before you pack something that's in Maintenance,
+Inactive, or still out at another gig. The message names the item and the gig.
+Tap **Pack anyway** to pack it, or **Cancel**.
+
+## Bringing equipment back
+
+In **Unload**, scan or count everything that came back.
+
+When you count fewer than went out, GigWrangler asks about the rest:
+
+- **Leave at the gig:** they're shown as **Not Returned** until they come back.
+- **Mark missing:** they're written off. Only Admins and Managers see this, and it
+  needs a connection.
+
+When you're done, tap **Finish unload**. It lists what's still out. Admins and
+Managers can tick **Missing** for anything that isn't coming back. Tap **Done**:
+everything else stays at the gig as **Not Returned**. You'll find it on the gig's
+**Not returned** list; see [Assigning equipment to a gig](/equipment/assigning-to-a-gig/#the-not-returned-list).
+
+## Notes and Maintenance
+
+Tap the note button on a kit or a line to record its condition, such as "Cracked
+grille" or "Channel 3 crackles".
+
+The note shows the last record for that item: when, who scanned it, its **Status /
+Location**, the gig and any earlier notes. Enter your note and tap **Save**. A note
+doesn't check anything off.
+
+To take a unit or lot out of service, turn on **Send to Maintenance** and tap **Save**.
+It goes to Maintenance, and the note ends with "Sent to Maintenance." Admins, Managers
+and Staff see this switch.
+
+**Clear note** empties the box; tap **Save** to keep it empty. **Cancel** closes without
+saving.
+
+## Related
+
+- [Adding equipment at pack-out](/mobile/adding-at-pack-out/)
+- [Assigning equipment to a gig](/equipment/assigning-to-a-gig/)
+- [Inventory reports](/equipment/inventory-reports/)

@@ -27,7 +27,10 @@ containers come with it. If two kits on the same gig contain the same equipment,
 **Overlapping equipment** warning names them. Conflicts with other gigs show here too;
 see [Conflict detection](/gigs/conflict-detection/).
 
-<!-- TODO: the Tracking page (Out on gigs) and scanning, once #185/#186 land. -->
+A kit added from a phone while packing has an **Added at pack-out** label. See
+[Adding equipment at pack-out](/mobile/adding-at-pack-out/).
+
+<!-- TODO: the Tracking page (Out on gigs), once #186 lands. -->
 
 ## The gig's equipment table
 
