@@ -850,6 +850,31 @@ describe('MobileInventoryMode', () => {
       })
     })
 
+    // #246 review: what was added here is on the gig from then on, scanned like anything listed.
+    it.each(['load-truck', 'load-in', 'load-out', 'unload'])('%s: a unit, a lot and an extra added earlier scan as part of the gig', async (modeId) => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({
+        extra_assets: {
+          u9: { id: 'u9', manufacturer_model: 'K12 Speaker', tag_number: 'K12-9', quantity: 1 },
+          'lot-x': { id: 'lot-x', manufacturer_model: 'XLR Cable', tag_number: 'BOX-1', quantity: 20 },
+          x1: { id: 'x1', manufacturer_model: 'Spare DI', tag_number: 'DI-9', quantity: 1 },
+        },
+        tracking: [
+          { id: 't1', gig_id: 'gig-1', kit_id: null, asset_id: 'u9', status: 'Checked Out', quantity: 1, scanned_at: '2026-10-10T10:00:00.000Z' },
+          { id: 't2', gig_id: 'gig-1', kit_id: null, asset_id: 'lot-x', status: 'Checked Out', quantity: 6, scanned_at: '2026-10-10T10:01:00.000Z' },
+          { id: 't3', gig_id: 'gig-1', kit_id: 'top', asset_id: 'x1', status: 'Checked Out', quantity: 1, scanned_at: '2026-10-10T10:02:00.000Z' },
+        ],
+      }))
+      await renderIn(modeId)
+      const status = SCANNING_MODES.find((m) => m.id === modeId)!.resultingStatus
+      await act(async () => { await scannerProps.onScan('K12-9') })
+      expect(inventoryTrackingService.submitScan).toHaveBeenLastCalledWith(expect.objectContaining({ kitId: null, assetId: 'u9', status, quantity: 1 }))
+      await act(async () => { await scannerProps.onScan('BOX-1') })
+      expect(inventoryTrackingService.submitScan).toHaveBeenLastCalledWith(expect.objectContaining({ kitId: null, assetId: 'lot-x', status, quantity: 6 }))
+      await act(async () => { await scannerProps.onScan('DI-9') })
+      expect(inventoryTrackingService.submitScan).toHaveBeenLastCalledWith(expect.objectContaining({ kitId: 'top', assetId: 'x1', status }))
+      expect(screen.queryByText('Not on the list')).not.toBeInTheDocument()
+    })
+
     it('a Viewer is not offered to add anything', async () => {
       auth.role = 'Viewer'
       try {

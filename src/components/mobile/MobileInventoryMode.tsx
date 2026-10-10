@@ -299,7 +299,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
 
   // Before Pack-Out packs a unit or lot (or a whole kit's), what's worth a second look: one in
   // Maintenance or Inactive, or a unit still out at another gig (#185). Later steps don't ask.
-  const getPackWarnings = useCallback((kitId: string, assetId?: string): string[] => {
+  const getPackWarnings = useCallback((kitId: string | null, assetId?: string): string[] => {
     if (!packingList || selectedMode.id !== SCANNING_MODES[0].id) return [];
     const assetsById = new Map<string, any>();
     for (const assignment of packingList.kits || []) {
@@ -310,7 +310,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     }
     const ids: string[] = assetId
       ? [assetId]
-      : inventoryTrackingService.getCascadeTargets(packingList, kitId)
+      : !kitId ? [] : inventoryTrackingService.getCascadeTargets(packingList, kitId)
         .map((t: { asset_id: string | null }) => t.asset_id)
         .filter((id: string | null): id is string => Boolean(id));
     const messages: string[] = [];
@@ -326,7 +326,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     return messages;
   }, [packingList, selectedMode]);
 
-  const guardPack = useCallback(async (kitId: string, assetId: string | undefined, proceed: () => Promise<void>) => {
+  const guardPack = useCallback(async (kitId: string | null, assetId: string | undefined, proceed: () => Promise<void>) => {
     const messages = getPackWarnings(kitId, assetId);
     if (messages.length === 0) {
       await proceed();
@@ -798,6 +798,22 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         && inventoryTrackingService.getAnySlotFilled(packingList, s, selectedMode.resultingStatus) < s.quantity) ?? slot;
       return { type: 'asset' as const, kitId: open.kit_id, assetId: unit.id, label: slot.item_name };
     }
+    // What was added here off the list (#185 PR 2): a unit or lot on its own, or an extra or
+    // swapped-in unit under a kit. It's on the gig from then on, in every mode, under the kit
+    // (or no kit) its newest row here has, with that row's count.
+    const newestFirst = [...(packingList.tracking || [])]
+      .sort((a: any, b: any) => String(b.scanned_at ?? '').localeCompare(String(a.scanned_at ?? '')));
+    for (const row of newestFirst) {
+      const asset = row.asset_id ? packingList.extra_assets?.[row.asset_id] : null;
+      if (!asset || (asset.tag_number ?? '').trim() !== tag) continue;
+      return {
+        type: 'asset' as const,
+        kitId: (row.kit_id ?? null) as string | null,
+        assetId: row.asset_id as string,
+        label: asset.manufacturer_model || 'Item',
+        quantity: Math.max(1, Number(row.quantity ?? 1) || 1),
+      };
+    }
     return null;
   }, [packingList, selectedMode]);
 
@@ -837,6 +853,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
           gigId,
           kitId: match.kitId,
           assetId: match.assetId,
+          ...('quantity' in match ? { quantity: match.quantity } : {}),
           status: selectedMode.resultingStatus,
           organizationId: selectedOrganization.id,
           scannedBy: user.id,
