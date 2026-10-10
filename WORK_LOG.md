@@ -11,7 +11,7 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 - **User guide, PR #241** (Docs Lead, merged 10-10): Equipment overview uses items, units and lots; gig Equipment tab lists Equipment needed.
 
-- **Next prod deploy ready 10-10** (pending Cameron): #239, #240, #244 + migration 20261018000000 (write-offs). Read-only prod pre-checks clean (no tracking rows break the new rule; no recovery period without a line; no Missing yet).
+- **Prod deploy, 10-10 ~05:00 UTC** (Cameron): #239, #240, #241, #244 + migration 20261018000000 (write-offs). Coordinator verified read-only: prod at 20261018000000, write-off functions and columns present, `update_asset_status` search_path pinned, new build served. Pre-checks were clean. Cameron saw one chunk-load error (ItemDetailScreen) right after the deploy; the chunk served correctly minutes later (CDN propagation). User guide #243 merged after the deploy.
 
 - **#185 PR 1, PR #239** (Equipment Lead, merged 10-09): write off missing equipment (whole or part of a lot, disposal with no proceeds, undo unless the tax year is filed), the gig's Not returned list, Missing out of owned/available/insured, Disposals by record; tracking rows reference their own organization's equipment; status changes into or out of retired statuses follow the write-off rules. **Migration 20261018000000 on dev; prod with the next deploy (Cameron).**
 
