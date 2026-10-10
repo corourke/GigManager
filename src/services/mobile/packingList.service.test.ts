@@ -5,6 +5,7 @@ vi.mock('../../utils/idb/store', () => ({
     getPackingList: vi.fn().mockResolvedValue(null),
     putPackingList: vi.fn(),
     putGigs: vi.fn(),
+    getOutbox: vi.fn().mockResolvedValue([]),
   },
 }))
 
@@ -17,6 +18,7 @@ function createSupabaseMock(tableResponses: Record<string, any>, rpcResponse: an
         eq: vi.fn().mockReturnThis(),
         in: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue(response),
         then: (resolve: any, reject?: any) => Promise.resolve(response).then(resolve, reject),
       };
@@ -142,7 +144,7 @@ describe('packingListService.fetchGigPackingList', () => {
     const { packingListService } = await import('./packingList.service');
     const result = await packingListService.fetchGigPackingList('gig-1');
 
-    expect(result.hierarchy_edges).toEqual([{ parent_kit_id: 'rack', child_kit_id: 'mic-case' }]);
+    expect(result.hierarchy_edges).toEqual([{ parent_kit_id: 'rack', child_kit_id: 'mic-case', quantity: 1 }]);
     expect(result.top_level_kit_ids).toEqual(['rack']);
 
     const rackEntry = result.kits.find((k: any) => k.kit_id === 'rack');
@@ -157,5 +159,163 @@ describe('packingListService.fetchGigPackingList', () => {
     expect(micCaseEntry?.kit.direct_assets).toEqual([
       { asset_id: 'mic-1', quantity: 2, asset: { id: 'mic-1', manufacturer_model: 'SM58' } },
     ]);
+  });
+
+  // #185: "any" lines are packed from the item's units and lots; the phone needs the lines,
+  // how many of each item's records are at home, and nested kits' quantities.
+  it('lists each kit\'s "any" lines, and each item\'s units and lots with how many are at home (#185)', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } }], error: null },
+      kit_flattened_cache: { data: [], error: null },
+      kit_components: { data: [
+        { kit_id: 'rack', asset_id: null, child_kit_id: null, equipment_item_id: 'item-xlr', quantity: 10, asset: null, item: { id: 'item-xlr', manufacturer_model: 'XLR Cable, 50 ft' } },
+      ], error: null },
+      equipment_items: { data: [{ id: 'item-xlr', manufacturer_model: 'XLR Cable, 50 ft', records: [
+        { id: 'lot-a', tag_number: null, serial_number: null, quantity: 10, status: 'Active', retired_on: null, created_at: '2026-01-01T00:00:00Z' },
+        { id: 'lot-gone', tag_number: null, serial_number: null, quantity: 2, status: 'Missing', retired_on: '2026-10-09', created_at: '2026-01-02T00:00:00Z' },
+      ] }], error: null },
+      inventory_tracking: { data: [
+        { id: 't1', gig_id: 'other-gig', kit_id: 'k', asset_id: 'lot-a', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+        { id: 't2', gig_id: 'gig-1', kit_id: 'rack', asset_id: 'lot-a', status: 'Checked Out', quantity: 3, scanned_at: '2026-10-02T10:00:00Z', created_at: '2026-10-02T10:00:00Z' },
+      ], error: null },
+      gigs: { data: { title: 'Test Gig' }, error: null },
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+
+    expect(result.kits[0].kit.any_lines).toEqual([{ item_id: 'item-xlr', item_name: 'XLR Cable, 50 ft', quantity: 10 }]);
+    expect(result.item_records['item-xlr']).toEqual([
+      expect.objectContaining({ id: 'lot-a', quantity: 10, at_home: 6, at_gig: 3 }),
+    ]);
+  });
+
+  // #185 guard rail: Pack-Out warns before packing a unit that's still out at another gig.
+  it('says which units are still out at another gig, and which gig', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } }], error: null },
+      kit_flattened_cache: { data: [
+        { kit_id: 'rack', asset_id: 'k12', total_quantity: 1 },
+        { kit_id: 'rack', asset_id: 'k12-b', total_quantity: 1 },
+        { kit_id: 'rack', asset_id: 'xlr', total_quantity: 10 },
+      ], error: null },
+      kit_components: { data: [], error: null },
+      assets: { data: [
+        { id: 'k12', manufacturer_model: 'K12', tag_number: 'K12-1', quantity: 1, status: 'Active' },
+        { id: 'k12-b', manufacturer_model: 'K12', tag_number: 'K12-2', quantity: 1, status: 'Active' },
+        { id: 'xlr', manufacturer_model: 'XLR', tag_number: null, quantity: 20, status: 'Active' },
+      ], error: null },
+      inventory_tracking: { data: [
+        { id: 't1', gig_id: 'other-gig', kit_id: 'k', asset_id: 'k12', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+        { id: 't2', gig_id: 'old-gig', kit_id: 'k', asset_id: 'k12-b', status: 'In Warehouse', quantity: 1, scanned_at: '2026-09-01T10:00:00Z', created_at: '2026-09-01T10:00:00Z' },
+        { id: 't3', gig_id: 'other-gig', kit_id: 'k', asset_id: 'xlr', status: 'On Site', quantity: 4, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+      ], error: null },
+      gigs: { data: [{ id: 'other-gig', title: 'Other Gig' }], error: null },
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+
+    // Units only: a lot's pieces elsewhere show in what's at home, not as a warning.
+    expect(result.elsewhere).toEqual({ k12: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'On Site' } });
+  });
+
+  // #246 review: a kit added at pack-out offline stays on the list until its add has synced.
+  it('keeps a kit added at pack-out whose add is still queued', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } }], error: null },
+      kit_components: { data: [], error: null },
+    };
+    const pending = { kit_id: 'case-9', added_at_pack_out: true, assigned_by: 'user-1', contents_pending: true, kit: { id: 'case-9', name: 'Case 9', is_container: true, assets: [] } };
+    const { idbStore } = await import('../../utils/idb/store');
+    vi.mocked(idbStore.getPackingList).mockResolvedValue({ gig_id: 'gig-1', top_level_kit_ids: ['rack', 'case-9'], kits: [pending], tracking: [] });
+    vi.mocked(idbStore.getOutbox).mockResolvedValue([
+      { id: 1, type: 'KIT_ASSIGNMENT_ADD', payload: { gig_id: 'gig-1', kit_id: 'case-9' }, timestamp: 1, attempts: 0 },
+      { id: 2, type: 'KIT_ASSIGNMENT_ADD', payload: { gig_id: 'gig-2', kit_id: 'other' }, timestamp: 2, attempts: 0 },
+    ] as any);
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+    expect(result.kits.map((k: any) => k.kit_id)).toEqual(['rack', 'case-9']);
+    expect(result.top_level_kit_ids).toEqual(['rack', 'case-9']);
+    vi.mocked(idbStore.getPackingList).mockResolvedValue(null);
+    vi.mocked(idbStore.getOutbox).mockResolvedValue([]);
+  });
+
+  // #246 review: where things are now reads every row, a page at a time.
+  it('reads every placement row, past the first page', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } }], error: null },
+      kit_flattened_cache: { data: [{ kit_id: 'rack', asset_id: 'k12', total_quantity: 1 }], error: null },
+      kit_components: { data: [], error: null },
+      assets: { data: [{ id: 'k12', manufacturer_model: 'K12', tag_number: 'K12-1', quantity: 1, status: 'Active' }], error: null },
+      gigs: { data: [{ id: 'other-gig', title: 'Other Gig' }], error: null },
+    };
+    const old = Array.from({ length: 1000 }, (_, i) => ({ id: `old-${i}`, gig_id: 'old-gig', kit_id: 'k', asset_id: 'k12', status: 'In Warehouse', quantity: 1, scanned_at: '2026-09-01T10:00:00Z', created_at: '2026-09-01T10:00:00Z' }));
+    const newest = { id: 'new', gig_id: 'other-gig', kit_id: 'k', asset_id: 'k12', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' };
+    const base = createSupabaseMock(tableResponses, { data: [], error: null });
+    const client: any = {
+      ...base,
+      from: vi.fn((table: string) => {
+        if (table !== 'inventory_tracking') return base.from(table);
+        let cols = '';
+        let from: number | null = null;
+        const b: any = {
+          select: vi.fn((c: string) => { cols = c; return b; }),
+          eq: vi.fn(() => b), in: vi.fn(() => b), order: vi.fn(() => b),
+          range: vi.fn((a: number) => { from = a; return b; }),
+          then: (res: any, rej?: any) => Promise.resolve({ data: cols === '*' ? [] : from === 1000 ? [newest] : old, error: null }).then(res, rej),
+        };
+        return b;
+      }),
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(client);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+    expect(result.elsewhere).toEqual({ k12: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'On Site' } });
+  });
+
+  // #185: a unit added as an extra or swapped in isn't on the list; the phone still needs its name and item.
+  it('loads what is tracked at the gig but not on the list', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } }], error: null },
+      kit_flattened_cache: { data: [{ kit_id: 'rack', asset_id: 'k12', total_quantity: 1 }], error: null },
+      kit_components: { data: [], error: null },
+      assets: { data: [
+        { id: 'k12', manufacturer_model: 'K12', tag_number: 'K12-1', quantity: 1, status: 'Active', equipment_item_id: 'item-k12' },
+        { id: 'k12-b', manufacturer_model: 'K12', tag_number: 'K12-2', quantity: 1, status: 'Active', equipment_item_id: 'item-k12' },
+      ], error: null },
+      inventory_tracking: { data: [
+        { id: 't1', gig_id: 'gig-1', kit_id: 'rack', asset_id: 'k12-b', status: 'Checked Out', quantity: 1, scanned_at: '2026-10-09T10:00:00Z', created_at: '2026-10-09T10:00:00Z' },
+      ], error: null },
+      gigs: { data: { title: 'Test Gig' }, error: null },
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+
+    expect(Object.keys(result.extra_assets)).toEqual(['k12-b']);
+    expect(result.extra_assets['k12-b']).toEqual(expect.objectContaining({ tag_number: 'K12-2', equipment_item_id: 'item-k12' }));
+  });
+
+  // #185 PR 2: kits added at pack-out are marked, with who added them (only they can remove one).
+  it('marks kits added at pack-out, with who added them', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [
+        { kit_id: 'rack', notes: null, added_at_pack_out: false, assigned_by: 'mgr', kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } },
+        { kit_id: 'case', notes: null, added_at_pack_out: true, assigned_by: 'user-1', kit: { id: 'case', name: 'Mic Case', tag_number: 'C-1', is_container: true } },
+      ], error: null },
+      gigs: { data: { title: 'Test Gig' }, error: null },
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+    expect(result.kits.map((k: any) => [k.kit_id, k.added_at_pack_out, k.assigned_by])).toEqual([['rack', false, 'mgr'], ['case', true, 'user-1']]);
   });
 });

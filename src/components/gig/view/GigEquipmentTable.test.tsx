@@ -87,4 +87,12 @@ describe('GigEquipmentTable', () => {
     expect(await screen.findByText('On Site 1 of 3 · In Transit 1')).toBeInTheDocument();
     expect(getPackingListReport).toHaveBeenCalledTimes(1);
   });
+
+  // #185 PR 2: a kit added on the phone at pack-out says so.
+  it('labels a kit added at pack-out', async () => {
+    vi.mocked(getGigKits).mockResolvedValue([{ ...KITS[0], added_at_pack_out: true }, KITS[1]] as any);
+    render(<GigEquipmentTable gigId="gig-1" organizationId="org-1" showAmounts={false} />);
+    expect(within((await screen.findByText('Main PA')).closest('tr')!).getByText('Added at pack-out')).toBeInTheDocument();
+    expect(within(screen.getByText('Mic Case').closest('tr')!).queryByText('Added at pack-out')).not.toBeInTheDocument();
+  });
 });

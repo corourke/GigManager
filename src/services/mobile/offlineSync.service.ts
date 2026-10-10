@@ -44,6 +44,8 @@ registerSyncHandler('INVENTORY_SCAN', async (payload: any) => {
       scanned_by: payload.scanned_by,
       notes: payload.notes ?? null,
       location: payload.location ?? null,
+      // How many of the unit or lot are there as of this scan (#185); 1 for a unit.
+      quantity: Math.max(1, Math.floor(Number(payload.quantity ?? 1)) || 1),
     });
 
   if (error) {
@@ -134,6 +136,43 @@ registerSyncHandler('ASSET_STATUS_UPDATE', async (payload: any) => {
   if (error) {
     throw error;
   }
+});
+
+// A kit added at pack-out (#185): a flagged assignment. Already there (a retry) counts as done;
+// refused (not allowed, or the kit is gone) won't change on a retry, so say why and drop it.
+registerSyncHandler('KIT_ASSIGNMENT_ADD', async (payload: any) => {
+  const { error } = await (supabase.from('gig_kit_assignments') as any).insert(payload);
+  if ((error as any)?.code === '23505') return;
+  if ((error as any)?.code === '42501') {
+    toast.error(`Kit not added to the gig: ${(error as any).message}`);
+    return;
+  }
+  if (error) throw error;
+});
+
+// Removing a kit added at pack-out: only the adder's own flagged assignment.
+// A kit added at pack-out, removed (#185 PR 2): the assignment, then every row the kit wrote at
+// the gig (rows queued before this sync first, so they go too). A removal that's refused, or
+// deletes nothing, keeps the rows: the next fetch shows the kit again.
+registerSyncHandler('KIT_ASSIGNMENT_REMOVE', async (payload: any) => {
+  const { data: removed, error } = await (supabase.from('gig_kit_assignments') as any)
+    .delete()
+    .eq('organization_id', payload.organization_id)
+    .eq('gig_id', payload.gig_id)
+    .eq('kit_id', payload.kit_id)
+    .eq('added_at_pack_out', true)
+    .eq('assigned_by', payload.assigned_by)
+    .select('id');
+  if ((error as any)?.code === '42501' || (!error && (removed ?? []).length === 0)) {
+    toast.error(`Kit not removed from the gig${error ? `: ${(error as any).message}` : '.'}`);
+    return;
+  }
+  if (error) throw error;
+  const { error: rowsError } = await supabase.from('inventory_tracking').delete()
+    .eq('organization_id', payload.organization_id)
+    .eq('gig_id', payload.gig_id)
+    .eq('kit_id', payload.kit_id);
+  if (rowsError) throw rowsError;
 });
 
 registerSyncHandler('STAFF_ASSIGNMENT_UPDATE', async (payload: any) => {

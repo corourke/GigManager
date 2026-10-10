@@ -1,5 +1,10 @@
 import { createClient } from '../../utils/supabase/client';
 import { idbStore } from '../../utils/idb/store';
+import { isRetired, recordKind } from '../../utils/equipmentItems';
+import { placementOf, type TrackingRow } from '../../utils/locations';
+
+/** Tracking rows per request: PostgREST's default most. */
+const PLACEMENT_PAGE = 1000;
 
 const supabase = createClient();
 
@@ -65,7 +70,7 @@ export const packingListService = {
   async fetchGigPackingList(gigId: string) {
     const { data: rawAssignments, error: kitError } = await supabase
       .from('gig_kit_assignments')
-      .select('kit_id, notes, kit:kits(id, name, tag_number, is_container)')
+      .select('kit_id, notes, added_at_pack_out, assigned_by, kit:kits(id, name, tag_number, is_container)')
       .eq('gig_id', gigId);
 
     if (kitError) throw kitError;
@@ -80,7 +85,7 @@ export const packingListService = {
     // themselves are kept (deduped) as hierarchy_edges below, so the UI can
     // render the real nested structure instead of flat sibling cards.
     const descendantIds = new Set<string>();
-    const hierarchyEdges: { parent_kit_id: string; child_kit_id: string }[] = [];
+    const hierarchyEdges: { parent_kit_id: string; child_kit_id: string; quantity: number }[] = [];
     const seenEdgeKeys = new Set<string>();
     for (const assignment of topLevel) {
       const { data: tree, error: treeError } = await supabase.rpc('get_kit_hierarchy_tree', {
@@ -92,7 +97,8 @@ export const packingListService = {
         const key = `${edge.parent_kit_id}:${edge.child_kit_id}`;
         if (!seenEdgeKeys.has(key)) {
           seenEdgeKeys.add(key);
-          hierarchyEdges.push({ parent_kit_id: edge.parent_kit_id, child_kit_id: edge.child_kit_id });
+          // How many copies of the sub-kit: a scan of the parent multiplies through it (#185).
+          hierarchyEdges.push({ parent_kit_id: edge.parent_kit_id, child_kit_id: edge.child_kit_id, quantity: Number(edge.quantity ?? 1) || 1 });
         }
       }
     }
@@ -113,7 +119,8 @@ export const packingListService = {
     // One entry per unique kit in the whole forest (top-level + every
     // descendant, deduped — a kit shared by two parents appears once).
     const allKitNodes = [
-      ...topLevel.map((a: any) => ({ kit_id: a.kit.id, notes: a.notes, kit: a.kit })),
+      // Kits added at pack-out are marked, with who added them: only they can remove one (#185).
+      ...topLevel.map((a: any) => ({ kit_id: a.kit.id, notes: a.notes, added_at_pack_out: !!a.added_at_pack_out, assigned_by: a.assigned_by ?? null, kit: a.kit })),
       ...descendantKits.map((k) => ({ kit_id: k.id, notes: null, kit: k })),
     ];
     const allKitIds = allKitNodes.map((n) => n.kit_id);
@@ -149,27 +156,91 @@ export const packingListService = {
     // (see inventoryTracking.service.ts's getKitAssetIds), and must keep
     // including everything nested inside, container boundaries included.
     const { data: directRows, error: directError } = allKitIds.length > 0
-      ? await supabase.from('kit_components').select('kit_id, asset_id, quantity, asset:assets(*)').in('kit_id', allKitIds)
+      ? await supabase.from('kit_components')
+        .select('kit_id, asset_id, equipment_item_id, quantity, asset:assets(*), item:equipment_items(id, manufacturer_model)')
+        .in('kit_id', allKitIds)
       : { data: [], error: null };
     if (directError) throw directError;
 
     const directAssetsByKit = new Map<string, any[]>();
+    // "Any" lines (#185): N of an item, packed from its units and lots.
+    const anyLinesByKit = new Map<string, { item_id: string; item_name: string; quantity: number }[]>();
     for (const row of (directRows || []) as any[]) {
+      if (!row.asset_id && row.equipment_item_id) {
+        const lines = anyLinesByKit.get(row.kit_id) ?? [];
+        lines.push({ item_id: row.equipment_item_id, item_name: row.item?.manufacturer_model ?? 'Unknown item', quantity: Number(row.quantity ?? 1) || 1 });
+        anyLinesByKit.set(row.kit_id, lines);
+        continue;
+      }
       if (!row.asset_id) continue; // a sub-kit component, not an asset — it gets its own row via hierarchy_edges instead
       const list = directAssetsByKit.get(row.kit_id) ?? [];
       list.push({ asset_id: row.asset_id, quantity: row.quantity, asset: row.asset || null });
       directAssetsByKit.set(row.kit_id, list);
     }
 
-    const kitAssignments = allKitNodes.map((node) => ({
+    const kitAssignments = allKitNodes.map((node: any) => ({
       kit_id: node.kit_id,
       notes: node.notes,
+      added_at_pack_out: !!node.added_at_pack_out,
+      assigned_by: node.assigned_by ?? null,
       kit: {
         ...node.kit,
         assets: assetsByKit.get(node.kit_id) || [],
         direct_assets: directAssetsByKit.get(node.kit_id) || [],
+        any_lines: anyLinesByKit.get(node.kit_id) || [],
       },
     }));
+
+    // Each "any" item's units and lots still owned, with how many are at home (#185): lots are
+    // picked from the one with the most at home, and a tagged unit fills a slot.
+    const itemIds = [...new Set([...anyLinesByKit.values()].flat().map((l) => l.item_id))];
+    const itemRecords: Record<string, any[]> = {};
+    let owned: any[] = [];
+    if (itemIds.length > 0) {
+      const { data: items, error: itemsError } = await supabase
+        .from('equipment_items')
+        .select('id, manufacturer_model, records:assets(id, tag_number, serial_number, quantity, status, retired_on, created_at)')
+        .in('id', itemIds);
+      if (itemsError) throw itemsError;
+      owned = ((items || []) as any[]).flatMap((i) => (i.records ?? []).filter((r: any) => !isRetired(r)).map((r: any) => ({ ...r, item_id: i.id })));
+    }
+
+    // Where every unit and lot on the list is now: lots' pieces at home for "any" lines, and
+    // units still out at another gig, for Pack-Out's warning (#185).
+    const placedIds = [...new Set([...assetMap.keys(), ...owned.map((r) => r.id)])];
+    // A page at a time: a busy record has more rows than one response holds (#246 review).
+    const placed: any[] = [];
+    for (let from = 0; placedIds.length > 0; from += PLACEMENT_PAGE) {
+      const { data, error: placedError } = await supabase.from('inventory_tracking')
+        .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
+        .in('asset_id', placedIds)
+        .order('id', { ascending: true })
+        .range(from, from + PLACEMENT_PAGE - 1);
+      if (placedError) throw placedError;
+      placed.push(...(data ?? []));
+      if ((data ?? []).length < PLACEMENT_PAGE) break;
+    }
+
+    const elsewhere: Record<string, { gig_id: string; gig_title: string | null; status: string }> = {};
+    for (const asset of assetMap.values()) {
+      if (recordKind(asset) !== 'unit') continue;
+      const away = placementOf(placed as TrackingRow[], asset).find((p) => p.gig_id !== null && p.gig_id !== gigId);
+      if (away?.gig_id) elsewhere[asset.id] = { gig_id: away.gig_id, gig_title: null, status: away.status ?? 'Out' };
+    }
+    const awayGigIds = [...new Set(Object.values(elsewhere).map((e) => e.gig_id))];
+    if (awayGigIds.length > 0) {
+      const { data: awayGigs } = await supabase.from('gigs').select('id, title').in('id', awayGigIds);
+      const titles = new Map((Array.isArray(awayGigs) ? awayGigs : []).map((g: any) => [g.id, g.title]));
+      for (const e of Object.values(elsewhere)) e.gig_title = titles.get(e.gig_id) ?? null;
+    }
+
+    for (const r of owned) {
+      const placements = placementOf(placed as TrackingRow[], r);
+      const atHome = placements.find((p) => p.gig_id === null)?.quantity ?? 0;
+      // What this gig held at fetch time, so the phone can tell what's home after its own scans.
+      const atGig = placements.find((p) => p.gig_id === gigId)?.quantity ?? 0;
+      (itemRecords[r.item_id] ??= []).push({ ...r, at_home: atHome, at_gig: atGig });
+    }
 
     const { data: tracking, error: trackingError } = await supabase
       .from('inventory_tracking')
@@ -179,6 +250,16 @@ export const packingListService = {
       .order('created_at', { ascending: false });
 
     if (trackingError) throw trackingError;
+
+    // Units tracked here that aren't on the list: added at pack-out, or extras (#185).
+    const listedIds = new Set([...assetIdsNeeded, ...owned.map((r) => r.id), ...[...directAssetsByKit.values()].flat().map((a: any) => a.asset_id)]);
+    const extraIds = [...new Set((tracking || []).map((r: any) => r.asset_id).filter((id: string | null) => id && !listedIds.has(id)))];
+    const extraAssets: Record<string, any> = {};
+    if (extraIds.length > 0) {
+      const { data: extras, error: extrasError } = await supabase.from('assets').select('*').in('id', extraIds);
+      if (extrasError) throw extrasError;
+      for (const a of (extras || []) as any[]) if (extraIds.includes(a.id)) extraAssets[a.id] = a;
+    }
 
     const scannedByIds = Array.from(new Set((tracking || []).map((record: any) => record.scanned_by).filter(Boolean)));
     let userMap = new Map<string, any>();
@@ -199,7 +280,7 @@ export const packingListService = {
 
     const { data: gigData } = await supabase
       .from('gigs')
-      .select('title')
+      .select('title, start, end, timezone')
       .eq('id', gigId)
       .single();
 
@@ -218,12 +299,30 @@ export const packingListService = {
       (left: any, right: any) => new Date(right.scanned_at).getTime() - new Date(left.scanned_at).getTime()
     );
 
+    // Kits added at pack-out whose add hasn't synced yet stay on the list until it has (#246 review).
+    const queuedAdds = new Set(((await idbStore.getOutbox()) || [])
+      .filter((item: any) => item.type === 'KIT_ASSIGNMENT_ADD' && item.payload?.gig_id === gigId)
+      .map((item: any) => item.payload.kit_id as string));
+    const serverKitIds = new Set(kitAssignments.map((a: any) => a.kit_id));
+    for (const pending of (cached?.kits || []) as any[]) {
+      if (!queuedAdds.has(pending.kit_id) || serverKitIds.has(pending.kit_id)) continue;
+      kitAssignments.push(pending);
+      topLevelIds.add(pending.kit_id);
+    }
+
     const packingListData = {
       gig_id: gigId,
       gig_title: gigData?.title || null,
+      // When the gig runs, for the overlap check before adding at pack-out (#185).
+      gig_start: gigData?.start ?? null,
+      gig_end: gigData?.end ?? null,
+      gig_timezone: gigData?.timezone ?? null,
       kits: kitAssignments,
       hierarchy_edges: hierarchyEdges,
       top_level_kit_ids: [...topLevelIds],
+      item_records: itemRecords,
+      elsewhere,
+      extra_assets: extraAssets,
       tracking: mergedTracking,
       last_synced: Date.now()
     };

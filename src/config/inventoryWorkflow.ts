@@ -4,6 +4,11 @@ export interface ScanningMode {
   resultingStatus: string;
   description: string;
   locationLabel: string;
+  /**
+   * Equipment not on the gig's list can be added in this mode (#185, Cameron 10-09): only while
+   * packing. Gated by mode, not status: Load-Out also gives In Transit.
+   */
+  allowsAdHoc?: boolean;
 }
 
 export const SCANNING_MODES: ScanningMode[] = [
@@ -13,6 +18,7 @@ export const SCANNING_MODES: ScanningMode[] = [
     resultingStatus: 'Checked Out',
     description: 'Pulling items from warehouse for a gig',
     locationLabel: 'Staging Area',
+    allowsAdHoc: true,
   },
   {
     id: 'load-truck',
@@ -20,6 +26,8 @@ export const SCANNING_MODES: ScanningMode[] = [
     resultingStatus: 'In Transit',
     description: 'Loading scanned items onto transport',
     locationLabel: 'Truck',
+
+    allowsAdHoc: true,
   },
   {
     id: 'load-in',
@@ -52,3 +60,9 @@ export const SCANNING_MODES: ScanningMode[] = [
  * (inventory_tracking rows are always gig-scoped; there's no "no gig" row).
  */
 export const RETURNED_STATUS = SCANNING_MODES.find((m) => m.id === 'unload')!.resultingStatus;
+
+/**
+ * A partial return (#185): the bucket's pieces that stay at the gig, with quantity = what is
+ * still out. Not a return: the gig keeps them until they come back or are written off.
+ */
+export const NOT_RETURNED_STATUS = 'Not Returned';
