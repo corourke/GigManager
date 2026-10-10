@@ -138,14 +138,12 @@ export function bucketsAt(rows: readonly TrackingRow[], record: ItemRecord, gigI
  * The rows that say where things are now, for a view of everything by place (Equipment →
  * Locations). A kit's own (kit-only) row: its newest, across gigs. A unit: its newest row,
  * across gigs and kits. A lot (`isLot`): its newest row per (gig, kit), as placementOf counts
- * it. A container's kit-only scan moves what's in it, so a row for a unit or lot under a
- * container (`isContainer`) that the container's newest row is strictly later than is dropped:
- * its contents are where the container is. (A scan writes the case's row and its units' rows
- * with the same scanned_at, so a tie keeps them.)
+ * it. Each item reports its own newest row: a container's newer kit-only row (a note, an
+ * override) doesn't move what's in it (Cameron, 10-10).
  */
 export function currentRows<R extends TrackingRow>(
   rows: readonly R[],
-  opts: { isLot?: (assetId: string) => boolean; isContainer?: (kitId: string) => boolean } = {},
+  opts: { isLot?: (assetId: string) => boolean } = {},
 ): R[] {
   const latest = new Map<string, R>();
   for (const r of rows) {
@@ -156,10 +154,6 @@ export function currentRows<R extends TrackingRow>(
         : `unit:${r.asset_id}`;
     if (newer(r, latest.get(key))) latest.set(key, r);
   }
-  return [...latest.values()].filter((r) => {
-    if (r.asset_id == null || !r.kit_id || !opts.isContainer?.(r.kit_id)) return true;
-    const container = latest.get(`kit:${r.kit_id}`);
-    return !container || time(container.scanned_at) <= time(r.scanned_at);
-  });
+  return [...latest.values()];
 }
 
