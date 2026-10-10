@@ -202,8 +202,6 @@ describe('partial returns and what is still out at a gig (#185)', () => {
 });
 
 describe('currentRows (Equipment → Locations)', () => {
-  const isContainer = (k: string) => k === 'case';
-
   it('a lot keeps its newest row per (gig, kit), so a split lot shows at each gig', () => {
     const rows = [
       row({ id: '1', asset_id: 'lot', gig_id: 'gig-a', quantity: 4, scanned_at: '2026-10-01T10:00:00Z' }),
@@ -213,7 +211,7 @@ describe('currentRows (Equipment → Locations)', () => {
     expect(currentRows(rows).map((r) => r.id)).toEqual(['2']);
   });
 
-  it('a container\'s newer kit-only row drops its units\' older rows; a tie (the same scan) keeps them', () => {
+  it('each item keeps its own newest row, even under a container with a newer kit-only row (Cameron, 10-10)', () => {
     const at = '2026-10-02T10:00:00Z';
     const rows = [
       row({ id: 'k1', kit_id: 'case', asset_id: null, scanned_at: at }),
@@ -222,7 +220,7 @@ describe('currentRows (Equipment → Locations)', () => {
       row({ id: 'l1', kit_id: 'logical', asset_id: 'u3', scanned_at: '2026-10-01T10:00:00Z' }),
       row({ id: 'k2', kit_id: 'logical', asset_id: null, scanned_at: at }),
     ];
-    expect(currentRows(rows, { isContainer }).map((r) => r.id)).toEqual(['k1', 'u1', 'l1', 'k2']);
+    expect(currentRows(rows).map((r) => r.id)).toEqual(['k1', 'u1', 'u2', 'l1', 'k2']);
   });
 });
 
