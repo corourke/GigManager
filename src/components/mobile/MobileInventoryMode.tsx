@@ -814,6 +814,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
             kitId: target.kit_id,
             assetId: target.asset_id ?? undefined,
             label: asset.manufacturer_model || asset.name || asset.description || 'Asset',
+            // The line's size: a lot line is counted, as on the list.
+            line: target.quantity,
           };
         }
       }
@@ -873,7 +875,13 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   // else is added on its own (a lot asks how many first).
   const addOrScanRecord = useCallback((record: IndexRecord) => {
     const match = matchLocally({ assetId: record.id });
-    if (match) {
+    const line = match && 'line' in match ? match.line ?? 1 : 1;
+    if (match && line > 1 && match.kitId && match.assetId) {
+      // A lot line in a kit on the gig: its counter, as the list opens it (#246 re-review).
+      const { kitId, assetId, label } = match;
+      setAddSearch(null);
+      void guardPack(kitId, assetId, async () => openCounter(kitId, assetId, label, line));
+    } else if (match) {
       setAddSearch(null);
       void scanMatch(match);
     } else if (Number(record.quantity ?? 1) > 1) {
@@ -882,7 +890,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       setAddSearch(null);
       void addLoose(record, 1);
     }
-  }, [addLoose, matchLocally, scanMatch]);
+  }, [addLoose, guardPack, matchLocally, openCounter, scanMatch]);
 
   const handleScan = async (tagNumber: string) => {
     if (!gigId || !packingList || !selectedOrganization || !user) {

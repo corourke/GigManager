@@ -64,7 +64,7 @@ type SaveNoteParams = {
 type SaveNoteResult = { saved: true; record: TrackingRecord };
 
 /** The newest row for a unit or container at any gig, as of the packing list's fetch. */
-type LastRecord = { gig_id: string; status: string; scanned_at: string };
+type LastRecord = { gig_id: string; status: string; location?: string | null; scanned_at: string };
 
 type AssetStatusParams = {
   gigId: string;
@@ -614,7 +614,7 @@ export const inventoryTrackingService = {
 
   /**
    * Save a note (#246, Cameron 10-10): always a new row at this gig, carrying the item's last
-   * status forward unchanged, so a note never counts as a scan. That's the newer of its newest row
+   * status and place forward unchanged, so a note never counts as a scan. That's the newer of its newest row
    * here and its last record anywhere (a unit, or a container's own row), so a unit out at another
    * gig keeps that status; with neither, it's at home (In Warehouse).
    */
@@ -634,7 +634,7 @@ export const inventoryTrackingService = {
       asset_id: assetId ?? null,
       status: fromAway ? last!.status : here?.status ?? RETURNED_STATUS,
       quantity: fromAway ? 1 : Math.max(1, Number(here?.quantity ?? 1) || 1),
-      location: fromAway ? null : here?.location ?? null,
+      location: fromAway ? last!.location ?? null : here?.location ?? null,
       scanned_at: new Date().toISOString(),
       scanned_by: scannedBy,
       notes: normalizeNotes(params.notes),

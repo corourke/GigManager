@@ -271,7 +271,7 @@ describe('inventoryTrackingService', () => {
 
     it('the newer of the row here and the last record anywhere is carried', async () => {
       const mine = { id: 'r1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'u1', status: 'Checked Out', quantity: 1, location: 'Truck', notes: null, scanned_at: at(2), scanned_by: 'user-1' }
-      const away = { last_records: { assets: { u1: { gig_id: 'gig-2', status: 'On Site', scanned_at: at(1) } }, kits: {} } }
+      const away = { last_records: { assets: { u1: { gig_id: 'gig-2', status: 'On Site', location: 'Stage left', scanned_at: at(1) } }, kits: {} } }
       vi.mocked(idbStore.getPackingList).mockResolvedValue(list([mine], away))
       await save()
       expect(appended().find((r: any) => r.id !== 'r1')).toMatchObject({ status: 'Checked Out', location: 'Truck' })
@@ -279,7 +279,8 @@ describe('inventoryTrackingService', () => {
       vi.clearAllMocks()
       vi.mocked(idbStore.getPackingList).mockResolvedValue(list([{ ...mine, scanned_at: at(0) }], away))
       await save()
-      expect(appended().find((r: any) => r.id !== 'r1')).toMatchObject({ status: 'On Site', location: null })
+      // Its place comes with it, the same as its status (#246 re-review).
+      expect(appended().find((r: any) => r.id !== 'r1')).toMatchObject({ status: 'On Site', location: 'Stage left' })
     })
 
     it('a container with no row here carries its own last record from anywhere, not In Warehouse', async () => {
