@@ -29,4 +29,10 @@ describe('pickLots', () => {
   it('picks nothing for nothing', () => {
     expect(pickLots([lot('a', 3)], 0)).toEqual({ picks: [], short: 0 });
   });
+
+  // #246 review: a lot with no created_at isn't "oldest"; it goes after the dated ones.
+  it('a tie with no created_at goes after a dated lot', () => {
+    expect(pickLots([{ id: 'a', at_home: 5, created_at: null }, { id: 'b', at_home: 5, created_at: '2026-03-01T00:00:00Z' }], 3).picks)
+      .toEqual([{ asset_id: 'b', quantity: 3 }])
+  })
 });
