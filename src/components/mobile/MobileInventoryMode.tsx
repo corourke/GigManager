@@ -89,13 +89,11 @@ const getLatestTrackingRecordForItem = (tracking: TrackingRecord[] = [], kitId: 
   return inventoryTrackingService.getLatestTrackingRecord(tracking, kitId, assetId) as TrackingRecord | null;
 };
 
-const getDisplayedTrackingRecord = (tracking: TrackingRecord[] = [], kitId: string, assetId?: string) => {
-  if (!assetId) {
-    return getLatestTrackingRecordForItem(tracking, kitId);
-  }
-
-  return getLatestTrackingRecordForItem(tracking, kitId, assetId) || getLatestTrackingRecordForItem(tracking, kitId);
-};
+// A line reads only its own rows. A kit scan writes a row for every unit and lot it covers
+// (containers included), so a kit-level row a line has none of is a note on the kit, never a
+// scan of the line (#246, Cameron 10-10).
+const getDisplayedTrackingRecord = (tracking: TrackingRecord[] = [], kitId: string, assetId?: string) =>
+  getLatestTrackingRecordForItem(tracking, kitId, assetId);
 
 // A non-container kit never gets its own tracking record (nothing physical
 // to scan) — so "is this kit's row checked" means "are all of its

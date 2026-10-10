@@ -313,6 +313,38 @@ describe('MobileInventoryMode', () => {
     })
   })
 
+  // #246 (Cameron, 10-10): a note on a whole kit is one kit-level row; it never makes the kit's
+  // unscanned items look checked, in any mode.
+  describe('a note on a whole kit', () => {
+    const shure = { id: 'asset-1', manufacturer_model: 'Shure QLXD', tag_number: 'ASSET-001', status: 'Active' }
+    const kitNote = (status: string) => ({ id: 'n1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: null, status, notes: 'Lid cracked', scanned_at: '2026-10-10T10:00:00.000Z', scanned_by: 'user-1' })
+    const render1 = async (status: string, modeId?: string) => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => ({
+        gig_id: 'gig-1', gig_title: 'Warehouse Check-In', top_level_kit_ids: ['kit-1'], hierarchy_edges: [],
+        kits: [{ kit_id: 'kit-1', kit: { id: 'kit-1', name: 'Audio Case', tag_number: 'KIT-001', is_container: false,
+          direct_assets: [{ asset_id: 'asset-1', quantity: 1, asset: shure }], assets: [{ asset_id: 'asset-1', quantity: 1, asset: shure }] } }],
+        tracking: [kitNote(status)],
+      }))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await screen.findByText('Audio Case')
+      if (modeId) await user.click(screen.getByText(SCANNING_MODES.find((m) => m.id === modeId)!.label))
+      return user
+    }
+
+    it('in Pack-Out, a kit note carrying Checked Out leaves its unscanned items unchecked', async () => {
+      await render1('Checked Out')
+      expect(await screen.findByRole('button', { name: 'Check Shure QLXD' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Uncheck Shure QLXD' })).not.toBeInTheDocument()
+    })
+
+    it('in Unload, a kit note in In Warehouse leaves its unscanned items unchecked', async () => {
+      await render1('In Warehouse', 'unload')
+      expect(await screen.findByRole('button', { name: 'Check Shure QLXD' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Uncheck Shure QLXD' })).not.toBeInTheDocument()
+    })
+  })
+
   it('initializes location input from the first scanning mode locationLabel', async () => {
     render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
 

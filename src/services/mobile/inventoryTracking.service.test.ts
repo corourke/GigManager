@@ -293,6 +293,31 @@ describe('inventoryTrackingService', () => {
       expect(appended()).toEqual([expect.objectContaining({ gig_id: 'gig-1', kit_id: 'case-1', asset_id: null, status: 'Checked Out', notes: 'Latch loose' })])
     })
 
+    // Cameron, 10-10: a note on a whole kit is one kit-level row and nothing else: no rows for its
+    // units or lots, no cascade, for containers and non-containers alike.
+    it.each([false, true])('a note on a whole kit (container: %s) writes exactly one kit row; its items stay unchecked', async (isContainer) => {
+      const packing = {
+        gig_id: 'gig-1',
+        top_level_kit_ids: ['kit-1'],
+        kits: [{ kit_id: 'kit-1', kit: { id: 'kit-1', is_container: isContainer,
+          assets: [{ asset_id: 'u1', quantity: 1, asset: { id: 'u1', quantity: 1 } }, { asset_id: 'lot', quantity: 4, asset: { id: 'lot', quantity: 10 } }],
+          direct_assets: [{ asset_id: 'u1', quantity: 1, asset: { id: 'u1', quantity: 1 } }, { asset_id: 'lot', quantity: 4, asset: { id: 'lot', quantity: 10 } }] } }],
+        tracking: [],
+      }
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(packing)
+      await save({ assetId: undefined, notes: 'Lid cracked' })
+      const rows = appended()
+      expect(rows).toEqual([expect.objectContaining({ gig_id: 'gig-1', kit_id: 'kit-1', asset_id: null, notes: 'Lid cracked' })])
+      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledTimes(1)
+      // Its items have no rows of their own, so none of them reads as checked in any mode.
+      for (const id of ['u1', 'lot']) expect(inventoryTrackingService.getLatestTrackingRecord(rows, 'kit-1', id)).toBeNull()
+      if (!isContainer) {
+        for (const status of ['Checked Out', 'In Warehouse']) {
+          expect(inventoryTrackingService.getKitProgress({ ...packing, tracking: rows }, 'kit-1', status).done).toBe(0)
+        }
+      }
+    })
+
     it('a note on a kit row carries that row forward too', async () => {
       const kitRow = { id: 'k1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: null, status: 'On Site', quantity: 1, location: 'Stage', notes: null, scanned_at: at(0), scanned_by: 'user-1' }
       vi.mocked(idbStore.getPackingList).mockResolvedValue(list([kitRow]))
