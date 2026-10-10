@@ -253,6 +253,32 @@ describe('PackingList: any lines, counted lines and pieces (#185)', () => {
   });
 });
 
+// #185 PR 2: what was added at pack-out. A kit added there says so; units and lots added on
+// their own are one group, after the kits A to Z.
+describe('PackingList: added at pack-out (#185)', () => {
+  const ROWS: PackingListRow[] = [
+    { kit_id: 'loose:gig-1', kit_name: 'Added at pack-out', is_container: false, kind: 'unit', asset_id: 'pd20', asset_name: 'PD-20',
+      tag_number: 'DSL-0211', quantity: 1, packed: 1, group_kit_id: 'loose:gig-1', group_kit_name: 'Added at pack-out',
+      group_is_container: false, group_tag_number: null, group_is_loose: true, ...blank, status: 'Checked Out' },
+    { kit_id: 'kit-z', kit_name: 'Zoom Kit', is_container: false, kind: 'unit', asset_id: 'h6', asset_name: 'Zoom H6', tag_number: 'Z-1',
+      quantity: 1, packed: 0, group_kit_id: 'kit-z', group_kit_name: 'Zoom Kit', group_is_container: false, group_tag_number: null,
+      group_added_at_pack_out: true, ...blank },
+    { kit_id: 'kit-b', kit_name: 'Backline', is_container: false, kind: 'unit', asset_id: 'amp', asset_name: 'Amp', tag_number: 'A-1',
+      quantity: 1, packed: 0, group_kit_id: 'kit-b', group_kit_name: 'Backline', group_is_container: false, group_tag_number: null, ...blank },
+  ];
+
+  it('lists units and lots added on their own last, and says which kits were added at pack-out', async () => {
+    (getPackingListReport as any).mockResolvedValue(ROWS);
+    await renderPackingListTab();
+    await screen.findByText('PD-20');
+    expect(packingTree()).toEqual(['Backline (Items)', '  Amp', 'Zoom Kit (Items)', '  Zoom H6', 'Added at pack-out', '  PD-20']);
+    const zoom = screen.getByText('Zoom Kit').closest('tr')!;
+    expect(within(zoom).getByText('Added at pack-out')).toBeInTheDocument();
+    const backline = screen.getByText('Backline').closest('tr')!;
+    expect(within(backline).queryByText('Added at pack-out')).not.toBeInTheDocument();
+  });
+});
+
 describe('ManifestReport — gig picker window (#109)', () => {
   const recent = { id: 'gig-1', title: 'Test Gig', start: '2026-07-12T19:00:00Z', timezone: 'America/Los_Angeles' };
   const old = { id: 'gig-old', title: 'Old Gig', start: '2025-01-10T19:00:00Z', timezone: 'America/Los_Angeles' };

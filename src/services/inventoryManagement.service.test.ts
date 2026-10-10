@@ -691,6 +691,30 @@ describe('inventoryManagement.service', () => {
       expect(rows.find((r) => r.asset_id === 'stands')).toMatchObject({ kind: 'lot', lot_of: 6, quantity: 2, packed: 2 });
     });
 
+    // #185 PR 2: what was added at pack-out. A kit added there is flagged; units and lots added
+    // on their own (no-kit rows) are one group, "Added at pack-out", after the kits.
+    it('lists what was added at pack-out', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+      const pd20 = { equipment_item_id: 'item-pd20', tag_number: 'DSL-0211', serial_number: null, manufacturer_model: 'PD-20', quantity: 1, status: 'Active', retired_on: null };
+      const trio = { equipment_item_id: 'item-trio', tag_number: null, serial_number: null, manufacturer_model: 'Intimidator Trio', quantity: 8, status: 'Active', retired_on: null };
+      anyKit({
+        ...base,
+        gig_kit_assignments: { data: [{ kit_id: 'kit-1', added_at_pack_out: true, kit: { id: 'kit-1', name: 'Main PA', is_container: false, tag_number: null, organization_id: 'org-1' } }], error: null },
+        inventory_tracking: { data: [
+          scan('pd20', 'item-pd20', { kit_id: null, location: 'Staging Area', asset: pd20 }),
+          scan('trio', 'item-trio', { kit_id: null, quantity: 4, scanned_at: '2026-10-09T10:05:00Z', asset: trio }),
+          scan('trio', 'item-trio', { id: 't-trio-old', kit_id: null, quantity: 6, asset: trio }),
+        ], error: null },
+      });
+      const rows = await getPackingListReport('org-1', 'gig-1');
+      expect(rows.filter((r) => r.group_kit_id === 'kit-1').every((r) => r.group_added_at_pack_out)).toBe(true);
+      const added = rows.filter((r) => r.group_kit_id === 'loose:gig-1');
+      expect(added.map((r) => r.group_kit_name)).toEqual(['Added at pack-out', 'Added at pack-out']);
+      expect(rows.slice(-2)).toEqual(added);
+      expect(added.find((r) => r.asset_id === 'pd20')).toMatchObject({ kind: 'unit', asset_name: 'PD-20', tag_number: 'DSL-0211', quantity: 1, packed: 1, status: 'Checked Out', location: 'Staging Area', group_is_container: false, group_is_loose: true });
+      expect(added.find((r) => r.asset_id === 'trio')).toMatchObject({ kind: 'lot', lot_of: 8, quantity: 4, packed: 4 });
+    });
+
     // #240 review: lines are filed under the owning kit, so the same item or lot in two of its
     // sub-kits must add up, not collapse into one line.
     it('sums the same "any" item and the same lot across sub-kits of one kit', async () => {

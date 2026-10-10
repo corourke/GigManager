@@ -414,6 +414,10 @@ interface PackingLine {
   /** An Items kit's own line: its id and tag. */
   kitId?: string;
   tag?: string | null;
+  /** The kit was added at pack-out (#185). */
+  addedAtPackOut?: boolean;
+  /** The group of units and lots added at pack-out on their own: not a kit. */
+  loose?: boolean;
 }
 
 /** An "any" line's progress (#185): "1 of 2" when scanned, "7 counted · 3 short" when counted. */
@@ -538,15 +542,18 @@ function PackingListTab({
       list.push(row);
       groups.set(row.group_kit_id, list);
     }
+    // What was added at pack-out on its own comes after the kits (#185).
     return Array.from(groups.values())
-      .sort((a, b) => a[0].group_kit_name.localeCompare(b[0].group_kit_name, undefined, { sensitivity: 'base' }))
+      .sort((a, b) => Number(!!a[0].group_is_loose) - Number(!!b[0].group_is_loose)
+        || a[0].group_kit_name.localeCompare(b[0].group_kit_name, undefined, { sensitivity: 'base' }))
       .flatMap((kitRows): PackingLine[] => {
         const group = kitRows[0];
         if (group.group_is_container) {
           return kitRows.map((row) => ({ key: `${row.kit_id}-kit`, depth: 0, name: row.kit_name ?? '—', row }));
         }
         return [
-          { key: `${group.group_kit_id}-kit`, depth: 0, name: group.group_kit_name, kitId: group.group_kit_id, tag: group.group_tag_number },
+          { key: `${group.group_kit_id}-kit`, depth: 0, name: group.group_kit_name, kitId: group.group_kit_id, tag: group.group_tag_number,
+            addedAtPackOut: !!group.group_added_at_pack_out, loose: !!group.group_is_loose },
           ...kitRows.map((row, i) => ({
             key: `${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`,
             depth: 1 as const,
@@ -682,7 +689,8 @@ function PackingListTab({
                       <TableCell className={`${line.depth === 0 ? 'font-semibold' : ''} ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
                         <div className={`flex items-center gap-2 ${line.depth === 1 ? 'pl-6 relative before:absolute before:left-2 before:top-1/2 before:w-3 before:border-t before:border-border' : ''}`}>
                           <span data-item-name>{line.name}</span>
-                          {(line.depth === 0 || isContainer) && <KitTypeBadge isContainer={line.depth === 0 ? !line.kitId : true} />}
+                          {(line.depth === 0 || isContainer) && !line.loose && <KitTypeBadge isContainer={line.depth === 0 ? !line.kitId : true} />}
+                          {line.addedAtPackOut && <span className="rounded border border-amber-300 bg-amber-50 px-1.5 text-[11px] font-medium text-amber-800">Added at pack-out</span>}
                           {row?.kind === 'any' && <span className="rounded border border-sky-300 bg-sky-50 px-1.5 text-[11px] font-medium text-sky-800">Any</span>}
                           {conflict && <ConflictBadge />}
                         </div>

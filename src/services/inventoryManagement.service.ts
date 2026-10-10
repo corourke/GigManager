@@ -3,7 +3,7 @@ import { handleApiError } from '../utils/api-error-utils';
 import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
 import { getKitComponentTree, flattenToScanUnits, type KitComponentTreeNode } from './kit.service';
 import type { DbInventoryTracking } from '../utils/supabase/types';
-import { isRetired, type ItemRecord } from '../utils/equipmentItems';
+import { isRetired, recordKind, type ItemRecord } from '../utils/equipmentItems';
 import { bucketsAt, type TrackingRow } from '../utils/locations';
 
 const getSupabase = () => createClient();
@@ -120,7 +120,15 @@ export interface PackingListRow {
   group_kit_name: string;
   group_is_container: boolean;
   group_tag_number: string | null;
+  /** The group's kit was added to the gig at pack-out (#185). */
+  group_added_at_pack_out?: boolean;
+  /** The group of units and lots added at pack-out on their own (#185): not a kit. */
+  group_is_loose?: boolean;
 }
+
+/** Units and lots added at pack-out on their own (no-kit rows) are one group, after the kits (#185). */
+export const LOOSE_GROUP_NAME = 'Added at pack-out';
+export const looseGroupId = (gigId: string) => `loose:${gigId}`;
 
 export interface MaintenanceRow {
   asset_id: string;
@@ -604,6 +612,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
       .from('gig_kit_assignments')
       .select(`
         kit_id,
+        added_at_pack_out,
         kit:kits!inner(
           id,
           name,
@@ -670,7 +679,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
       if (allRowsError) throw allRowsError;
       everyRow = (allRows ?? []) as TrackingRow[];
     }
-    const packedIn = (assetId: string | null, kitId: string) => {
+    const packedIn = (assetId: string | null, kitId: string | null) => {
       const record = assetId ? recordById.get(assetId) : undefined;
       if (!record) return 0;
       return bucketsAt(everyRow, record, gigId).filter((b) => b.kit_id === kitId).reduce((n, b) => n + b.quantity, 0);
@@ -703,6 +712,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
         group_kit_name: kit.name,
         group_is_container: !!kit.is_container,
         group_tag_number: kit.tag_number ?? null,
+        ...((assignment as any).added_at_pack_out ? { group_added_at_pack_out: true } : {}),
       };
 
       if (kit.is_container) {
@@ -778,6 +788,26 @@ export async function getPackingListReport(organizationId: string, gigId: string
           });
         }
       }
+    }
+
+    // What was added at pack-out on its own: each record's newest no-kit row here says how many.
+    const looseId = looseGroupId(gigId);
+    for (const r of latest.filter((t) => !t.kit_id && t.asset_id && (t as any).asset)
+      .sort((a, b) => ((a as any).asset.manufacturer_model ?? '').localeCompare((b as any).asset.manufacturer_model ?? ''))) {
+      const asset = (r as any).asset;
+      const kind = recordKind(asset) === 'unit' && Number(asset.quantity ?? 1) <= 1 ? 'unit' : 'lot';
+      const quantity = kind === 'unit' ? 1 : Math.max(1, Number(r.quantity ?? 1) || 1);
+      rows.push({
+        kit_id: looseId, kit_name: LOOSE_GROUP_NAME, is_container: false, kind,
+        lot_of: kind === 'lot' ? Number(asset.quantity ?? 1) : null,
+        packed: packedIn(r.asset_id, null),
+        asset_id: r.asset_id, asset_name: asset.manufacturer_model ?? null, tag_number: asset.tag_number ?? null,
+        quantity,
+        status: r.status, location: r.location ?? null, scanned_at: r.scanned_at ?? null,
+        scanned_by_name: formatUserName((r as any).scanned_by_user), notes: r.notes ?? null,
+        has_conflict: false,
+        group_kit_id: looseId, group_kit_name: LOOSE_GROUP_NAME, group_is_container: false, group_tag_number: null, group_is_loose: true,
+      });
     }
 
     // A container reachable both directly (its own gig_kit_assignments row)
