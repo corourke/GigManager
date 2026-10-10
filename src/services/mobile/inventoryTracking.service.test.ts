@@ -458,6 +458,45 @@ describe('inventoryTrackingService', () => {
     })
   })
 
+  // #246 review: the same item, or the same lot, under two sub-kits of one kit is one line of
+  // the sum, as on the web packing list (sumRepeatedLines). A tracked unit stays 1.
+  describe('the same line under two sub-kits', () => {
+    const list = (tracking: any[] = []) => ({
+      top_level_kit_ids: ['T'],
+      hierarchy_edges: [{ parent_kit_id: 'T', child_kit_id: 'L', quantity: 1 }, { parent_kit_id: 'T', child_kit_id: 'R', quantity: 1 }],
+      kits: [
+        { kit_id: 'T', kit: { id: 'T', is_container: false, direct_assets: [], assets: [] } },
+        { kit_id: 'L', kit: { id: 'L', is_container: false,
+          direct_assets: [{ asset_id: 'lot', quantity: 4, asset: { id: 'lot', quantity: 20 } }, { asset_id: 'di', quantity: 1, asset: { id: 'di', tag_number: 'DI-1', quantity: 1 } }],
+          any_lines: [{ item_id: 'xlr', item_name: 'XLR', quantity: 4 }] } },
+        { kit_id: 'R', kit: { id: 'R', is_container: false,
+          direct_assets: [{ asset_id: 'lot', quantity: 4, asset: { id: 'lot', quantity: 20 } }, { asset_id: 'di', quantity: 1, asset: { id: 'di', tag_number: 'DI-1', quantity: 1 } }],
+          any_lines: [{ item_id: 'xlr', item_name: 'XLR', quantity: 4 }] } },
+      ],
+      item_records: { xlr: [{ id: 'xlr-lot', quantity: 50, at_home: 50 }] },
+      tracking,
+    })
+
+    it('progress counts the sum: 8 of the lot, 8 of the "any" item, the unit once', () => {
+      expect(inventoryTrackingService.getScanProgress(list(), 'Checked Out')).toEqual({ done: 0, total: 8 + 8 + 1 })
+    })
+
+    it('a kit scan writes one row per line, with the sum', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list() as any)
+      await inventoryTrackingService.submitScan({ gigId: 'gig-1', kitId: 'T', status: 'Checked Out', organizationId: 'org-1', scannedBy: 'u' })
+      const rows = vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map(([r]: any[]) => [r.kit_id, r.asset_id, r.quantity])
+      expect(rows).toEqual(expect.arrayContaining([['T', 'lot', 8], ['T', 'di', 1], ['T', 'xlr-lot', 8]]))
+      expect(rows).toHaveLength(3)
+    })
+
+    it('after that scan, the kit reads complete', () => {
+      const at = '2026-10-10T10:00:00.000Z'
+      const tracking = [['lot', 8], ['di', 1], ['xlr-lot', 8]].map(([asset_id, quantity]) =>
+        ({ gig_id: 'gig-1', kit_id: 'T', asset_id, status: 'Checked Out', quantity, scanned_at: at }))
+      expect(inventoryTrackingService.getScanProgress(list(tracking), 'Checked Out')).toEqual({ done: 17, total: 17 })
+    })
+  })
+
   describe('getAnySlots', () => {
     it('lists each "any" line under the kit its pieces are tracked in, multiplied through nested kits', () => {
       const packingList = {

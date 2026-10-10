@@ -108,10 +108,30 @@ const quantityOf = (a: any) => Math.max(1, Number(a?.quantity ?? 1) || 1);
 /** One physical thing a kit-level scan/toggle cascades to, and how many of it (#185). */
 type CascadeTarget = { kit_id: string; asset_id: string | null; quantity: number };
 
-const getDirectAssets = (kit: any): { asset_id: string; quantity: number }[] =>
+/** A tracked unit: one physical thing, so listed twice it's still 1. */
+const isUnitLine = (a: any) => !!a?.asset && recordKind(a.asset) === 'unit' && Number(a.asset.quantity ?? 1) <= 1;
+
+const getDirectAssets = (kit: any): { asset_id: string; quantity: number; unit: boolean }[] =>
   (kit?.direct_assets ?? kit?.assets ?? [])
     .filter((a: any) => assetIdOf(a))
-    .map((a: any) => ({ asset_id: assetIdOf(a), quantity: quantityOf(a) }));
+    .map((a: any) => ({ asset_id: assetIdOf(a), quantity: quantityOf(a), unit: isUnitLine(a) }));
+
+/**
+ * One target per (kit, record) and one slot per (kit, item), as on the web packing list
+ * (sumRepeatedLines, #246 review): the same lot or "any" item under two sub-kits adds up. A
+ * tracked unit, and anything sealed in a container, is the same physical thing however often
+ * it's reached, so it's kept once.
+ */
+const sumLines = <T extends { quantity: number }>(lines: (T & { fixed: boolean })[], keyOf: (l: T) => string): T[] => {
+  const byKey = new Map<string, T & { fixed: boolean }>();
+  for (const l of lines) {
+    const key = keyOf(l);
+    const first = byKey.get(key);
+    if (!first) byKey.set(key, { ...l });
+    else if (!first.fixed && !l.fixed) first.quantity += l.quantity;
+  }
+  return [...byKey.values()].map(({ fixed: _fixed, ...l }) => l as unknown as T);
+};
 
 const getChildKits = (packingList: any, kitId: string): { kit_id: string; quantity: number }[] =>
   (packingList?.hierarchy_edges || [])
@@ -133,43 +153,49 @@ const getChildKits = (packingList: any, kitId: string): { kit_id: string; quanti
  * gets its own sealed-unit treatment instead of leaking its contents out
  * under the top kit's id.
  */
-const getCascadeTargets = (packingList: any, kitId: string, owningKitId: string = kitId, multiplier = 1): CascadeTarget[] => {
+const collectCascade = (packingList: any, kitId: string, owningKitId: string, multiplier: number): (CascadeTarget & { fixed: boolean })[] => {
   const kit = getKitAssignment(packingList, kitId)?.kit;
 
   if (kit?.is_container) {
     // The container's contents are fixed: their flattened totals (kit_flattened_cache).
     return [
-      { kit_id: kitId, asset_id: null, quantity: 1 },
+      { kit_id: kitId, asset_id: null, quantity: 1, fixed: true },
       ...(kit.assets || []).filter((a: any) => assetIdOf(a))
-        .map((a: any) => ({ kit_id: kitId, asset_id: assetIdOf(a), quantity: quantityOf(a) })),
+        .map((a: any) => ({ kit_id: kitId, asset_id: assetIdOf(a), quantity: quantityOf(a), fixed: true })),
     ];
   }
 
   // A non-container kit is transparent: N copies of it is N times everything in it.
-  const targets: CascadeTarget[] = getDirectAssets(kit)
-    .map((a) => ({ kit_id: owningKitId, asset_id: a.asset_id, quantity: a.quantity * multiplier }));
+  const targets: (CascadeTarget & { fixed: boolean })[] = getDirectAssets(kit)
+    .map((a) => ({ kit_id: owningKitId, asset_id: a.asset_id, quantity: a.unit ? 1 : a.quantity * multiplier, fixed: a.unit }));
   for (const child of getChildKits(packingList, kitId)) {
-    targets.push(...getCascadeTargets(packingList, child.kit_id, owningKitId, multiplier * child.quantity));
+    targets.push(...collectCascade(packingList, child.kit_id, owningKitId, multiplier * child.quantity));
   }
   return targets;
 };
+
+const getCascadeTargets = (packingList: any, kitId: string): CascadeTarget[] =>
+  sumLines(collectCascade(packingList, kitId, kitId, 1), (t) => `${t.kit_id}|${t.asset_id ?? ''}`);
 
 /** An "any" line (#185): N of an item, filled from its units and lots, tracked under `kit_id`. */
 type AnySlot = { kit_id: string; item_id: string; item_name: string; quantity: number };
 
 /** Every "any" line toggling `kitId` covers, by the same container rule as getCascadeTargets. */
-const getAnySlots = (packingList: any, kitId: string, owningKitId: string = kitId, multiplier = 1): AnySlot[] => {
+const collectSlots = (packingList: any, kitId: string, owningKitId: string, multiplier: number): (AnySlot & { fixed: boolean })[] => {
   const kit = getKitAssignment(packingList, kitId)?.kit;
   const lines = (kit?.any_lines || []) as { item_id: string; item_name: string; quantity: number }[];
   if (kit?.is_container) {
-    return lines.map((l) => ({ kit_id: kitId, item_id: l.item_id, item_name: l.item_name, quantity: quantityOf(l) }));
+    return lines.map((l) => ({ kit_id: kitId, item_id: l.item_id, item_name: l.item_name, quantity: quantityOf(l), fixed: true }));
   }
-  const slots: AnySlot[] = lines.map((l) => ({ kit_id: owningKitId, item_id: l.item_id, item_name: l.item_name, quantity: quantityOf(l) * multiplier }));
+  const slots: (AnySlot & { fixed: boolean })[] = lines.map((l) => ({ kit_id: owningKitId, item_id: l.item_id, item_name: l.item_name, quantity: quantityOf(l) * multiplier, fixed: false }));
   for (const child of getChildKits(packingList, kitId)) {
-    slots.push(...getAnySlots(packingList, child.kit_id, owningKitId, multiplier * child.quantity));
+    slots.push(...collectSlots(packingList, child.kit_id, owningKitId, multiplier * child.quantity));
   }
   return slots;
 };
+
+const getAnySlots = (packingList: any, kitId: string): AnySlot[] =>
+  sumLines(collectSlots(packingList, kitId, kitId, 1), (s) => `${s.kit_id}|${s.item_id}`);
 
 /**
  * How many pieces a tracking row says are there: a row from before #185 has no count, so the
