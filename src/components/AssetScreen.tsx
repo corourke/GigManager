@@ -31,6 +31,7 @@ import ItemSection from './equipment/form/ItemSection';
 import { emptyItemDraft, itemDraftErrors, type ItemDraft, type ItemOption } from './equipment/form/itemDraft';
 import UnitOrLotSection, { type FormUnitRow, type UnitOrLot } from './equipment/form/UnitOrLotSection';
 import InsuranceSection from './equipment/form/InsuranceSection';
+import { isStaffOrAbove } from '../utils/permissions';
 
 interface AssetScreenProps {
   organization: Organization;
@@ -269,6 +270,8 @@ export default function AssetScreen({
   }, [assetQuery.isError]);
 
   const isMissing = formData.status === 'Missing';
+  // Equipment status changes take Staff or above (#185 PR 2).
+  const canSetStatus = isStaffOrAbove(userRole);
 
   const handleChange = (field: keyof FormData, value: string | boolean) => {
     setFormData((prev) => {
@@ -643,7 +646,7 @@ export default function AssetScreen({
                   <Select
                     value={formData.status}
                     onValueChange={(value) => handleChange('status', value)}
-                    disabled={isMissing}
+                    disabled={isMissing || !canSetStatus}
                   >
                     <SelectTrigger id="status">
                       {formData.status in ASSET_STATUS_CONFIG ? (
@@ -665,6 +668,7 @@ export default function AssetScreen({
                     </SelectContent>
                   </Select>
                   {isMissing && <p className="text-xs text-rose-700">{MISSING_NOTE}</p>}
+                  {!isMissing && !canSetStatus && <p className="text-xs text-muted-foreground">Equipment status changes take Staff or above.</p>}
                   {formData.status === 'Disposed' && (
                     <p className="text-xs text-amber-600">
                       This asset is marked as disposed. Enter a Disposal or Salvage Amount below if applicable.

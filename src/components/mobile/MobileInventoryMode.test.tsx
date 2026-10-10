@@ -169,6 +169,20 @@ describe('MobileInventoryMode', () => {
     expect(screen.getByText('Alex Crew')).toBeInTheDocument()
   })
 
+  // #185 PR 2: equipment status changes take Staff or above, so a Viewer isn't offered one.
+  it('a Viewer\'s note has no Maintenance Req\'d switch', async () => {
+    auth.role = 'Viewer'
+    try {
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByRole('button', { name: /edit note for shure qlxd/i }))
+      expect(await screen.findByText(/notes on item condition/i)).toBeInTheDocument()
+      expect(screen.queryByLabelText(/maintenance req'd/i)).not.toBeInTheDocument()
+    } finally {
+      auth.role = 'Admin'
+    }
+  })
+
   it('initializes location input from the first scanning mode locationLabel', async () => {
     render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
 
@@ -834,6 +848,19 @@ describe('MobileInventoryMode', () => {
         expect(overlap.warnings).toHaveBeenCalledWith(expect.anything(), 'org-1', { kitIds: ['case-1'] })
         expect(inventoryTrackingService.addKitAtPackOut).toHaveBeenCalled()
       })
+    })
+
+    it('a Viewer is not offered to add anything', async () => {
+      auth.role = 'Viewer'
+      try {
+        await renderIn()
+        expect(screen.queryByRole('button', { name: '+ Add' })).not.toBeInTheDocument()
+        await act(async () => { await scannerProps.onScan('CASE-1') })
+        expect(screen.queryByText('Mic Case isn\'t on this gig.')).not.toBeInTheDocument()
+        expect(scannerProps.error).toBe('CASE-1 isn\'t on this gig.')
+      } finally {
+        auth.role = 'Admin'
+      }
     })
 
     it('Remove is only offered while packing', async () => {

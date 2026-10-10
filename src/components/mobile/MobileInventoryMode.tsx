@@ -18,7 +18,7 @@ import { NOT_RETURNED_STATUS, RETURNED_STATUS, SCANNING_MODES, ScanningMode } fr
 import { writeOffPieces } from '../../services/writeOff.service';
 import { orgIndexService, type IndexKit, type IndexRecord, type OrgIndex } from '../../services/mobile/orgIndex.service';
 import { additionWarnings, type Addition } from '../../services/conflictDetection.service';
-import { canManage } from '../../utils/permissions';
+import { canManage, isStaffOrAbove } from '../../utils/permissions';
 import { packingListService } from '../../services/mobile/packingList.service';
 import { inventoryTrackingService } from '../../services/mobile/inventoryTracking.service';
 import { idbStore } from '../../utils/idb/store';
@@ -138,6 +138,8 @@ const formatScannedAt = (value?: string) => {
 export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps) {
   const { user, selectedOrganization, userRole } = useAuth();
   const [selectedMode, setSelectedMode] = useState<ScanningMode>(SCANNING_MODES[0]);
+  // Adding at pack-out (#185): Pack-Out and Load Truck, Staff or above.
+  const canAddHere = !!selectedMode.allowsAdHoc && isStaffOrAbove(userRole);
   const [locationInput, setLocationInput] = useState<string>(SCANNING_MODES[0].locationLabel);
   const [packingList, setPackingList] = useState<any>(null);
   const [gigTitle, setGigTitle] = useState<string | null>(null);
@@ -811,7 +813,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
 
       if (!match) {
         // Only while packing can something not on the list be added (#185 PR 2).
-        if (!selectedMode.allowsAdHoc) {
+        if (!canAddHere) {
           setScannerError(`${tagNumber.trim()} isn't on this gig.`);
           return;
         }
@@ -1005,7 +1007,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               <Barcode className="w-4 h-4" />
               Scan
             </button>
-            {selectedMode.allowsAdHoc ? (
+            {canAddHere ? (
               <button
                 className="ml-2 flex items-center px-3 h-11 rounded-full text-sm font-medium border border-border active:scale-95 transition-transform"
                 onClick={() => setAddSearch('')}
@@ -1074,7 +1076,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               {addedKits.map((assignment: any) => (
                 <div key={`added-${assignment.kit_id}`} className="flex items-center justify-between gap-2 text-sm">
                   <span className="truncate">{assignment.kit?.name ?? 'Kit'} <span className="text-xs text-muted-foreground">· kit</span></span>
-                  {selectedMode.allowsAdHoc && assignment.assigned_by === user?.id ? (
+                  {canAddHere && assignment.assigned_by === user?.id ? (
                     <Button size="sm" variant="ghost" className="h-8" aria-label={`Remove ${assignment.kit?.name ?? 'kit'}`}
                       onClick={() => void removeAddedKit(assignment.kit_id)}>Remove</Button>
                   ) : null}
@@ -1626,7 +1628,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               />
             </div>
 
-            {noteDialog.assetId ? (
+            {/* Equipment status changes take Staff or above (#185 PR 2). */}
+            {noteDialog.assetId && isStaffOrAbove(userRole) ? (
               <div className="flex items-center justify-between rounded-lg border border-border/70 px-3 py-3">
                 <Label htmlFor="maintenance-required" className="text-sm font-medium">Maintenance Req'd</Label>
                 <Checkbox
