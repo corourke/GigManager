@@ -956,6 +956,11 @@ export default function ReviewScannedDataDialog({
   // Not in a filed year: the total is locked there and only descriptions are saved.
   const missingTotal = !purchaseLocked && !(formData.total_inv_amount > 0) && calculatedTotalCost > 0.005;
   const undecided = formData.items.filter(item => !item.tax_treatment).length;
+  // A line tracked as equipment and expensed needs an expense category too (#226 item 6).
+  // Not in a filed year: the tax fields are locked there. Untracked lines may stay uncategorised.
+  const needsExpenseCategory = (item: ScannedItem) =>
+    !purchaseLocked && item.is_asset && item.tax_treatment === 'expense' && !item.category?.trim();
+  const noExpenseCategory = formData.items.filter(needsExpenseCategory).length;
   // New equipment records need a category (lines already tracked have one).
   const noEquipCategory = formData.items
     .filter(item => item.is_asset && !(isEditMode && item._assetId) && !equipmentCategoryOf(item).trim()).length;
@@ -963,7 +968,7 @@ export default function ReviewScannedDataDialog({
   const noPeriod = formData.items.filter(item => item.tax_treatment === 'depreciate' && !periodOf(item)).length;
   // Units need a serial or a tag each (#183).
   const noUnits = formData.items.filter(item => unitProblemOf(item)).length;
-  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noEquipCategory === 0 && noPeriod === 0 && noUnits === 0 && !missingTotal;
+  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noExpenseCategory === 0 && noEquipCategory === 0 && noPeriod === 0 && noUnits === 0 && !missingTotal;
   const isImage = file?.type.startsWith('image/');
   const isPdf = file?.type === 'application/pdf';
 
@@ -1121,8 +1126,9 @@ export default function ReviewScannedDataDialog({
   const renderExpenseCategory = (item: ScannedItem, index: number) => {
     const value = item.category || '';
     const known = expenseCats.some(c => c.name === value);
+    const needed = needsExpenseCategory(item);
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: '0 1 240px', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, flex: '0 1 240px', minWidth: 0 }}>
         {fieldLabel('Expense')}
         <select
           aria-label={`Expense category: ${item.description || 'item'}`}
@@ -1135,6 +1141,7 @@ export default function ReviewScannedDataDialog({
           {value && !known && <option value={value}>{value} (not on the list)</option>}
           {expenseCats.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
         </select>
+        {needed && <span role="status" style={{ flexBasis: '100%', fontSize: 10, fontWeight: 600, color: '#92400e' }}>Choose an expense category</span>}
       </div>
     );
   };
