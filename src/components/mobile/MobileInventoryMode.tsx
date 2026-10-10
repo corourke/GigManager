@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { NOT_RETURNED_STATUS, RETURNED_STATUS, SCANNING_MODES, ScanningMode } from '../../config/inventoryWorkflow';
 import { writeOffPieces } from '../../services/writeOff.service';
+import { orgIndexService, type IndexKit, type IndexRecord, type OrgIndex } from '../../services/mobile/orgIndex.service';
 import { canManage } from '../../utils/permissions';
 import { packingListService } from '../../services/mobile/packingList.service';
 import { inventoryTrackingService } from '../../services/mobile/inventoryTracking.service';
@@ -150,6 +151,12 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   const [packWarning, setPackWarning] = useState<{ messages: string[]; proceed: () => Promise<void> } | null>(null);
   // A unit scanned that isn't on the list (#185): swap it for a listed unit of the same item, or add it as an extra.
   const [extraScan, setExtraScan] = useState<{ asset: any; kitId: string; swapFor: { asset_id: string; label: string } | null } | null>(null);
+  // Adding equipment at pack-out (#185 PR 2): the org's kits and equipment, cached on the device;
+  // a kit to add; a lot to add with a count; the "+ Add" search.
+  const [orgIndex, setOrgIndex] = useState<OrgIndex | null>(null);
+  const [kitToAdd, setKitToAdd] = useState<IndexKit | null>(null);
+  const [lotToAdd, setLotToAdd] = useState<{ record: IndexRecord; count: number } | null>(null);
+  const [addSearch, setAddSearch] = useState<string | null>(null);
   const [shortReturn, setShortReturn] = useState<ShortReturnState | null>(null);
   // Finish unload (#185): what's still out, and which of it to mark missing.
   const [finishing, setFinishing] = useState<{ kit_id: string | null; asset_id: string | null; quantity: number; name: string; missing: boolean }[] | null>(null);
@@ -170,6 +177,26 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       void loadGigTitle(gigId);
     }
   }, [gigId]);
+
+  // The org's equipment index: the cached one at once, then a fresh one when online.
+  useEffect(() => {
+    const orgId = selectedOrganization?.id;
+    if (!orgId) return;
+    let live = true;
+    void (async () => {
+      try {
+        const cached = await orgIndexService.get(orgId);
+        if (live && cached) setOrgIndex(cached);
+        if (navigator.onLine) {
+          const fresh = await orgIndexService.refresh(orgId);
+          if (live && fresh) setOrgIndex(fresh);
+        }
+      } catch (error) {
+        console.error('Could not load the equipment index:', error);
+      }
+    })();
+    return () => { live = false; };
+  }, [selectedOrganization?.id]);
 
   useEffect(() => {
     if (!packingList?.kits?.length) {
@@ -341,9 +368,10 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     if (!extraScan || !gigId || !selectedOrganization || !user) return;
     const { asset, kitId, swapFor } = extraScan;
     setExtraScan(null);
+    // Swap goes in the listed unit's kit; added on its own, it has no kit (#185 PR 2).
     const scan = (assetId: string, status: string) => inventoryTrackingService.submitScan({
       gigId,
-      kitId,
+      kitId: swap ? kitId : null,
       assetId,
       status,
       organizationId: selectedOrganization.id,
@@ -355,8 +383,74 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     // Swap (Cameron, 10-09): the swapped-out unit gets an In Warehouse row.
     if (swap && swapFor) await scan(swapFor.asset_id, RETURNED_STATUS);
     await refreshPackingList(gigId);
-    toast.success(swap ? `Swapped for ${swapFor?.label}` : 'Added as an extra');
+    toast.success(swap ? `Swapped for ${swapFor?.label}` : 'Added to this gig');
   }, [extraScan, gigId, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
+
+  // Before adding something at pack-out: what's worth a second look, as for planned gear.
+  const adHocWarnings = useCallback((record: { item_name?: string; manufacturer_model?: string; status?: string | null }) => {
+    const name = record.item_name || record.manufacturer_model || 'This item';
+    return record.status === 'Maintenance' || record.status === 'Inactive' ? [`${name} is in ${record.status}.`] : [];
+  }, []);
+
+  const addKit = useCallback(async (kit: IndexKit) => {
+    if (!gigId || !selectedOrganization || !user) return;
+    setKitToAdd(null);
+    setAddSearch(null);
+    await inventoryTrackingService.addKitAtPackOut({ gigId, organizationId: selectedOrganization.id, userId: user.id, kit });
+    // Online, the list comes back with the kit's contents; offline, they follow on the next sync.
+    if (navigator.onLine) await loadPackingList(gigId);
+    else await refreshPackingList(gigId);
+    toast.success(`${kit.name} added to this gig`);
+  }, [gigId, refreshPackingList, selectedOrganization, user]);
+
+  // A unit or lot added on its own: a no-kit row in this mode's status.
+  const addLoose = useCallback(async (record: IndexRecord, quantity: number) => {
+    if (!gigId || !selectedOrganization || !user) return;
+    const proceed = async () => {
+      await inventoryTrackingService.addExtraAsset(gigId, {
+        id: record.id, manufacturer_model: record.item_name, tag_number: record.tag_number,
+        equipment_item_id: record.equipment_item_id, quantity: record.quantity, status: record.status,
+      });
+      await inventoryTrackingService.submitScan({
+        gigId,
+        kitId: null,
+        assetId: record.id,
+        quantity,
+        status: selectedMode.resultingStatus,
+        organizationId: selectedOrganization.id,
+        scannedBy: user.id,
+        location: locationInput || null,
+      });
+      await refreshPackingList(gigId);
+      toast.success(`${record.item_name} added to this gig`);
+    };
+    const messages = adHocWarnings(record);
+    if (messages.length === 0) await proceed();
+    else {
+      setIsScannerOpen(false);
+      setPackWarning({ messages, proceed });
+    }
+  }, [adHocWarnings, gigId, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
+
+  // Something the org owns that isn't on this gig: a kit to add, a lot to count, or a unit to
+  // add on its own (or swap for a listed one).
+  const offerAdHoc = useCallback((tag: string): boolean => {
+    const hit = orgIndexService.findTag(orgIndex, tag);
+    if (!hit) return false;
+    setIsScannerOpen(false);
+    if (hit.type === 'kit') {
+      setKitToAdd(hit.kit);
+    } else if (Number(hit.record.quantity ?? 1) > 1) {
+      // More than one piece (a lot, tagged or not): ask how many are going.
+      setLotToAdd({ record: hit.record, count: Number(hit.record.quantity ?? 1) });
+    } else {
+      openExtraScan({
+        id: hit.record.id, manufacturer_model: hit.record.item_name, tag_number: hit.record.tag_number,
+        equipment_item_id: hit.record.equipment_item_id, quantity: hit.record.quantity, status: hit.record.status,
+      });
+    }
+    return true;
+  }, [orgIndex, openExtraScan]);
 
   const handleManualToggle = useCallback(async (kitId: string, assetId?: string) => {
     if (!gigId || !packingList || !selectedOrganization || !user) {
@@ -682,9 +776,20 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       const match = matchTagLocally(tagNumber);
 
       if (!match) {
+        // Only while packing can something not on the list be added (#185 PR 2).
+        if (!selectedMode.allowsAdHoc) {
+          setScannerError(`${tagNumber.trim()} isn't on this gig.`);
+          return;
+        }
+        if (offerAdHoc(tagNumber)) return;
         const found = navigator.onLine ? await inventoryTrackingService.matchTag(tagNumber) : null;
         if (found?.type === 'asset' && found.item) {
           openExtraScan(found.item);
+          return;
+        }
+        if (found?.type === 'kit' && found.item) {
+          setIsScannerOpen(false);
+          setKitToAdd({ id: found.item.id, name: found.item.name, tag_number: found.item.tag_number ?? null, is_container: !!found.item.is_container });
           return;
         }
         setScannerError(`No item found with tag: ${tagNumber}`);
@@ -803,6 +908,36 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     return rows;
   }, [packingList, expandedKits, searchQuery, filteredKits]);
 
+  // Added at pack-out (#185 PR 2): kits added while packing, and units and lots added on their own.
+  const addedKits = (packingList?.kits || []).filter((a: any) => a.added_at_pack_out);
+  const looseItems = packingList
+    ? (inventoryTrackingService.getLoose(packingList) as { asset_id: string; quantity: number; status: string }[]).map((l) => {
+      const a = packingList.extra_assets?.[l.asset_id] ?? orgIndex?.records.find((r) => r.id === l.asset_id);
+      return { ...l, name: a?.manufacturer_model || a?.item_name || 'Item' };
+    })
+    : [];
+
+  async function removeAddedKit(kitId: string) {
+    if (!gigId || !user) return;
+    await inventoryTrackingService.removePackOutKit({ gigId, kitId, userId: user.id });
+    await refreshPackingList(gigId);
+    toast('Kit removed from this gig');
+  }
+
+  // Un-checking deletes the row; checking moves it on to this mode at the same count.
+  async function toggleLoose(l: { asset_id: string; quantity: number; status: string }) {
+    if (!gigId || !selectedOrganization || !user) return;
+    if (l.status === selectedMode.resultingStatus) {
+      await inventoryTrackingService.clearTracking({ gigId, kitId: null, assetId: l.asset_id });
+    } else {
+      await inventoryTrackingService.submitScan({
+        gigId, kitId: null, assetId: l.asset_id, quantity: l.quantity, status: selectedMode.resultingStatus,
+        organizationId: selectedOrganization.id, scannedBy: user.id, location: locationInput || null,
+      });
+    }
+    await refreshPackingList(gigId);
+  }
+
   if (!gigId) {
     return (
       <div className="p-4 pt-8 text-center space-y-4">
@@ -836,6 +971,14 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               <Barcode className="w-4 h-4" />
               Scan
             </button>
+            {selectedMode.allowsAdHoc ? (
+              <button
+                className="ml-2 flex items-center px-3 h-11 rounded-full text-sm font-medium border border-border active:scale-95 transition-transform"
+                onClick={() => setAddSearch('')}
+              >
+                + Add
+              </button>
+            ) : null}
           </div>
 
           <div className="px-4 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
@@ -890,6 +1033,37 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               onChange={(event) => setSearchQuery(event.target.value)}
             />
           </div>
+
+          {packingList && (addedKits.length > 0 || looseItems.length > 0) ? (
+            <section className="rounded-xl border border-dashed border-border p-3 space-y-2">
+              <h2 className="text-sm font-semibold">Added at pack-out</h2>
+              {addedKits.map((assignment: any) => (
+                <div key={`added-${assignment.kit_id}`} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate">{assignment.kit?.name ?? 'Kit'} <span className="text-xs text-muted-foreground">· kit</span></span>
+                  {selectedMode.allowsAdHoc && assignment.assigned_by === user?.id ? (
+                    <Button size="sm" variant="ghost" className="h-8" aria-label={`Remove ${assignment.kit?.name ?? 'kit'}`}
+                      onClick={() => void removeAddedKit(assignment.kit_id)}>Remove</Button>
+                  ) : null}
+                </div>
+              ))}
+              {looseItems.map((l: { asset_id: string; quantity: number; status: string; name: string }) => {
+                const checked = l.status === selectedMode.resultingStatus;
+                return (
+                  <div key={`loose-${l.asset_id}`} className="flex items-center gap-2 text-sm">
+                    <button
+                      aria-label={`${checked ? 'Uncheck' : 'Check'} ${l.name}`}
+                      className="w-8 flex items-center justify-center shrink-0"
+                      onClick={() => void toggleLoose(l)}
+                    >
+                      {checked ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
+                    </button>
+                    <span className="flex-1 truncate">{l.name} · {l.quantity}</span>
+                    <TrackingStatusBadge status={l.status} />
+                  </div>
+                );
+              })}
+            </section>
+          ) : null}
 
           {loading ? (
             <div className="space-y-3">
@@ -1213,6 +1387,112 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         </DialogContent>
       </Dialog>
 
+      <Dialog open={kitToAdd !== null} onOpenChange={(open) => (!open ? setKitToAdd(null) : undefined)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Not on this gig</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm">{kitToAdd ? `${kitToAdd.name} isn't on this gig.` : ''}</p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="h-11" onClick={() => setKitToAdd(null)}>Cancel</Button>
+            <Button className="h-11" onClick={() => kitToAdd && void addKit(kitToAdd)}>Add to this gig</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={lotToAdd !== null} onOpenChange={(open) => (!open ? setLotToAdd(null) : undefined)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{lotToAdd?.record.item_name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Not on this gig. How many are going?</p>
+          {lotToAdd ? (
+            <input
+              type="number"
+              inputMode="numeric"
+              aria-label="How many"
+              className="w-24 h-11 text-center text-lg rounded-md border border-border bg-background"
+              min={1}
+              max={Number(lotToAdd.record.quantity ?? 1)}
+              value={lotToAdd.count}
+              onChange={(event) => {
+                const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                setLotToAdd((c) => (c ? { ...c, count: n } : c));
+              }}
+            />
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="h-11" onClick={() => setLotToAdd(null)}>Cancel</Button>
+            <Button className="h-11" disabled={!lotToAdd || lotToAdd.count < 1}
+              onClick={() => {
+                if (!lotToAdd) return;
+                const { record, count } = lotToAdd;
+                setLotToAdd(null);
+                setAddSearch(null);
+                void addLoose(record, count);
+              }}>Add to this gig</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addSearch !== null && lotToAdd === null} onOpenChange={(open) => (!open ? setAddSearch(null) : undefined)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add to this gig</DialogTitle>
+          </DialogHeader>
+          <input
+            type="text"
+            aria-label="Find equipment"
+            placeholder="Kit, item or lot name"
+            className="w-full bg-muted/50 border-none rounded-xl px-4 py-2.5 text-sm"
+            value={addSearch ?? ''}
+            onChange={(event) => setAddSearch(event.target.value)}
+          />
+          {(() => {
+            const found = orgIndexService.search(orgIndex, addSearch ?? '');
+            if (!(addSearch ?? '').trim()) return <p className="text-sm text-muted-foreground">Search the organization's kits and equipment.</p>;
+            if (found.kits.length === 0 && found.items.length === 0) return <p className="text-sm text-muted-foreground">Nothing found.</p>;
+            return (
+              <div className="max-h-80 overflow-y-auto space-y-3">
+                {found.kits.length > 0 ? (
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground">Kits</p>
+                    {found.kits.map((kit) => (
+                      <Button key={kit.id} variant="outline" className="w-full justify-start h-10" aria-label={`Add ${kit.name}`}
+                        onClick={() => void addKit(kit)}>
+                        {kit.name}{kit.tag_number ? ` (${kit.tag_number})` : ''}
+                      </Button>
+                    ))}
+                  </div>
+                ) : null}
+                {found.items.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground">Items</p>
+                    {found.items.map((item) => (
+                      <div key={item.item_id} className="space-y-1">
+                        <p className="text-sm font-medium">{item.name}</p>
+                        {item.records.map((r) => {
+                          const isLot = Number(r.quantity ?? 1) > 1;
+                          const label = isLot ? `${item.name} (lot of ${r.quantity})` : `${item.name} (${r.tag_number || r.serial_number || 'untagged'})`;
+                          return (
+                            <Button key={r.id} variant="outline" className="w-full justify-start h-9 text-xs" aria-label={`Add ${label}`}
+                              onClick={() => (isLot
+                                ? setLotToAdd({ record: r, count: Number(r.quantity ?? 1) })
+                                : (setAddSearch(null), void addLoose(r, 1)))}>
+                              {isLot ? `Lot of ${r.quantity}` : r.tag_number || r.serial_number || 'Untagged unit'}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={extraScan !== null} onOpenChange={(open) => (!open ? setExtraScan(null) : undefined)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -1223,7 +1503,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
           </p>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" className="h-11" onClick={() => setExtraScan(null)}>Cancel</Button>
-            <Button variant="outline" className="h-11" onClick={() => void confirmExtraScan(false)}>Add as extra</Button>
+            <Button variant="outline" className="h-11" onClick={() => void confirmExtraScan(false)}>Add to this gig</Button>
             {extraScan?.swapFor ? (
               <Button className="h-11" onClick={() => void confirmExtraScan(true)}>Swap for {extraScan.swapFor.label}</Button>
             ) : null}

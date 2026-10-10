@@ -47,7 +47,8 @@ type SubmitScanParams = {
 
 type ClearTrackingParams = {
   gigId: string;
-  kitId: string;
+  /** null: a unit or lot added at pack-out on its own. */
+  kitId: string | null;
   assetId?: string;
 };
 
@@ -529,7 +530,7 @@ export const inventoryTrackingService = {
 
     const { data: kits } = await supabase
       .from('kits')
-      .select('id, name, tag_number')
+      .select('id, name, tag_number, is_container')
       .eq('tag_number', trimmed)
       .limit(1);
 
@@ -712,6 +713,8 @@ export const inventoryTrackingService = {
       const latestRecord = getLatestTrackingRecord(tracking, kitId, assetId);
       if (!latestRecord) return;
       recordsToRemove = [latestRecord];
+    } else if (!kitId) {
+      return;
     } else {
       const kit = getKitAssignment(packingList, kitId)?.kit;
       if (kit?.is_container) {

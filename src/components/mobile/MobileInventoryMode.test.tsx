@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { format } from 'date-fns'
 import MobileInventoryMode from './MobileInventoryMode'
@@ -13,6 +13,13 @@ vi.mock('../../contexts/AuthContext', () => ({
     userRole: auth.role,
   }),
 }))
+
+// The org's equipment index: a fixed one; findTag and search are the real ones.
+const orgIndex = vi.hoisted(() => ({ value: null as any }))
+vi.mock('../../services/mobile/orgIndex.service', async (importOriginal) => {
+  const actual: any = await importOriginal()
+  return { orgIndexService: { ...actual.orgIndexService, get: vi.fn(async () => orgIndex.value), refresh: vi.fn(async () => orgIndex.value) } }
+})
 
 vi.mock('../../services/writeOff.service', () => ({
   writeOffPieces: vi.fn().mockResolvedValue('split-1'),
@@ -41,6 +48,8 @@ vi.mock('../../services/mobile/inventoryTracking.service', async (importOriginal
     ...actual.inventoryTrackingService,
     matchTag: vi.fn(),
     addExtraAsset: vi.fn(),
+    addKitAtPackOut: vi.fn(),
+    removePackOutKit: vi.fn(),
     submitScan: vi.fn(),
     clearTracking: vi.fn(),
     updateLatestNote: vi.fn(),
@@ -641,11 +650,11 @@ describe('MobileInventoryMode', () => {
       ])
     })
 
-    it('Add as extra: just the new unit', async () => {
+    it('Add to this gig: just the new unit, on its own (no kit)', async () => {
       const user = userEvent.setup()
       await scanK12Two()
-      await user.click(screen.getByRole('button', { name: 'Add as extra' }))
-      expect(vi.mocked(inventoryTrackingService.submitScan).mock.calls.map((c: any) => [c[0].kitId, c[0].assetId])).toEqual([['top', 'k12-2']])
+      await user.click(screen.getByRole('button', { name: 'Add to this gig' }))
+      expect(vi.mocked(inventoryTrackingService.submitScan).mock.calls.map((c: any) => [c[0].kitId, c[0].assetId])).toEqual([[null, 'k12-2']])
     })
 
     it('shows extras and swaps under their kit', async () => {
@@ -659,6 +668,130 @@ describe('MobileInventoryMode', () => {
       // The K12-1 line follows K12-2, so it reads as packed.
       expect(screen.getByRole('button', { name: 'Uncheck K12 Speaker' })).toBeInTheDocument()
       expect(screen.getByText('1 / 1 pieces')).toBeInTheDocument()
+    })
+  })
+
+  // #185 PR 2 (Cameron, 10-09): equipment not on the list can be added while packing (Pack-Out and
+  // Load Truck), by scanning anything the org owns or picking it with "+ Add". A kit becomes an
+  // assignment added at pack-out; a unit or lot goes on the gig on its own.
+  describe('adding equipment at pack-out', () => {
+    const modeLabel = (id: string) => SCANNING_MODES.find((m) => m.id === id)!.label
+    const index = {
+      org_id: 'org-1',
+      kits: [{ id: 'case-1', name: 'Mic Case', tag_number: 'CASE-1', is_container: true }],
+      records: [
+        { id: 'u9', tag_number: 'K12-9', serial_number: null, quantity: 1, status: 'Active', equipment_item_id: 'item-k12', item_name: 'K12 Speaker' },
+        { id: 'lot-x', tag_number: 'BOX-1', serial_number: null, quantity: 20, status: 'Active', equipment_item_id: 'item-xlr', item_name: 'XLR Cable' },
+      ],
+    }
+    const list = (over: Record<string, any> = {}) => ({
+      gig_id: 'gig-1',
+      gig_title: 'Warehouse Check-In',
+      top_level_kit_ids: ['top'],
+      hierarchy_edges: [],
+      kits: [{ kit_id: 'top', kit: { id: 'top', name: 'Stage Box', is_container: false, direct_assets: [], assets: [] } }],
+      tracking: [],
+      ...over,
+    })
+
+    beforeEach(() => {
+      orgIndex.value = index
+      Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list())
+    })
+
+    const renderIn = async (modeId?: string) => {
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await screen.findByText('Stage Box')
+      if (modeId) await user.click(screen.getByText(modeLabel(modeId)))
+      return user
+    }
+
+    it.each(['pack-out', 'load-truck'])('%s: scanning a kit the org owns offers to add it to the gig', async (modeId) => {
+      const user = await renderIn(modeId === 'pack-out' ? undefined : modeId)
+      await act(async () => { await scannerProps.onScan('CASE-1') })
+      expect(screen.getByText('Mic Case isn\'t on this gig.')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Add to this gig' }))
+      expect(inventoryTrackingService.addKitAtPackOut).toHaveBeenCalledWith(expect.objectContaining({
+        gigId: 'gig-1', organizationId: 'org-1', userId: 'user-1', kit: index.kits[0],
+      }))
+    })
+
+    it.each(['load-in', 'load-out', 'unload'])('%s: an unlisted tag is refused, with nothing to add', async (modeId) => {
+      await renderIn(modeId)
+      expect(screen.queryByRole('button', { name: '+ Add' })).not.toBeInTheDocument()
+      await act(async () => { await scannerProps.onScan('CASE-1') })
+      expect(screen.queryByText('Mic Case isn\'t on this gig.')).not.toBeInTheDocument()
+      expect(scannerProps.error).toBe('CASE-1 isn\'t on this gig.')
+    })
+
+    it('scanning a unit adds it on its own, offline too', async () => {
+      const user = await renderIn()
+      await act(async () => { await scannerProps.onScan('K12-9') })
+      await user.click(screen.getByRole('button', { name: 'Add to this gig' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: null, assetId: 'u9', status: SCANNING_MODES[0].resultingStatus }))
+    })
+
+    it('scanning a tagged lot asks how many', async () => {
+      const user = await renderIn()
+      await act(async () => { await scannerProps.onScan('BOX-1') })
+      const count = screen.getByLabelText('How many')
+      await user.clear(count)
+      await user.type(count, '6')
+      await user.click(screen.getByRole('button', { name: 'Add to this gig' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: null, assetId: 'lot-x', quantity: 6 }))
+    })
+
+    it('"+ Add" finds kits and items by name; a lot is added with a count', async () => {
+      const user = await renderIn()
+      await user.click(screen.getByRole('button', { name: '+ Add' }))
+      await user.type(screen.getByLabelText('Find equipment'), 'xlr')
+      expect(screen.getByText('XLR Cable')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Add XLR Cable (lot of 20)' }))
+      const count = screen.getByLabelText('How many')
+      await user.clear(count)
+      await user.type(count, '3')
+      await user.click(screen.getByRole('button', { name: 'Add to this gig' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: null, assetId: 'lot-x', quantity: 3 }))
+
+      await user.click(screen.getByRole('button', { name: '+ Add' }))
+      await user.type(screen.getByLabelText('Find equipment'), 'mic')
+      await user.click(screen.getByRole('button', { name: 'Add Mic Case' }))
+      expect(inventoryTrackingService.addKitAtPackOut).toHaveBeenCalledWith(expect.objectContaining({ kit: index.kits[0] }))
+    })
+
+    it('lists what was added at pack-out; the adder can remove their kit, and un-checking a loose item deletes its row', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({
+        top_level_kit_ids: ['top', 'case-1', 'case-2'],
+        kits: [
+          ...list().kits,
+          { kit_id: 'case-1', added_at_pack_out: true, assigned_by: 'user-1', kit: { id: 'case-1', name: 'Mic Case', is_container: true, assets: [] } },
+          { kit_id: 'case-2', added_at_pack_out: true, assigned_by: 'someone-else', kit: { id: 'case-2', name: 'DI Case', is_container: true, assets: [] } },
+        ],
+        extra_assets: { 'lot-x': { id: 'lot-x', manufacturer_model: 'XLR Cable', quantity: 20 } },
+        tracking: [{ id: 't1', gig_id: 'gig-1', kit_id: null, asset_id: 'lot-x', status: SCANNING_MODES[0].resultingStatus, quantity: 6, scanned_at: '2026-10-10T10:00:00.000Z', scanned_by: 'user-1' }],
+      }))
+      const user = await renderIn()
+      const group = screen.getByText('Added at pack-out').closest('section') as HTMLElement
+      expect(within(group).getByText('XLR Cable · 6')).toBeInTheDocument()
+      expect(within(group).getByRole('button', { name: 'Remove Mic Case' })).toBeInTheDocument()
+      expect(within(group).queryByRole('button', { name: 'Remove DI Case' })).not.toBeInTheDocument()
+
+      await user.click(within(group).getByRole('button', { name: 'Remove Mic Case' }))
+      expect(inventoryTrackingService.removePackOutKit).toHaveBeenCalledWith({ gigId: 'gig-1', kitId: 'case-1', userId: 'user-1' })
+
+      await user.click(within(group).getByRole('button', { name: 'Uncheck XLR Cable' }))
+      expect(inventoryTrackingService.clearTracking).toHaveBeenCalledWith({ gigId: 'gig-1', kitId: null, assetId: 'lot-x' })
+    })
+
+    it('Remove is only offered while packing', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({
+        top_level_kit_ids: ['top', 'case-1'],
+        kits: [...list().kits, { kit_id: 'case-1', added_at_pack_out: true, assigned_by: 'user-1', kit: { id: 'case-1', name: 'Mic Case', is_container: true, assets: [] } }],
+      }))
+      await renderIn('load-in')
+      expect(screen.queryByRole('button', { name: 'Remove Mic Case' })).not.toBeInTheDocument()
     })
   })
 

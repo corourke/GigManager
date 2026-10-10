@@ -243,4 +243,20 @@ describe('packingListService.fetchGigPackingList', () => {
     expect(Object.keys(result.extra_assets)).toEqual(['k12-b']);
     expect(result.extra_assets['k12-b']).toEqual(expect.objectContaining({ tag_number: 'K12-2', equipment_item_id: 'item-k12' }));
   });
+
+  // #185 PR 2: kits added at pack-out are marked, with who added them (only they can remove one).
+  it('marks kits added at pack-out, with who added them', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [
+        { kit_id: 'rack', notes: null, added_at_pack_out: false, assigned_by: 'mgr', kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } },
+        { kit_id: 'case', notes: null, added_at_pack_out: true, assigned_by: 'user-1', kit: { id: 'case', name: 'Mic Case', tag_number: 'C-1', is_container: true } },
+      ], error: null },
+      gigs: { data: { title: 'Test Gig' }, error: null },
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+    expect(result.kits.map((k: any) => [k.kit_id, k.added_at_pack_out, k.assigned_by])).toEqual([['rack', false, 'mgr'], ['case', true, 'user-1']]);
+  });
 });

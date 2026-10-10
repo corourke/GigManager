@@ -67,7 +67,7 @@ export const packingListService = {
   async fetchGigPackingList(gigId: string) {
     const { data: rawAssignments, error: kitError } = await supabase
       .from('gig_kit_assignments')
-      .select('kit_id, notes, kit:kits(id, name, tag_number, is_container)')
+      .select('kit_id, notes, added_at_pack_out, assigned_by, kit:kits(id, name, tag_number, is_container)')
       .eq('gig_id', gigId);
 
     if (kitError) throw kitError;
@@ -116,7 +116,8 @@ export const packingListService = {
     // One entry per unique kit in the whole forest (top-level + every
     // descendant, deduped — a kit shared by two parents appears once).
     const allKitNodes = [
-      ...topLevel.map((a: any) => ({ kit_id: a.kit.id, notes: a.notes, kit: a.kit })),
+      // Kits added at pack-out are marked, with who added them: only they can remove one (#185).
+      ...topLevel.map((a: any) => ({ kit_id: a.kit.id, notes: a.notes, added_at_pack_out: !!a.added_at_pack_out, assigned_by: a.assigned_by ?? null, kit: a.kit })),
       ...descendantKits.map((k) => ({ kit_id: k.id, notes: null, kit: k })),
     ];
     const allKitIds = allKitNodes.map((n) => n.kit_id);
@@ -174,9 +175,11 @@ export const packingListService = {
       directAssetsByKit.set(row.kit_id, list);
     }
 
-    const kitAssignments = allKitNodes.map((node) => ({
+    const kitAssignments = allKitNodes.map((node: any) => ({
       kit_id: node.kit_id,
       notes: node.notes,
+      added_at_pack_out: !!node.added_at_pack_out,
+      assigned_by: node.assigned_by ?? null,
       kit: {
         ...node.kit,
         assets: assetsByKit.get(node.kit_id) || [],
