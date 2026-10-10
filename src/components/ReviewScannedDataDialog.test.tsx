@@ -120,6 +120,77 @@ describe('ReviewScannedDataDialog: $0 invoice total (#226)', () => {
   });
 });
 
+describe('ReviewScannedDataDialog: $0 invoice total follow-ups (#226 item 5)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const line = (over: any) => ({ id: 'l1', row_type: 'item', tax_treatment: 'expense', description: 'Stand', quantity: 1, item_price: 100, item_cost: 50, asset_id: null, category: 'Audio', ...over });
+  const openEdit = async (items: any[], opts: { date?: string; total?: number; locked?: number[] } = {}) => {
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'Sweetwater', purchase_date: opts.date ?? '2026-03-01', total_inv_amount: opts.total ?? 0, description: 'Stands',
+      items, assets: [], attachments: [],
+    } as any);
+    const years = await import('../services/taxYear.service');
+    vi.mocked(years.getLockedTaxYears).mockResolvedValue(new Set(opts.locked ?? []));
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await screen.findAllByRole('group', { name: /^Tax treatment/ });
+    return svc;
+  };
+
+  it('a filed-year purchase with a $0 total over costed lines still saves a description change, with no message or "Use $" button', async () => {
+    const svc = await openEdit([line({})], { date: '2025-02-14', locked: [2025] });
+    expect(screen.getByText(/2025 tax year is filed/)).toBeInTheDocument();
+    expect(screen.queryByText(/Enter the invoice total/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Use \$/ })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByDisplayValue('Stand'), ' stand');
+    const save = screen.getByRole('button', { name: 'Save Changes' });
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l1', { description: 'Stand stand' }));
+  });
+
+  it('"Use $X" keeps the stored line costs (priced 100 costed 50, unpriced costed 50) instead of re-spreading the total', async () => {
+    const svc = await openEdit([
+      line({}),
+      line({ id: 'l2', description: 'Bag', item_price: null, item_cost: 50 }),
+    ]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Use $100.00' }));
+    expect(screen.queryByText(/Enter the invoice total/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.anything()));
+    expect(svc.updatePurchase).toHaveBeenCalledWith('h1', expect.objectContaining({ total_inv_amount: 100 }));
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l1', expect.objectContaining({ item_cost: 50 }));
+    expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.objectContaining({ item_cost: 50 }));
+  });
+
+  it('clearing the total in edit mode shows the message and disables Save', async () => {
+    await openEdit([line({ item_price: 100, item_cost: 130 })], { total: 130 });
+    const save = screen.getByRole('button', { name: 'Save Changes' });
+    expect(save).toBeEnabled();
+    expect(screen.queryByText(/Enter the invoice total/)).not.toBeInTheDocument();
+    await userEvent.clear(screen.getByDisplayValue('130'));
+    expect(await screen.findByText(/Enter the invoice total/)).toBeInTheDocument();
+    expect(save).toBeDisabled();
+  });
+
+  it('lines totalling under half a cent do not block a $0 total', async () => {
+    await openEdit([line({ item_price: 0.004, item_cost: 0.004 })]);
+    expect(screen.queryByText(/Enter the invoice total/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled();
+  });
+
+  it('shows the $0 total message instead of the Mismatch banner, and keeps Mismatch for other cases', async () => {
+    const { unmount } = render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" scannedData={{ ...scanned, total_inv_amount: 0 } as any} file={null} />);
+    expect(await screen.findByText(/Enter the invoice total/)).toBeInTheDocument();
+    expect(screen.queryByText(/Mismatch/)).not.toBeInTheDocument();
+    unmount();
+    // stored costs of 50 against a $100 total (edit mode keeps stored costs)
+    await openEdit([line({})], { total: 100 });
+    expect(await screen.findByText(/Mismatch/)).toBeInTheDocument();
+    expect(screen.queryByText(/Enter the invoice total/)).not.toBeInTheDocument();
+  });
+});
+
 // #128: CSV-imported lines carry a cost but no printed price. Opening such a
 // purchase for edit recomputed every cost from the (missing) price, so saving
 // wrote $0 costs and proposed $0 to the linked assets.
