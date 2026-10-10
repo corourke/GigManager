@@ -17,6 +17,7 @@ function createSupabaseMock(tableResponses: Record<string, any>, rpcResponse: an
         eq: vi.fn().mockReturnThis(),
         in: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue(response),
         then: (resolve: any, reject?: any) => Promise.resolve(response).then(resolve, reject),
       };
@@ -217,6 +218,40 @@ describe('packingListService.fetchGigPackingList', () => {
     const result: any = await packingListService.fetchGigPackingList('gig-1');
 
     // Units only: a lot's pieces elsewhere show in what's at home, not as a warning.
+    expect(result.elsewhere).toEqual({ k12: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'On Site' } });
+  });
+
+  // #246 review: where things are now reads every row, a page at a time.
+  it('reads every placement row, past the first page', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } }], error: null },
+      kit_flattened_cache: { data: [{ kit_id: 'rack', asset_id: 'k12', total_quantity: 1 }], error: null },
+      kit_components: { data: [], error: null },
+      assets: { data: [{ id: 'k12', manufacturer_model: 'K12', tag_number: 'K12-1', quantity: 1, status: 'Active' }], error: null },
+      gigs: { data: [{ id: 'other-gig', title: 'Other Gig' }], error: null },
+    };
+    const old = Array.from({ length: 1000 }, (_, i) => ({ id: `old-${i}`, gig_id: 'old-gig', kit_id: 'k', asset_id: 'k12', status: 'In Warehouse', quantity: 1, scanned_at: '2026-09-01T10:00:00Z', created_at: '2026-09-01T10:00:00Z' }));
+    const newest = { id: 'new', gig_id: 'other-gig', kit_id: 'k', asset_id: 'k12', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' };
+    const base = createSupabaseMock(tableResponses, { data: [], error: null });
+    const client: any = {
+      ...base,
+      from: vi.fn((table: string) => {
+        if (table !== 'inventory_tracking') return base.from(table);
+        let cols = '';
+        let from: number | null = null;
+        const b: any = {
+          select: vi.fn((c: string) => { cols = c; return b; }),
+          eq: vi.fn(() => b), in: vi.fn(() => b), order: vi.fn(() => b),
+          range: vi.fn((a: number) => { from = a; return b; }),
+          then: (res: any, rej?: any) => Promise.resolve({ data: cols === '*' ? [] : from === 1000 ? [newest] : old, error: null }).then(res, rej),
+        };
+        return b;
+      }),
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(client);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
     expect(result.elsewhere).toEqual({ k12: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'On Site' } });
   });
 

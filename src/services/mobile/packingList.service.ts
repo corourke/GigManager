@@ -3,6 +3,9 @@ import { idbStore } from '../../utils/idb/store';
 import { isRetired, recordKind } from '../../utils/equipmentItems';
 import { placementOf, type TrackingRow } from '../../utils/locations';
 
+/** Tracking rows per request: PostgREST's default most. */
+const PLACEMENT_PAGE = 1000;
+
 const supabase = createClient();
 
 export const packingListService = {
@@ -205,17 +208,23 @@ export const packingListService = {
     // Where every unit and lot on the list is now: lots' pieces at home for "any" lines, and
     // units still out at another gig, for Pack-Out's warning (#185).
     const placedIds = [...new Set([...assetMap.keys(), ...owned.map((r) => r.id)])];
-    const { data: placed, error: placedError } = placedIds.length > 0
-      ? await supabase.from('inventory_tracking')
+    // A page at a time: a busy record has more rows than one response holds (#246 review).
+    const placed: any[] = [];
+    for (let from = 0; placedIds.length > 0; from += PLACEMENT_PAGE) {
+      const { data, error: placedError } = await supabase.from('inventory_tracking')
         .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
         .in('asset_id', placedIds)
-      : { data: [], error: null };
-    if (placedError) throw placedError;
+        .order('id', { ascending: true })
+        .range(from, from + PLACEMENT_PAGE - 1);
+      if (placedError) throw placedError;
+      placed.push(...(data ?? []));
+      if ((data ?? []).length < PLACEMENT_PAGE) break;
+    }
 
     const elsewhere: Record<string, { gig_id: string; gig_title: string | null; status: string }> = {};
     for (const asset of assetMap.values()) {
       if (recordKind(asset) !== 'unit') continue;
-      const away = placementOf((placed || []) as TrackingRow[], asset).find((p) => p.gig_id !== null && p.gig_id !== gigId);
+      const away = placementOf(placed as TrackingRow[], asset).find((p) => p.gig_id !== null && p.gig_id !== gigId);
       if (away?.gig_id) elsewhere[asset.id] = { gig_id: away.gig_id, gig_title: null, status: away.status ?? 'Out' };
     }
     const awayGigIds = [...new Set(Object.values(elsewhere).map((e) => e.gig_id))];
@@ -226,7 +235,7 @@ export const packingListService = {
     }
 
     for (const r of owned) {
-      const placements = placementOf((placed || []) as TrackingRow[], r);
+      const placements = placementOf(placed as TrackingRow[], r);
       const atHome = placements.find((p) => p.gig_id === null)?.quantity ?? 0;
       // What this gig held at fetch time, so the phone can tell what's home after its own scans.
       const atGig = placements.find((p) => p.gig_id === gigId)?.quantity ?? 0;
