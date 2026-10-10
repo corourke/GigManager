@@ -5,6 +5,12 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 10-10 ~16:00 UTC** (Cameron): #247 (missing build files 404, chunk self-repair) and #248 ($0 invoice total guard). No migrations; prod at 20261018000000. Coordinator verified read-only: `/static/nope.js` → 404, `/gigs` and `/assets/new` → 200, entry script served from `/static/`.
+
+- **PR #248** (triage, merged 10-10): #226 item 5, Save blocked on a $0 invoice total over costed lines, with "Use $X". Follow-up fix in #251.
+
+- **#246 redesign (Cameron, 10-10):** the swap (scan an unlisted unit → "Swap for #X", auto In Warehouse row for the listed one) was rejected: the app can't know which unit is being replaced, and it made up a record. Interchangeable gear uses "any N" kit lines (already supported, #162); specific-tag kits are adjusted by the operator step by step; no auto records.
+
 - **PR #247** (coordinator's sub-agent, merged 10-10): missing build files return a real 404 (build output moved from /assets/ to /static/, Cameron's choice; `public/static/404.html`; the no-op `_redirects` removed); the app self-repairs once on a chunk-load error (clears caches, unregisters the service worker, reloads); `deploy_prod.sh` checks every deployed JS/CSS file and that a missing one gets 404. Fixes the ItemDetailScreen chunk error Cameron hit after the 10-10 deploy (the SPA HTML had been cached under the chunk URL for 4 h). **Needs a prod deploy.**
 
 - **#185 PR 1b, PR #240** (Equipment Lead, merged 10-10): web packing list with "any" lines, counted lines, lot sizes, container contents, pieces summary, print blanks; packed counts from the shared location rule; Holds column.

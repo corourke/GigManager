@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-09 04:15 UTC (coordinator check-in: #225, #228 merged; prod verified through #221)
+- **Last updated:** 2026-10-10 16:50 UTC (coordinator check-in: prod deploy of #247/#248 verified; #246 reworked per Cameron; #251 open; #226 item 6 building)
 
 ---
 
@@ -48,6 +48,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 (none)
 
+**Open PRs, 10-10 16:50 UTC:**
+- **#246 (#185 PR 2, phone) on hold.** Cameron 10-10: no "swap" (removed by the Lead); interchangeable gear goes in kits as "any N" lines; for kits that list specific tags the operator decides each step (Maintenance via the note popup's checkbox, add the replacement ad hoc, a human updates the kit later). No new scanner menu, no kit review flag. Open: what a note on a not-yet-scanned item records (today it writes a scan in the mode's status). Cameron tests the final phone changes on a branch before deploy. Mockup: https://claude.ai/artifact/JCVPy7Eid54tiLwZnteohd
+- **#250** (Docs Lead, equipment pages): coordinator review running.
+- **#251** (coordinator): #248 follow-up ($0-total guard skips filed years; Use $X keeps line costs). #248 is in prod with those two bugs; #251 should go out with the next deploy.
+
 ### 3c. Ready to build, nothing blocking
 
 *Coordinator only.* An item here counts as approved in shape (AGENTS.md rule 1): post the plan on the issue, then build. Anything not here needs approval first.
@@ -55,8 +60,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 **[#226](https://github.com/corourke/GigManager/issues/226) items 3, 5, 6 and 8: released to triage (Cameron, 10-09).** One PR per item, one per run, in this order; failing test first; no migrations. Post a short plan comment on #226 before each. Leave #226 open (other items stay parked). Avoid `src/services/conflictDetection*` and the kit files (the Equipment Lead is working there).
 1. ~~**Item 8, URL guards.**~~ **Done: PR #233, merged 10-09.** Staff and Viewer opening `/assets/new`, `/assets/:id/edit` or `/financials` by URL are redirected to their landing page (same rule the menus use, `src/utils/permissions.ts`), with no flash of the form. Route-level, in `src/routes/` (guards or a small role-gate wrapper). Tests: each route × role.
 2. ~~**Item 3, clearing a money field on the unit edit page saves.**~~ **Done: PR #237, merged 10-09.** In `AssetScreen.tsx` edit mode, clearing item price, item cost, replacement value or sale proceeds must save `null`, not drop the field as `undefined`. Test: clear each field, save, assert the update payload has `null`.
-3. **Item 5, $0 invoice total.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
-4. **Item 6, tracked expensed line needs a category.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
+3. ~~**Item 5, $0 invoice total.**~~ **Done: PR #248 (in prod 10-10), follow-up fix PR #251.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
+4. **Item 6, tracked expensed line needs a category.** *Building (coordinator sub-agent, 10-10; plan posted on #226; stacked on #251).* A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
 
 **PAUSED (Cameron, 10-08): don't start any #20 batch until #186 merges.** Batches 3–7 collide with #183–#186 and #175. Triage: skip #20 and do a `docs/` pass instead.
