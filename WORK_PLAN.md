@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-10 20:50 UTC (coordinator check-in: #246 re-reviewed at a47064d, two small fixes left; then Cameron's branch test on dev)
+- **Last updated:** 2026-10-10 23:10 UTC (coordinator check-in: pre-deploy test done; #250 merged; #257 fixes #255; #246 ready for Cameron's branch test)
 
 ---
 
@@ -50,8 +50,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 **Open PRs, 10-10 16:50 UTC:**
 - **#246 (#185 PR 2, phone) on hold.** Cameron 10-10: no "swap" (removed by the Lead); interchangeable gear goes in kits as "any N" lines; for kits that list specific tags the operator decides each step (Maintenance via the note popup's checkbox, add the replacement ad hoc, a human updates the kit later). No new scanner menu, no kit review flag. **Note rule (Cameron, 10-10):** saving a note always appends a new tracking row that carries the item's last status (and lot quantity, location) forward, never counting it as packed; ticking Send to Maintenance (renamed from "Maintenance Req'd") appends "Sent to Maintenance." to the note; the popup shows the person's name, never a UUID. No database procedure did this (checked); it goes in the app service. Sent to the Equipment Lead 10-10 17:10. **Cameron 10-10 18:50:** a note on a unit last recorded at another gig is still recorded at this gig (carrying that status); Send to Maintenance is never blocked. Review of adea8b3 (10-10 19:00): needs changes (kit-level note rows read as checked, duplicate adds); sent to the Lead. Cameron 10-10 19:15: un-check after a note is not a bug; the note popup adds lines for last status / location, gig name, and last notes (if any); its buttons go in one row: Cancel, Clear note, Save. #246 must merge main (conflict with #253 in inventoryManagement.service.ts). **Kit notes (Cameron, 10-10 19:35):** a note on a kit writes one kit row with the note and nothing else (prod bug on main: a note on "Stage Snakes" at 19:26:30Z cascaded into two Checked Out unit rows and lost the note); a kit note must never make unscanned items read as checked. Sent to the Lead; fix ships with #246. **Re-review at a47064d (10-10 20:45):** Cameron's items all pass (kit note = one kit row, lines never inherit a kit row, popup lines and one-row buttons, duplicate adds); two small fixes sent (carry location from another gig's record; "+ Add" on a lot opens the counter). After that: Cameron tests claude/185-phone against dev before merge (dev already has 20261019000000). Cameron tests the final phone changes on a branch before deploy. Mockup: https://claude.ai/artifact/JCVPy7Eid54tiLwZnteohd
-- **#250** (Docs Lead, equipment pages): reviewed 10-10; one change needed (the "any" line scan/count steps aren't live until #246). Sent to the Docs Lead (released again by Cameron 10-10 ~21:45).
-- Next prod deploy carries #251, #252, #253, #254 (no migrations). **Held for the Docs Lead's pre-deploy test on dev (Cameron, 10-10 ~21:45);** the results go on #250 or a new issue, headed "Pre-deploy test of main @ <sha>". Prod still has #248's two bugs and the Locations bug until then.
+- #250 merged 10-10 (equipment user-guide pages).
+- Next prod deploy carries #251, #252, #253, #254 (no migrations). Docs Lead's pre-deploy test of main @ 248994e (on #250): #251 and #252 pass; #253/#254 improve on prod, but lots in a case showed once per gig (#255). **Cameron (10-10 ~23:00): wait for the #255 fix (PR #257), then deploy.** The Docs Lead re-tests #257 on dev first. Also found: #256 (desktop Track a gig: the scanner's manual tag entry is blocked by the dialog; old bug, not yet released). Prod still has #248's two bugs and the Locations bug until then.
 
 ### 3c. Ready to build, nothing blocking
 
