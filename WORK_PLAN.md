@@ -96,7 +96,12 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
     - Published-page changes are in **PR #243, to merge after the deploy that carries #239** (stacked on #241).
     - App follow-ups are filed as **#242**: raw event names in History, Write off has no confirmation, a Missing record's Retired On is still editable, the locked-year message, Undo is reachable only from the gig, and kits after a partial write-off.
   - **PR #241 (merge now):** two pages already wrong for prod. The Equipment overview still said Assets instead of Items, units and lots, and the gig Equipment tab didn't list Equipment needed.
-  - **Still to draft, once they merge:** #240 (packing list with "any" lines) and #185 PR 2 (ad-hoc pack-out; scan or search to add kits and items, in Pack-Out and Load Truck only).
+  - **Ready for the next deploy (10-10):**
+    - PR #243 now covers History's **Equipment Written Off** and **Write-off Undone** too.
+    - The held Equipment drafts match #244: the write-off confirmation, the locked fields, the filed-year message and #242 items 5–7 as the app works now. They also cover the packing list (#240) and the gig Equipment table's **Status** and **Location** columns.
+    - Packing-list app problems are filed as **#245**: partly packed lots show no count; a unit's status can disagree with the packed count; print ignores the Columns choice; the print header's counts; container contents aren't indented.
+    - The demo seed has no counted "any" line (every "any" item is tagged), so that case can't be screenshotted yet.
+  - **Still to draft, once it merges:** #185 PR 2 (ad-hoc pack-out; scan or search to add kits and items, in Pack-Out and Load Truck only).
 - **Equipment conflicts, two questions from checking #230 on dev (Docs Lead, 10-09):**
   1. **The shared-unit message also lists lots.** On the Oct 17 gigs it reads "Equipment conflict with kits: Main PA … (Speaker Stand, Tripod, Speakon Speaker Cable, 50 ft, Voltline PD-20 … (#DSL-0211))". The stands and cables are lots, already counted in the per-item shortage, and a lot in two kits isn't "the same unit booked twice". So a lot with plenty spare would still be flagged.
   2. **The card's "This gig: 4 (Full Band Sound Package × 4)"** reads as four packages. It means 4 speakers from that kit. Wording like "4 via Full Band Sound Package" would be clearer.
