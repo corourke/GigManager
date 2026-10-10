@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bucketsAt, placementOf, type TrackingRow } from './locations';
+import { bucketsAt, currentRows, placementOf, type TrackingRow } from './locations';
 import { RETURNED_STATUS } from '../config/inventoryWorkflow';
 
 // #186 / #185: where a unit or lot is, from the append-only tracking history.
@@ -198,6 +198,31 @@ describe('partial returns and what is still out at a gig (#185)', () => {
     const movedOn = row({ asset_id: 'u1', gig_id: 'gig-b', status: 'Checked Out', scanned_at: '2026-10-02T10:00:00Z' });
     expect(bucketsAt([here, movedOn], unit, 'gig-a')).toEqual([]);
     expect(bucketsAt([here], { ...unit, status: 'Missing', retired_on: '2026-10-09' }, 'gig-a')).toEqual([]);
+  });
+});
+
+describe('currentRows (Equipment → Locations)', () => {
+  const isContainer = (k: string) => k === 'case';
+
+  it('a lot keeps its newest row per (gig, kit), so a split lot shows at each gig', () => {
+    const rows = [
+      row({ id: '1', asset_id: 'lot', gig_id: 'gig-a', quantity: 4, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ id: '2', asset_id: 'lot', gig_id: 'gig-b', quantity: 3, scanned_at: '2026-10-02T10:00:00Z' }),
+    ];
+    expect(currentRows(rows, { isLot: (id) => id === 'lot' }).map((r) => r.id)).toEqual(['1', '2']);
+    expect(currentRows(rows).map((r) => r.id)).toEqual(['2']);
+  });
+
+  it('a container\'s newer kit-only row drops its units\' older rows; a tie (the same scan) keeps them', () => {
+    const at = '2026-10-02T10:00:00Z';
+    const rows = [
+      row({ id: 'k1', kit_id: 'case', asset_id: null, scanned_at: at }),
+      row({ id: 'u1', kit_id: 'case', asset_id: 'u1', scanned_at: at }),
+      row({ id: 'u2', kit_id: 'case', asset_id: 'u2', scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ id: 'l1', kit_id: 'logical', asset_id: 'u3', scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ id: 'k2', kit_id: 'logical', asset_id: null, scanned_at: at }),
+    ];
+    expect(currentRows(rows, { isContainer }).map((r) => r.id)).toEqual(['k1', 'u1', 'l1', 'k2']);
   });
 });
 
