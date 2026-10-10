@@ -559,6 +559,77 @@ describe('ReviewScannedDataDialog: categories (10-06)', () => {
 
 // #130 / #133 step 3: a receipt scanned on a gig links its expensed lines to the gig,
 // one money-out row each. The purchase itself, and depreciated equipment, are not the gig's.
+// #226 item 6: a line tracked as equipment AND expensed must have an expense category.
+describe('ReviewScannedDataDialog: expense category on a tracked, expensed line (#226 item 6)', () => {
+  const NEEDS = 'Choose an expense category';
+  const line = (over: Record<string, unknown> = {}) => ({
+    description: 'Strap', quantity: 1, item_price: 50, item_cost: 50, is_asset: true, ...over,
+  });
+  const invoice = (items: any[]) => ({ vendor: 'Amazon', purchase_date: '2026-07-05', total_inv_amount: 50, items });
+  const select = (name: string) => screen.getByRole('combobox', { name }) as HTMLSelectElement;
+
+  beforeEach(() => vi.clearAllMocks());
+  const openNew = async (items: any[]) => {
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" scannedData={invoice(items)} file={null} />);
+    await screen.findByRole('group', { name: 'Tax treatment: Strap' });
+    const cats = await import('../services/purchaseCategory.service');
+    await waitFor(() => expect(cats.getExpenseCategories).toHaveBeenCalled());
+  };
+
+  it('a tracked, expensed line with no expense category shows the message and blocks Save', async () => {
+    await openNew([line({ category: 'Gadgets' })]);
+    expect(select('Expense category: Strap').value).toBe('');
+    expect(screen.getByText(NEEDS)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Purchase' })).toBeDisabled();
+  });
+
+  it('saves once an expense category is chosen, and the message goes away', async () => {
+    await openNew([line({ category: 'Gadgets' })]);
+    await userEvent.selectOptions(select('Expense category: Strap'), 'Supplies');
+    expect(screen.queryByText(NEEDS)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+    expect(vi.mocked(createPurchaseWithUnits).mock.calls[0][1]!.map((i: any) => i.category)).toEqual(['Supplies']);
+  });
+
+  it('blocks Save the moment an untracked line with no category is tracked as equipment', async () => {
+    await openNew([line({ is_asset: false, category: undefined })]);
+    expect(screen.queryByText(NEEDS)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('switch', { name: 'Track Strap as equipment' }));
+    await setEquipment('Strap', { category: 'Audio' });
+    expect(screen.getByText(NEEDS)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Purchase' })).toBeDisabled();
+  });
+
+  it('an untracked expensed line with no category is unchanged: no message, and it saves', async () => {
+    await openNew([line({ is_asset: false })]);
+    expect(select('Expense category: Strap').value).toBe('');
+    expect(screen.queryByText(NEEDS)).not.toBeInTheDocument();
+    const save = screen.getByRole('button', { name: 'Save Purchase' });
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+  });
+
+  it('a filed-year purchase is not blocked: only descriptions save there', async () => {
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'Amazon', purchase_date: '2025-02-14', total_inv_amount: 50, description: 'Straps', gig_id: null,
+      items: [{ id: 'l1', row_type: 'item', tax_treatment: 'expense', description: 'Strap', quantity: 1, item_price: 50, item_cost: 50, asset_id: null, category: null, gig_id: null }],
+      assets: [], attachments: [],
+    } as any);
+    const years = await import('../services/taxYear.service');
+    vi.mocked(years.getLockedTaxYears).mockResolvedValue(new Set([2025]));
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await screen.findByRole('group', { name: 'Tax treatment: Strap' });
+    await userEvent.click(screen.getByRole('switch', { name: 'Track Strap as equipment' }));
+    await setEquipment('Strap', { category: 'Audio' });
+    expect(select('Expense category: Strap')).toBeDisabled();
+    expect(screen.queryByText(NEEDS)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled();
+  });
+});
+
 describe('ReviewScannedDataDialog: Upload Receipt on a gig (#130)', () => {
   beforeEach(() => vi.clearAllMocks());
 
