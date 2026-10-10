@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#226 item 6, PR #252** (coordinator's sub-agent, merged 10-10): a purchase line that is tracked and expensed needs an expense category before Save (filed years exempt).
+
 - **PR #251** (coordinator's sub-agent, merged 10-10): #248 follow-up. The $0-total guard skips filed years, "Use $X" keeps line costs, and the message replaces the Mismatch banner.
 
 - **Prod deploy, 10-10 ~16:00 UTC** (Cameron): #247 (missing build files 404, chunk self-repair) and #248 ($0 invoice total guard). No migrations; prod at 20261018000000. Coordinator verified read-only: `/static/nope.js` → 404, `/gigs` and `/assets/new` → 200, entry script served from `/static/`.
