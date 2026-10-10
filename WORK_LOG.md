@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #254** (coordinator, merged 10-10): Locations reports each item at its own newest record (Cameron: a container's newer note or override doesn't move its contents); NotificationBell test waits for the Radix menu to take clicks (CI flake).
+
 - **PR #253** (coordinator's sub-agent, merged 10-10): Equipment → Locations shows each case, unit and lot at its newest record across gigs (Cameron's report: a case showed an older gig's In Transit / Car). New `currentRows()` in src/utils/locations.ts; filters applied after the newest-row pick.
 
 - **#226 item 6, PR #252** (coordinator's sub-agent, merged 10-10): a purchase line that is tracked and expensed needs an expense category before Save (filed years exempt).

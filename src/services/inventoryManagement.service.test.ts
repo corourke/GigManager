@@ -1254,15 +1254,17 @@ describe('inventoryManagement.service', () => {
         units.map((u) => [u, 'In Warehouse', 'Garage', '2026-10-10T06:03:16.329Z']));
     });
 
-    it('a newer kit-only scan of a container moves what\'s in it: its units\' older rows don\'t linger', async () => {
+    it('each item reports its own newest row: a newer kit-only row for the container (e.g. a note) doesn\'t move its units (Cameron, 10-10)', async () => {
       const { getItemsByLocation } = await import('./inventoryManagement.service');
       mockRows(gigARows);
 
       const result = await getItemsByLocation('org-1', { status: allStatuses });
 
-      expect(result).toEqual([
-        expect.objectContaining({ kit_id: 'case', asset_id: null, status: 'In Warehouse', location: 'Garage', scanned_at: '2026-10-07T14:24:45.187Z' }),
+      expect(result.filter((i) => !i.asset_id)).toEqual([
+        expect.objectContaining({ kit_id: 'case', status: 'In Warehouse', location: 'Garage', scanned_at: '2026-10-07T14:24:45.187Z' }),
       ]);
+      expect(result.filter((i) => i.asset_id).map((i) => [i.asset_id, i.status, i.location, i.scanned_at]).sort()).toEqual(
+        units.map((u) => [u, 'In Transit', 'Car', '2026-10-02T00:06:09.133Z']));
     });
 
     it('filters on where things are now: an older row that matches the filter isn\'t shown', async () => {
