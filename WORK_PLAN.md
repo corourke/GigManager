@@ -91,6 +91,17 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **#246 guide drafts (Docs Lead, 10-10 22:45 UTC):** on branch `claude/docs-246-draft` (67642f1), not a PR. Held until #246 merges; I'll update them after Cameron's test.
+  - **Pages:** `mobile/field-inventory.md` (Scanning equipment on your phone) and the new `mobile/adding-at-pack-out.md`, plus cross-references from the gig Equipment and packing-list pages.
+  - **Written from claude/185-phone at 7fa117b,** with labels checked on dev. Nothing saved: I only opened the + Add search, the note popup, the counter and Finish unload.
+  - **Noticed in #246 while drafting, for the Equipment Lead** (not filed; the branch is still changing):
+    1. Scanning a listed lot's tag records 1 piece without opening the counter. "+ Add" on the same lot does open it.
+    2. A note on a line with no record anywhere writes In Warehouse, so in Unload that line reads as checked.
+    3. "Select a gig from the dashboard…" is shown to Admins, Managers and Viewers, whose bottom bar says Gigs, not Dashboard.
+    4. "Before you pack" and "Pack anyway" also appear in Load Truck. Fine, but the guide says "in Pack-Out" for planned gear.
+    5. Wording differs between screens for "any" lines: the phone shows "Any · 2 / 4"; the web packing list shows "2 of 4" or "7 counted · 3 short".
+    6. Only the person who added a kit can Remove it; Admins can't.
+    7. Additions and "any" lines have no note button.
 - **Pre-deploy test of main @ 248994e (Docs Lead, 10-10 22:30 UTC).** The full report is on PR #250.
   - **#251 and #252: pass** for Admin and Manager, filed-year cases included. Staff and Viewer have no Financials.
   - **#253 and #254: partial.**
