@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { AppRoutes } from './screens';
 
@@ -80,14 +80,28 @@ describe('AppRoutes lazy screens', () => {
     expect(await screen.findByText('GigListScreen stub')).toBeInTheDocument();
   });
 
-  it('offers a reload when a screen chunk fails to load', async () => {
+  it('repairs and reloads once, then offers a reload, when a screen chunk fails to load', async () => {
     const swallow = (e: ErrorEvent) => e.preventDefault();
     window.addEventListener('error', swallow);
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    renderAt('/team');
-    expect(await screen.findByRole('button', { name: 'Reload' })).toBeInTheDocument();
-    consoleError.mockRestore();
-    window.removeEventListener('error', swallow);
+    const originalLocation = window.location;
+    const reload = vi.fn();
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...originalLocation, reload } });
+    try {
+      const first = renderAt('/team');
+      expect(await screen.findByText('Updating the app…')).toBeInTheDocument();
+      await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+      first.unmount();
+
+      // Still failing after that reload: no second automatic reload
+      renderAt('/team');
+      expect(await screen.findByRole('button', { name: 'Reload' })).toBeInTheDocument();
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: originalLocation });
+      consoleError.mockRestore();
+      window.removeEventListener('error', swallow);
+    }
   });
 });
 
