@@ -549,6 +549,16 @@ export default function ReviewScannedDataDialog({
     });
   };
 
+  // "Use $X" on the $0 total message: the total becomes the lines' own cost sum,
+  // so the line costs stay as they are (re-burdening would re-spread them by price).
+  const useLinesTotal = () => {
+    setFormData(prev => {
+      if (!prev) return null;
+      const sum = prev.items.reduce((acc, item) => acc + ((item.item_cost ?? 0) * item.quantity), 0);
+      return { ...prev, total_inv_amount: Number(sum.toFixed(2)) };
+    });
+  };
+
   const handleItemChange = (index: number, field: keyof ScannedItem, value: string | number | boolean) => {
     setFormData(prev => {
       if (!prev) return null;
@@ -943,7 +953,8 @@ export default function ReviewScannedDataDialog({
   const diff = Math.abs(calculatedTotalCost - formData.total_inv_amount);
   const hasMismatch = diff > 0.05;
   // A $0 or empty invoice total over lines that cost something is a missed field (#226).
-  const missingTotal = !(formData.total_inv_amount > 0) && calculatedTotalCost > 0.005;
+  // Not in a filed year: the total is locked there and only descriptions are saved.
+  const missingTotal = !purchaseLocked && !(formData.total_inv_amount > 0) && calculatedTotalCost > 0.005;
   const undecided = formData.items.filter(item => !item.tax_treatment).length;
   // New equipment records need a category (lines already tracked have one).
   const noEquipCategory = formData.items
@@ -1373,7 +1384,8 @@ export default function ReviewScannedDataDialog({
                 )}
               </div>
 
-              {/* Reconciliation */}
+              {/* Reconciliation (the $0 total message below replaces it when the total is missing) */}
+              {!missingTotal && (
               <div style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: `1px solid ${hasMismatch ? '#fde68a' : '#a7f3d0'}`, background: hasMismatch ? '#fffbeb' : '#ecfdf5', color: hasMismatch ? '#92400e' : '#065f46' }}>
                 <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: hasMismatch ? '#f59e0b' : '#10b981' }} />
                 <span>
@@ -1382,13 +1394,14 @@ export default function ReviewScannedDataDialog({
                   {hasMismatch && <span style={{ color: '#d97706' }}> (diff: ${diff.toFixed(2)})</span>}
                 </span>
               </div>
+              )}
               {missingTotal && (
                 <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
                   <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
                   <span>Enter the invoice total, or set it to match the lines (${calculatedTotalCost.toFixed(2)}).</span>
                   <button
                     type="button"
-                    onClick={() => handleHeaderChange('total_inv_amount', Number(calculatedTotalCost.toFixed(2)))}
+                    onClick={useLinesTotal}
                     style={{ marginLeft: 'auto', fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}
                   >
                     Use ${calculatedTotalCost.toFixed(2)}
