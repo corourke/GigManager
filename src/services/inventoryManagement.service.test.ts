@@ -676,7 +676,7 @@ describe('inventoryManagement.service', () => {
           { equipment_item_id: 'item-xlr', tag_number: 'OLD-1', status: 'Disposed', retired_on: '2025-01-01' },
         ], error: null },
         inventory_tracking: { data: [
-          scan('k1', 'item-k12', { asset: { equipment_item_id: 'item-k12', tag_number: 'DSL-0101', serial_number: 'S1', manufacturer_model: 'QSC K12.2' } }),
+          scan('k1', 'item-k12', { location: 'Staging Area', asset: { equipment_item_id: 'item-k12', tag_number: 'DSL-0101', serial_number: 'S1', manufacturer_model: 'QSC K12.2' } }),
           scan('k3', 'item-k12', { status: 'In Warehouse', asset: { equipment_item_id: 'item-k12', tag_number: 'DSL-0103', serial_number: null, manufacturer_model: 'QSC K12.2' } }),
           scan('cables', 'item-xlr', { quantity: 7 }),
           scan('stands', 'item-stand', { quantity: 2 }),
@@ -685,7 +685,8 @@ describe('inventoryManagement.service', () => {
       const rows = await getPackingListReport('org-1', 'gig-1');
       const k12 = rows.find((r) => r.item_id === 'item-k12')!;
       expect(k12).toMatchObject({ kind: 'any', asset_id: null, asset_name: 'QSC K12.2', quantity: 2, packed: 1, counted: false });
-      expect(k12.packed_units).toEqual([{ asset_id: 'k1', tag_number: 'DSL-0101', serial_number: 'S1', quantity: 1 }]);
+      // Each with its own status and place, for the gig's Equipment card (Cameron, 10-09).
+      expect(k12.packed_units).toEqual([{ asset_id: 'k1', tag_number: 'DSL-0101', serial_number: 'S1', quantity: 1, status: 'Checked Out', location: 'Staging Area' }]);
       expect(rows.find((r) => r.item_id === 'item-xlr')).toMatchObject({ kind: 'any', quantity: 10, packed: 7, counted: true });
       expect(rows.find((r) => r.asset_id === 'stands')).toMatchObject({ kind: 'lot', lot_of: 6, quantity: 2, packed: 2 });
     });

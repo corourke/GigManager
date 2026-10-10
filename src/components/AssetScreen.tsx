@@ -78,6 +78,9 @@ const toOption = (i: { id: string; manufacturer_model: string; category: string;
   id: i.id, manufacturer_model: i.manufacturer_model, category: i.category,
   type: i.type ?? null, insurance_class: i.insurance_class ?? null, description: i.description ?? null,
 });
+const MISSING_NOTE = 'Written off as missing. To bring it back, use Undo in the gig\'s Not returned list.';
+/** What write_off_pieces sets on a record; only Undo changes these again (#242). */
+const WRITE_OFF_LOCKED_FIELDS = ['status', 'retired_on', 'liquidation_amt'] as const;
 const num = (v: string) => (v.trim() === '' ? null : parseFloat(v));
 
 /** A titled form section; its title names it for assistive tech. */
@@ -265,11 +268,14 @@ export default function AssetScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetQuery.isError]);
 
+  const isMissing = formData.status === 'Missing';
+
   const handleChange = (field: keyof FormData, value: string | boolean) => {
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
-      // Auto-set status to 'Disposed' when liquidation_amt is entered
-      if (field === 'liquidation_amt' && typeof value === 'string' && value.trim() !== '') {
+      // Auto-set status to 'Disposed' when liquidation_amt is entered (never for a written-off
+      // record: Missing is left only by Undo, and a flip would fail the save).
+      if (field === 'liquidation_amt' && typeof value === 'string' && value.trim() !== '' && prev.status !== 'Missing') {
         next.status = 'Disposed';
       }
       return next;
@@ -353,6 +359,11 @@ export default function AssetScreen({
       normalizedData.recovery_period = formData.recovery_period ? parseInt(formData.recovery_period) : defaultPeriod;
     } else {
       delete normalizedData.recovery_period;
+    }
+    // A written-off record's status, retired date and disposal amount belong to the write-off
+    // (only Undo changes them), so a save never carries them.
+    if (formData.status === 'Missing') {
+      for (const f of WRITE_OFF_LOCKED_FIELDS) delete normalizedData[f];
     }
     const changed = changeDetection.hasChanges
       ? createSubmissionPayload(normalizedData, changeDetection.originalData)
@@ -632,7 +643,7 @@ export default function AssetScreen({
                   <Select
                     value={formData.status}
                     onValueChange={(value) => handleChange('status', value)}
-                    disabled={formData.status === 'Missing'}
+                    disabled={isMissing}
                   >
                     <SelectTrigger id="status">
                       {formData.status in ASSET_STATUS_CONFIG ? (
@@ -653,11 +664,7 @@ export default function AssetScreen({
                       ))}
                     </SelectContent>
                   </Select>
-                  {formData.status === 'Missing' && (
-                    <p className="text-xs text-rose-700">
-                      Written off as missing. To bring it back, use Undo in the gig's Not returned list.
-                    </p>
-                  )}
+                  {isMissing && <p className="text-xs text-rose-700">{MISSING_NOTE}</p>}
                   {formData.status === 'Disposed' && (
                     <p className="text-xs text-amber-600">
                       This asset is marked as disposed. Enter a Disposal or Salvage Amount below if applicable.
@@ -703,7 +710,9 @@ export default function AssetScreen({
                     type="date"
                     value={formData.retired_on}
                     onChange={(e) => handleChange('retired_on', e.target.value)}
+                    disabled={isMissing}
                   />
+                  {isMissing && <p className="text-xs text-rose-700">{MISSING_NOTE}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -724,10 +733,12 @@ export default function AssetScreen({
                       min="0"
                       value={formData.liquidation_amt}
                       onChange={(e) => handleChange('liquidation_amt', e.target.value)}
+                      disabled={isMissing}
                       placeholder="0.00"
                       className={`pl-7 ${errors.liquidation_amt ? 'border-red-500' : ''}`}
                     />
                   </div>
+                  {isMissing && <p className="text-xs text-rose-700">{MISSING_NOTE}</p>}
                   {errors.liquidation_amt && (
                     <p className="text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-4 h-4" />

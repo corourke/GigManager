@@ -121,9 +121,75 @@ describe('AssetScreen', () => {
       serial_number: 'S1', tag_number: 'T1', quantity: 1, status: 'Missing', retired_on: '2026-10-09', acquisition_date: '2026-03-01',
     } as any)
     render(<AssetScreen {...mockProps} assetId="u1" />)
-    expect(await screen.findByText(/Written off as missing/)).toBeInTheDocument()
+    expect((await screen.findAllByText(/Written off as missing/)).length).toBeGreaterThan(0)
     expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled()
     vi.mocked(svc.getAsset).mockResolvedValue({} as any)
+  })
+
+  describe('a written-off (Missing) record (#242)', () => {
+    const missing = {
+      id: 'u1', organization_id: 'org-1', equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
+      serial_number: 'S1', tag_number: 'T1', quantity: 1, status: 'Missing', retired_on: '2026-10-09', acquisition_date: '2026-03-01',
+      item_price: 500, item_cost: 400, replacement_value: 900, liquidation_amt: null,
+    }
+    const loadMissing = async () => {
+      const svc = await import('../services/asset.service')
+      vi.mocked(svc.getAsset).mockResolvedValue(missing as any)
+      vi.mocked(svc.updateAsset).mockResolvedValue({ id: 'u1' } as any)
+      render(<AssetScreen {...mockProps} assetId="u1" />)
+      expect(await screen.findByDisplayValue('S1')).toBeInTheDocument()
+      return svc
+    }
+    const restore = async () => {
+      const svc = await import('../services/asset.service')
+      vi.mocked(svc.getAsset).mockResolvedValue({} as any)
+    }
+
+    it('locks Retired On and the disposal amount like Status, with the note pointing to Undo', async () => {
+      await loadMissing()
+      expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled()
+      expect(screen.getByLabelText('Retired On')).toBeDisabled()
+      expect(screen.getByLabelText(/Disposal or Salvage Amount/)).toBeDisabled()
+      expect(screen.getAllByText(/use Undo in the gig's Not returned list/).length).toBeGreaterThanOrEqual(3)
+      await restore()
+    })
+
+    it('a disposal amount does not flip a Missing record to Disposed', async () => {
+      await loadMissing()
+      // The field is disabled; force the change event to prove the handler is guarded too.
+      fireEvent.change(screen.getByLabelText(/Disposal or Salvage Amount/), { target: { value: '50' } })
+      expect(screen.queryByText(/marked as disposed/)).not.toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('Missing')
+      await restore()
+    })
+
+    it('the save payload never changes status, retired_on or liquidation_amt', async () => {
+      const ue = userEvent.setup()
+      const svc = await loadMissing()
+      fireEvent.change(screen.getByLabelText(/Disposal or Salvage Amount/), { target: { value: '50' } })
+      fireEvent.change(screen.getByLabelText('Retired On'), { target: { value: '2025-01-01' } })
+      const price = document.getElementById('item_price') as HTMLElement
+      await ue.clear(price)
+      await ue.type(price, '600')
+      await ue.click(screen.getByRole('button', { name: /Update Unit/ }))
+      await waitFor(() => expect(svc.updateAsset).toHaveBeenCalled())
+      const payload = vi.mocked(svc.updateAsset).mock.calls[0][1] as Record<string, unknown>
+      expect(payload).toHaveProperty('item_price', 600)
+      for (const f of ['status', 'retired_on', 'liquidation_amt']) expect(payload, f).not.toHaveProperty(f)
+      await restore()
+    })
+
+    it('a record that is not Missing still flips to Disposed when a disposal amount is typed', async () => {
+      const ue = userEvent.setup()
+      const svc = await import('../services/asset.service')
+      vi.mocked(svc.getAsset).mockResolvedValue({ ...missing, status: 'Active', retired_on: null } as any)
+      render(<AssetScreen {...mockProps} assetId="u1" />)
+      expect(await screen.findByDisplayValue('S1')).toBeInTheDocument()
+      expect(screen.getByLabelText('Retired On')).toBeEnabled()
+      await ue.type(screen.getByLabelText(/Disposal or Salvage Amount/), '50')
+      expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('Disposed')
+      await restore()
+    })
   })
 
   it('clearing a money field on a unit saves null, not nothing (#226)', async () => {

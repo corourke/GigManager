@@ -28,7 +28,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
-import { RETURNED_STATUS } from '../../config/inventoryWorkflow';
+import { packedPieces } from '../../utils/packingSummary';
 import {
   getGigsForReportPicker,
   getManifestReport,
@@ -558,10 +558,10 @@ function PackingListTab({
   }, [rows]);
 
   // Pieces, not lines (#185): what the kits ask for, and how many of them are packed.
-  const pieces = useMemo(() => rows.reduce((acc, r) => {
-    const packed = r.packed ?? (r.status && r.status !== RETURNED_STATUS ? r.quantity : 0);
-    return { total: acc.total + r.quantity, packed: acc.packed + Math.min(packed, r.quantity) };
-  }, { total: 0, packed: 0 }), [rows]);
+  // The gig's Equipment card counts each kit the same way (utils/packingSummary).
+  const pieces = useMemo(() => rows.reduce((acc, r) => (
+    { total: acc.total + r.quantity, packed: acc.packed + packedPieces(r) }
+  ), { total: 0, packed: 0 }), [rows]);
 
   const selectedGig = fixedGig;
   const selectedGigTitle = selectedGig.title;

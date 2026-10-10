@@ -98,8 +98,11 @@ export interface PackingListRow {
   contents?: string[];
   /** How many of `quantity` are packed (scanned or counted, not returned). */
   packed?: number;
-  /** An "any" line: the units and lots packed for it. */
-  packed_units?: { asset_id: string; tag_number: string | null; serial_number: string | null; quantity: number }[];
+  /** An "any" line: the units and lots packed for it, each with its own status and place. */
+  packed_units?: {
+    asset_id: string; tag_number: string | null; serial_number: string | null; quantity: number;
+    status?: string | null; location?: string | null;
+  }[];
   /** An "any" line of an item with no tags: its pieces are counted, not scanned. */
   counted?: boolean;
   asset_id?: string | null;
@@ -739,6 +742,7 @@ export async function getPackingListReport(organizationId: string, gigId: string
               .map((r) => ({
                 asset_id: r.asset_id!, tag_number: (r as any).asset?.tag_number ?? null,
                 serial_number: (r as any).asset?.serial_number ?? null, quantity: packedIn(r.asset_id, unit.kit_id),
+                status: r.status, location: r.location ?? null,
               }))
               .filter((u) => u.quantity > 0);
             rows.push({
