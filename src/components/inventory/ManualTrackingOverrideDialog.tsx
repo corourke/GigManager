@@ -34,6 +34,8 @@ interface ManualTrackingOverrideDialogProps {
   assetId?: string;
   isContainerKit?: boolean;
   assetIds?: string[];
+  /** A whole-kit override of a logical kit: its own kit row moves with its units. */
+  keepKitRow?: boolean;
   userId: string;
   userRole?: UserRole;
   onSuccess: () => void;
@@ -52,6 +54,7 @@ export function ManualTrackingOverrideDialog({
   assetId,
   isContainerKit,
   assetIds,
+  keepKitRow,
   userId,
   onSuccess,
   targetLabel,
@@ -90,6 +93,7 @@ export function ManualTrackingOverrideDialog({
         createdBy: userId,
         isContainerKit,
         assetIds,
+        keepKitRow,
       });
       toast.success('Tracking record updated');
       onOpenChange(false);
@@ -98,8 +102,8 @@ export function ManualTrackingOverrideDialog({
       setNotes('');
       setMarkForMaintenance(false);
       onSuccess();
-    } catch {
-      toast.error('Failed to update tracking record');
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : 'Failed to update tracking record');
     } finally {
       setSubmitting(false);
     }

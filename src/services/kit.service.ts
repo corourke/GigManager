@@ -784,14 +784,29 @@ export interface ScanUnit {
   kit_id: string;
   kit_name: string | null;
   is_container: boolean;
+  /** unit / lot: a specific record; any: N of an item (#185); container: a sealed case. */
+  kind: 'unit' | 'lot' | 'any' | 'container';
   asset_id: string | null;
+  /** An "any" line's item. */
+  item_id?: string | null;
   asset_name: string | null;
   tag_number: string | null;
-  /** The component's own quantity (e.g. "3x XLR cable") — scanning tracks
-   * status per asset_id, not per physical copy, so this is a count shown
-   * alongside the row rather than a reason to emit multiple rows. */
+  /** How many the kit asks for, multiplied through non-container sub-kits
+   * (2 copies of a sub-kit is 2x everything in it). Scanning tracks status per
+   * asset_id, not per physical copy, so this is a count on the row. */
   quantity: number;
+  /** A lot line: how many the lot holds ("from a lot of 6"). */
+  lot_of?: number | null;
+  /** A container: what it holds, e.g. "8 × XLR Cable". */
+  contents?: string[];
 }
+
+const nodeLabel = (n: KitComponentTreeNode) =>
+  n.type === 'asset' ? n.asset?.manufacturer_model ?? 'Unnamed item'
+    : n.type === 'item' ? n.item?.manufacturer_model ?? 'Unknown item'
+      : n.kit?.name ?? 'Unknown Kit';
+const isLotAsset = (a: { serial_number?: string | null; tag_number?: string | null } | null | undefined) =>
+  !a?.serial_number?.trim() && !a?.tag_number?.trim();
 
 /**
  * Every physically scannable unit in a kit's tree, respecting container
@@ -800,38 +815,53 @@ export interface ScanUnit {
  * container. A container sub-kit becomes its own single unit, however
  * deeply nested, and is never drilled into further; a non-container
  * sub-kit is transparent, contributing whatever its own contents resolve
- * to. Loose assets (not sealed inside any container) are attributed to
- * `owningKit` — the top kit whose tree this is, matching how
+ * to. Loose assets and "any" lines (not sealed inside any container) are
+ * attributed to `owningKit` — the top kit whose tree this is, matching how
  * gig_kit_assignments only ever assigns top-level kits.
  */
-export function flattenToScanUnits(nodes: KitComponentTreeNode[], owningKit: { id: string; name: string }): ScanUnit[] {
+export function flattenToScanUnits(nodes: KitComponentTreeNode[], owningKit: { id: string; name: string }, multiplier = 1): ScanUnit[] {
   const units: ScanUnit[] = [];
   for (const node of nodes) {
+    const quantity = node.quantity * multiplier;
     if (node.type === 'asset') {
+      const lot = isLotAsset(node.asset as any);
       units.push({
         kit_id: owningKit.id,
         kit_name: owningKit.name,
         is_container: false,
+        kind: lot ? 'lot' : 'unit',
         asset_id: node.asset?.id ?? null,
         asset_name: node.asset?.manufacturer_model ?? null,
         tag_number: node.asset?.tag_number ?? null,
-        quantity: node.quantity,
+        quantity,
+        lot_of: lot ? Number((node.asset as any)?.quantity ?? 1) : null,
       });
     } else if (node.type === 'item') {
-      // "Any" lines are packed by scanning or counting pieces of the item: #185.
-      continue;
+      units.push({
+        kit_id: owningKit.id,
+        kit_name: owningKit.name,
+        is_container: false,
+        kind: 'any',
+        asset_id: null,
+        item_id: node.item?.id ?? null,
+        asset_name: node.item?.manufacturer_model ?? null,
+        tag_number: null,
+        quantity,
+      });
     } else if (node.kit?.is_container) {
       units.push({
         kit_id: node.kit.id,
         kit_name: node.kit.name,
         is_container: true,
+        kind: 'container',
         asset_id: null,
         asset_name: null,
         tag_number: node.kit.tag_number ?? null,
-        quantity: node.quantity,
+        quantity,
+        contents: node.children.map((c) => `${c.quantity} × ${nodeLabel(c)}`),
       });
     } else {
-      units.push(...flattenToScanUnits(node.children, owningKit));
+      units.push(...flattenToScanUnits(node.children, owningKit, quantity));
     }
   }
   return units;

@@ -201,6 +201,58 @@ describe('PackingList (one gig, on the gig page since #39)', () => {
   });
 });
 
+// #185 (mockup screen 6): "any" lines with progress and the units under them, counted lines,
+// lots, containers listing their contents, a pieces summary, and print blanks.
+describe('PackingList: any lines, counted lines and pieces (#185)', () => {
+  const pa = { group_kit_id: 'kit-pa', group_kit_name: 'Main PA', group_is_container: false, group_tag_number: null };
+  const ROWS: PackingListRow[] = [
+    { kit_id: 'kit-pa', kit_name: 'Main PA', is_container: false, kind: 'any', item_id: 'item-k12', asset_id: null,
+      asset_name: 'QSC K12.2', tag_number: null, quantity: 2, packed: 1, counted: false,
+      packed_units: [{ asset_id: 'k1', tag_number: 'DSL-0101', serial_number: 'S1', quantity: 1 }], ...pa, ...blank },
+    { kit_id: 'kit-pa', kit_name: 'Main PA', is_container: false, kind: 'any', item_id: 'item-xlr', asset_id: null,
+      asset_name: 'XLR Cable, 50 ft', tag_number: null, quantity: 10, packed: 7, counted: true, packed_units: [], ...pa, ...blank },
+    { kit_id: 'kit-pa', kit_name: 'Main PA', is_container: false, kind: 'lot', lot_of: 6, asset_id: 'stands',
+      asset_name: 'Speaker Stand', tag_number: null, quantity: 2, packed: 0, ...pa, ...blank },
+    { kit_id: 'kit-case', kit_name: 'Mic Case', is_container: true, kind: 'container', asset_id: null, asset_name: null,
+      tag_number: 'MC-1', quantity: 1, packed: 1, contents: ['8 × Shure SM58', '2 × Radial DI'],
+      group_kit_id: 'kit-case', group_kit_name: 'Mic Case', group_is_container: true, group_tag_number: 'MC-1', ...blank, status: 'Checked Out' },
+  ];
+
+  it('an "any" line shows its progress and the units packed for it', async () => {
+    (getPackingListReport as any).mockResolvedValue(ROWS);
+    await renderPackingListTab();
+    const row = (await screen.findByText('QSC K12.2')).closest('tr')!;
+    expect(within(row).getByText('Any')).toBeInTheDocument();
+    expect(within(row).getByText('1 of 2')).toBeInTheDocument();
+    expect(within(row).getByText('DSL-0101')).toBeInTheDocument();
+  });
+
+  it('a counted line says how many were counted and how many are short', async () => {
+    (getPackingListReport as any).mockResolvedValue(ROWS);
+    await renderPackingListTab();
+    const row = (await screen.findByText('XLR Cable, 50 ft')).closest('tr')!;
+    expect(within(row).getByText('7 counted · 3 short')).toBeInTheDocument();
+  });
+
+  it('a lot line says how many the lot holds; a container lists what it holds', async () => {
+    (getPackingListReport as any).mockResolvedValue(ROWS);
+    await renderPackingListTab();
+    expect(await screen.findByText('Speaker Stand')).toBeInTheDocument();
+    expect(screen.getByText('from a lot of 6')).toBeInTheDocument();
+    expect(screen.getByText('8 × Shure SM58 · 2 × Radial DI')).toBeInTheDocument();
+  });
+
+  it('sums pieces and packed pieces, and prints write-in blanks for scanned lines and a count box for counted ones', async () => {
+    (getPackingListReport as any).mockResolvedValue(ROWS);
+    await renderPackingListTab();
+    expect(await screen.findByText('15 pieces · 9 packed')).toBeInTheDocument();
+    const k12 = screen.getByText('QSC K12.2').closest('tr')!;
+    expect(within(k12).getAllByTestId('write-in')).toHaveLength(2);
+    const xlr = screen.getByText('XLR Cable, 50 ft').closest('tr')!;
+    expect(within(xlr).getByTestId('count-box')).toBeInTheDocument();
+  });
+});
+
 describe('ManifestReport — gig picker window (#109)', () => {
   const recent = { id: 'gig-1', title: 'Test Gig', start: '2026-07-12T19:00:00Z', timezone: 'America/Los_Angeles' };
   const old = { id: 'gig-old', title: 'Old Gig', start: '2025-01-10T19:00:00Z', timezone: 'America/Los_Angeles' };

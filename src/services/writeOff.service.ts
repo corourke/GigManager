@@ -4,6 +4,7 @@ import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { RETURNED_STATUS, SCANNING_MODES } from '../config/inventoryWorkflow';
 import { bucketsAt, type TrackingRow } from '../utils/locations';
+import { WRITE_OFF_LOCKED_MESSAGE, isLockedYearUndoError } from '../utils/writeOffMessages';
 
 // #185: what is still out at a gig, and writing missing pieces off (Cameron, 10-09).
 // Writing off and undoing go through the write_off_pieces / undo_write_off RPCs
@@ -134,6 +135,12 @@ export async function undoWriteOff(assetId: string): Promise<string> {
     if (error) throw error;
     return data as string;
   } catch (err) {
+    // The DB's locked-year text points to a "found" action the app doesn't have.
+    if (isLockedYearUndoError(err)) {
+      const locked: any = new Error(WRITE_OFF_LOCKED_MESSAGE);
+      locked.code = (err as { code?: string }).code;
+      throw locked;
+    }
     return handleApiError(err, 'undo the write-off');
   }
 }

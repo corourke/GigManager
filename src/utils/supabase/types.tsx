@@ -318,6 +318,10 @@ export interface ActivityLogContext {
   asset_model?: string;
   category?: string;
   quantity?: number;
+  // asset.written_off / asset.write_off_undone
+  note?: string | null;
+  split_from?: string | null;
+  merged_from?: string | null;
   changes?: StaffingChange[];
   change_count?: number;
   field_changes?: FieldChange[];

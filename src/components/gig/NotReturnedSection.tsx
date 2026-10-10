@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '../ui/alert-dialog';
 import GigSection from './view/GigSection';
 import {
   getGigReturns, markReturned, undoWriteOff, writeOffPieces,
@@ -10,6 +14,7 @@ import {
 import { getLockedTaxYears } from '../../services/taxYear.service';
 import { recordKind } from '../../utils/equipmentItems';
 import { formatDateDisplay } from '../../utils/dateUtils';
+import { WRITE_OFF_LOCKED_MESSAGE } from '../../utils/writeOffMessages';
 
 interface NotReturnedSectionProps {
   organizationId: string;
@@ -89,7 +94,7 @@ export default function NotReturnedSection({ organizationId, gigId, gigEnd, canE
                     {w.record.retired_on && <span className="ml-2 text-xs text-muted-foreground">{`written off ${formatDateDisplay(`${w.record.retired_on}T12:00:00Z`, 'UTC')}`}</span>}
                     {w.note && <span className="ml-2 text-xs text-muted-foreground">{w.note}</span>}
                     {canEdit && isLocked && (
-                      <p className="text-xs text-amber-700">{`${year} is locked (filed), so this stays written off. If it turns up, record it as found this year.`}</p>
+                      <p className="text-xs text-amber-700">{WRITE_OFF_LOCKED_MESSAGE}</p>
                     )}
                   </div>
                   {canEdit && (
@@ -114,10 +119,12 @@ function NotReturnedRow({ entry, canEdit, busy, onReturned, onWriteOff }: {
   onWriteOff: (n: number) => void;
 }) {
   const [asking, setAsking] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [count, setCount] = useState(String(entry.quantity));
   const lot = recordKind(entry.record) === 'lot';
   const n = Math.floor(Number(count));
   const valid = n >= 1 && n <= entry.quantity;
+  const pieces = lot ? n : 1;
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -134,7 +141,7 @@ function NotReturnedRow({ entry, canEdit, busy, onReturned, onWriteOff }: {
               <Input type="number" min={1} max={entry.quantity} value={count} aria-label="How many are missing"
                 onChange={(ev) => setCount(ev.target.value)} className="h-8 w-20" />
             )}
-            <Button size="sm" variant="destructive" disabled={busy || !valid} onClick={() => { onWriteOff(lot ? n : 1); setAsking(false); }}>Write off</Button>
+            <Button size="sm" variant="destructive" disabled={busy || !valid} onClick={() => setConfirming(true)}>Write off</Button>
             <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>Cancel</Button>
           </div>
         ) : (
@@ -144,6 +151,21 @@ function NotReturnedRow({ entry, canEdit, busy, onReturned, onWriteOff }: {
           </div>
         )
       )}
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{`Write off ${pieces} × ${nameOf(entry.record)} as missing?`}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`${pieces === 1 ? 'It\'ll' : 'They\'ll'} leave owned equipment and show as disposed of in ${new Date().getFullYear()}'s tax reports. You can undo this unless the tax year is filed.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700"
+              onClick={() => { onWriteOff(pieces); setAsking(false); }}>Write off</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </li>
   );
 }
