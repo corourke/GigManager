@@ -20,6 +20,54 @@ it returned there, or write it off as missing.
 Screenshots: Gig → Equipment → assign a kit; Tracking page.
 Source: Plan §4. Conflict detection: `docs/technical/conflict-detection.md`. -->
 
+## The gig's equipment table
+
+Open a gig and select the **Equipment** tab. The **Equipment** card at the top lists your
+organization's kits assigned to the gig, with how many there are, such as "2 kits". If
+there are none, you'll see "No equipment assigned yet".
+
+The columns are:
+
+- **Kit**: the kit's name. It's always shown.
+- **Tag #** and **Category**: the kit's tag and category.
+- **Holds**: how many pieces are in the kit, such as "25 pieces" for the Club Lighting Package. It counts everything,
+  including what's inside containers. The "Mic Case" adds its 15 mics and DI boxes, not 1.
+- **Rental value**: the kit's rental value. Only Admins and Managers see it.
+- **Notes**: the note on the kit's assignment to this gig.
+
+Select **Columns** to choose which columns to show. GigWrangler remembers your choice in
+this browser.
+
+<!-- 📸 The Harvest Gala Dinner & Dance Equipment card: Full Band Sound Package and Club Lighting Package with Tag #, Category, Holds, Status and Location shown. -->
+
+### Status and Location
+
+Two more columns are off at first. Turn them on under **Columns** to see where each
+kit's pieces are for this gig. They count pieces the way the
+[packing list](/equipment/inventory-reports/#packing-list) does, so a container is one
+piece. That's why these numbers can be lower than **Holds**.
+
+**Status** sums up the scan status of the kit's packed pieces:
+
+- "All On Site": every piece is packed and has the same status.
+- "Checked Out 9 of 15": 9 of the kit's 15 pieces are checked out, and the rest aren't
+  packed yet.
+- "On Site 6 of 15 · In Transit 3": the pieces are in more than one status. The most
+  common comes first.
+- "Not packed", in gray: nothing has been scanned out to this gig. Pieces that are
+  checked back in at the warehouse don't count as packed either.
+
+Point to a **Status** cell to see the full breakdown, such as "Checked Out 6 · Not
+packed 23".
+
+**Location** shows where the packed pieces are, such as "Staging Area". If they're in
+more than one place, it shows "Mixed"; point to it to see each place and how many are
+there. It's empty when nothing is packed.
+
+For example, with the demo data, the Harvest Gala Dinner & Dance shows the Full Band Sound
+Package as "Checked Out 6 of 29" at "Staging Area", and the Club Lighting Package as
+"Not packed".
+
 ## The Not returned list
 
 Open a gig and select the **Equipment** tab. The **Not returned** card sits below
