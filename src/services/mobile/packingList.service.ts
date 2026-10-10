@@ -212,7 +212,7 @@ export const packingListService = {
     const placed: any[] = [];
     for (let from = 0; placedIds.length > 0; from += PLACEMENT_PAGE) {
       const { data, error: placedError } = await supabase.from('inventory_tracking')
-        .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
+        .select('id, gig_id, kit_id, asset_id, status, location, quantity, notes, scanned_by, scanned_at, created_at')
         .in('asset_id', placedIds)
         .order('id', { ascending: true })
         .range(from, from + PLACEMENT_PAGE - 1);
@@ -228,10 +228,14 @@ export const packingListService = {
       if (away?.gig_id) elsewhere[asset.id] = { gig_id: away.gig_id, gig_title: null, status: away.status ?? 'Out' };
     }
     // Each unit's and container's newest record from any gig: a note carries its status (#246, Cameron 10-10).
-    type LastRecord = { gig_id: string; status: string; scanned_at: string };
-    const lastOf = (rows: TrackingRow[]): LastRecord | undefined => {
+    // With what the note popup shows: who, place, notes and the gig's name.
+    type LastRecord = { gig_id: string; gig_title: string | null; status: string; location: string | null; notes: string | null; scanned_by: string | null; scanned_at: string };
+    const lastOf = (rows: (TrackingRow & { notes?: string | null; scanned_by?: string | null })[]): LastRecord | undefined => {
       const r = [...rows].sort(compareNewestFirst)[0];
-      return r ? { gig_id: r.gig_id, status: r.status, scanned_at: r.scanned_at } : undefined;
+      return r ? {
+        gig_id: r.gig_id, gig_title: null, status: r.status, location: r.location ?? null,
+        notes: r.notes ?? null, scanned_by: r.scanned_by ?? null, scanned_at: r.scanned_at,
+      } : undefined;
     };
     const lastRecords: { assets: Record<string, LastRecord>; kits: Record<string, LastRecord> } = { assets: {}, kits: {} };
     for (const asset of assetMap.values()) {
@@ -242,7 +246,7 @@ export const packingListService = {
     const containerIds = [...new Set(kitAssignments.filter((a: any) => a.kit?.is_container).map((a: any) => a.kit_id as string))];
     await Promise.all(containerIds.map(async (kitId) => {
       const { data, error } = await supabase.from('inventory_tracking')
-        .select('gig_id, kit_id, asset_id, status, scanned_at, created_at')
+        .select('gig_id, kit_id, asset_id, status, location, notes, scanned_by, scanned_at, created_at')
         .eq('kit_id', kitId)
         .is('asset_id', null)
         .order('scanned_at', { ascending: false })
@@ -253,11 +257,12 @@ export const packingListService = {
       if (last) lastRecords.kits[kitId] = last;
     }));
 
-    const awayGigIds = [...new Set(Object.values(elsewhere).map((e) => e.gig_id))];
+    const lasts = [...Object.values(lastRecords.assets), ...Object.values(lastRecords.kits)];
+    const awayGigIds = [...new Set([...Object.values(elsewhere), ...lasts].map((e) => e.gig_id))];
     if (awayGigIds.length > 0) {
       const { data: awayGigs } = await supabase.from('gigs').select('id, title').in('id', awayGigIds);
       const titles = new Map((Array.isArray(awayGigs) ? awayGigs : []).map((g: any) => [g.id, g.title]));
-      for (const e of Object.values(elsewhere)) e.gig_title = titles.get(e.gig_id) ?? null;
+      for (const e of [...Object.values(elsewhere), ...lasts]) e.gig_title = titles.get(e.gig_id) ?? null;
     }
 
     for (const r of owned) {

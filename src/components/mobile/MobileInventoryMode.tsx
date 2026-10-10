@@ -55,6 +55,7 @@ type TrackingRecord = {
   scanned_at: string;
   scanned_by: string;
   notes?: string | null;
+  location?: string | null;
   created_at?: string;
   scanned_by_user?: {
     id: string;
@@ -74,6 +75,11 @@ type NoteDialogState = {
   /** Who wrote the newest row: their id, and their name if the row came with it. */
   lastScannedById?: string;
   lastScannedByName?: string;
+  /** The last record's status, place, gig and notes (Cameron, 10-10). */
+  lastStatus?: string;
+  lastLocation?: string | null;
+  lastGigTitle?: string | null;
+  lastNotes?: string | null;
   maintenanceRequired: boolean;
   assetStatus?: string | null;
 };
@@ -302,6 +308,11 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     assetId?: string;
   }) => {
     const { kitId, itemName, trackingRecord, asset, assetId } = params;
+    // The last record: the newer of the row here and its last record at any gig (a unit's, or a
+    // container's own), as a note would carry forward.
+    const isContainer = packingList?.kits?.some((a: any) => (a.kit_id ?? a.kit?.id) === kitId && a.kit?.is_container);
+    const away = assetId ? packingList?.last_records?.assets?.[assetId] : isContainer ? packingList?.last_records?.kits?.[kitId] : undefined;
+    const fromAway = !!away && (!trackingRecord || Date.parse(away.scanned_at) > Date.parse(trackingRecord.scanned_at));
 
     setNoteDialog({
       open: true,
@@ -309,13 +320,26 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       assetId,
       itemName,
       note: trackingRecord?.notes || '',
-      lastScannedAt: trackingRecord?.scanned_at,
-      lastScannedById: trackingRecord?.scanned_by,
-      lastScannedByName: personName(trackingRecord?.scanned_by_user) || undefined,
+      ...(fromAway ? {
+        lastScannedAt: away.scanned_at,
+        lastScannedById: away.scanned_by ?? undefined,
+        lastStatus: away.status,
+        lastLocation: away.location,
+        lastGigTitle: away.gig_title,
+        lastNotes: away.notes,
+      } : {
+        lastScannedAt: trackingRecord?.scanned_at,
+        lastScannedById: trackingRecord?.scanned_by,
+        lastScannedByName: personName(trackingRecord?.scanned_by_user) || undefined,
+        lastStatus: trackingRecord?.status,
+        lastLocation: trackingRecord?.location,
+        lastGigTitle: trackingRecord ? packingList?.gig_title ?? null : null,
+        lastNotes: trackingRecord?.notes,
+      }),
       maintenanceRequired: asset?.status === 'Maintenance',
       assetStatus: asset?.status || null,
     });
-  }, []);
+  }, [packingList]);
 
   const closeNoteDialog = () => {
     setNoteDialog({ open: false, note: '', maintenanceRequired: false });
@@ -1702,14 +1726,33 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                 <span className="text-muted-foreground">Scanned by</span>
                 <span className="text-right font-medium break-all">{scannedByName(noteDialog.lastScannedById, noteDialog.lastScannedByName, peopleNames)}</span>
               </div>
+              {noteDialog.lastStatus ? (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground">Status / Location</span>
+                    <span className="text-right font-medium">{[noteDialog.lastStatus, noteDialog.lastLocation?.trim()].filter(Boolean).join(' / ')}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground">Gig</span>
+                    <span className="text-right font-medium">{noteDialog.lastGigTitle || '—'}</span>
+                  </div>
+                </>
+              ) : null}
+              {noteDialog.lastNotes?.trim() ? (
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-muted-foreground">Notes</span>
+                  <span className="text-right font-medium break-words min-w-0">{noteDialog.lastNotes.trim()}</span>
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" className="h-11" onClick={closeNoteDialog}>Cancel</Button>
-            <Button variant="outline" className="h-11" onClick={() => setNoteDialog((current) => ({ ...current, note: '' }))}>Clear note</Button>
-            <Button className="h-11" onClick={() => void handleSaveNote()}>Save</Button>
-          </DialogFooter>
+          {/* One row across, phone width too, 44px tall (Cameron, 10-10). */}
+          <div className="flex flex-row gap-2">
+            <Button variant="outline" className="h-11 flex-1 min-w-0 px-2" onClick={closeNoteDialog}>Cancel</Button>
+            <Button variant="outline" className="h-11 flex-1 min-w-0 px-2" onClick={() => setNoteDialog((current) => ({ ...current, note: '' }))}>Clear note</Button>
+            <Button className="h-11 flex-1 min-w-0 px-2" onClick={() => void handleSaveNote()}>Save</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

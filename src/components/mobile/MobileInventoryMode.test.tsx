@@ -190,13 +190,14 @@ describe('MobileInventoryMode', () => {
   // forward (saveNote); "Send to Maintenance" adds a line to the note; names, never ids.
   describe('the note popup', () => {
     const asset = (status: string) => ({ id: 'asset-1', manufacturer_model: 'Shure QLXD', tag_number: 'ASSET-001', status })
-    const list = (status: string, tracking: any[] = []) => ({
+    const list = (status: string, tracking: any[] = [], over: Record<string, unknown> = {}) => ({
       gig_id: 'gig-1', gig_title: 'Warehouse Check-In',
       kits: [{ kit: { id: 'kit-1', name: 'Audio Case', tag_number: 'KIT-001', is_container: false, assets: [{ asset_id: 'asset-1', quantity: 1, asset: asset(status) }] } }],
       tracking,
+      ...over,
     })
-    const open = async (status = 'Active', tracking: any[] = []) => {
-      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list(status, tracking))
+    const open = async (status = 'Active', tracking: any[] = [], over: Record<string, unknown> = {}) => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list(status, tracking, over))
       const user = userEvent.setup()
       render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
       await user.click(await screen.findByRole('button', { name: /edit note for shure qlxd/i }))
@@ -273,6 +274,36 @@ describe('MobileInventoryMode', () => {
       vi.mocked(packingListService.fetchGigPackingList).mockImplementation(async () => list('Active', [row('user-7')]) as any)
       await open('Active', [row('user-7')])
       expect(await screen.findByText('Ana Ruiz')).toBeInTheDocument()
+    })
+
+    // Cameron, 10-10: the last record's status / location, its gig, and its notes when there are any.
+    it('E: shows the last record\'s status / location, gig, and notes', async () => {
+      await open('Active', [{ ...row('user-1'), location: 'Staging Area', notes: 'Dented' }])
+      const box = screen.getByText('Last record').closest('div')!.parentElement as HTMLElement
+      expect(within(box).getByText('Checked Out / Staging Area')).toBeInTheDocument()
+      expect(within(box).getByText('Warehouse Check-In')).toBeInTheDocument()
+      expect(within(box).getByText('Dented')).toBeInTheDocument()
+    })
+
+    it('E: a newer record at another gig is the one shown; blank notes get no line', async () => {
+      await open('Active', [{ ...row('user-1'), location: 'Staging Area', notes: 'Dented' }], {
+        last_records: { assets: { 'asset-1': { gig_id: 'gig-2', gig_title: 'Friday Show', status: 'On Site', location: null, notes: '  ', scanned_by: 'user-1', scanned_at: '2026-10-10T12:00:00.000Z' } }, kits: {} },
+      })
+      const box = screen.getByText('Last record').closest('div')!.parentElement as HTMLElement
+      expect(within(box).getByText('On Site')).toBeInTheDocument()
+      expect(within(box).getByText('Friday Show')).toBeInTheDocument()
+      expect(within(box).queryByText('Notes')).not.toBeInTheDocument()
+      expect(within(box).queryByText('Dented')).not.toBeInTheDocument()
+    })
+
+    it('E: the buttons sit in one row: Cancel, Clear note, Save, each 44px tall', async () => {
+      await open()
+      const save = screen.getByRole('button', { name: 'Save' })
+      const row = save.parentElement as HTMLElement
+      expect(within(row).getAllByRole('button').map((b) => b.textContent)).toEqual(['Cancel', 'Clear note', 'Save'])
+      expect(row.className).toMatch(/\bflex-row\b/)
+      expect(row.className).not.toMatch(/flex-col/)
+      for (const b of within(row).getAllByRole('button')) expect(b.className).toMatch(/\bh-11\b/)
     })
 
     it('D: someone not known shows as Unknown, never the id', async () => {

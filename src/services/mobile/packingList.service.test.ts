@@ -239,10 +239,10 @@ describe('packingListService.fetchGigPackingList', () => {
       ], error: null },
       inventory_tracking: { data: [
         { id: 't1', gig_id: 'old-gig', kit_id: 'k', asset_id: 'k12', status: 'In Warehouse', quantity: 1, scanned_at: '2026-09-01T10:00:00Z', created_at: '2026-09-01T10:00:00Z' },
-        { id: 't2', gig_id: 'other-gig', kit_id: 'k', asset_id: 'k12', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+        { id: 't2', gig_id: 'other-gig', kit_id: 'k', asset_id: 'k12', status: 'On Site', quantity: 1, location: 'Stage left', notes: 'Grille dented', scanned_by: 'user-3', scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
         { id: 't3', gig_id: 'other-gig', kit_id: 'k', asset_id: 'xlr', status: 'On Site', quantity: 4, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
         { id: 't4', gig_id: 'old-gig', kit_id: 'case', asset_id: null, status: 'In Warehouse', quantity: 1, scanned_at: '2026-09-01T10:00:00Z', created_at: '2026-09-01T10:00:00Z' },
-        { id: 't5', gig_id: 'other-gig', kit_id: 'case', asset_id: null, status: 'Checked Out', quantity: 1, scanned_at: '2026-10-02T10:00:00Z', created_at: '2026-10-02T10:00:00Z' },
+        { id: 't5', gig_id: 'other-gig', kit_id: 'case', asset_id: null, status: 'Checked Out', quantity: 1, scanned_by: 'user-4', scanned_at: '2026-10-02T10:00:00Z', created_at: '2026-10-02T10:00:00Z' },
       ], error: null },
       gigs: { data: [{ id: 'other-gig', title: 'Other Gig' }], error: null },
     };
@@ -250,9 +250,10 @@ describe('packingListService.fetchGigPackingList', () => {
     vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
     const { packingListService } = await import('./packingList.service');
     const result: any = await packingListService.fetchGigPackingList('gig-1');
+    // With what the note popup shows: who, place, notes and the gig's name (Cameron, 10-10).
     expect(result.last_records).toEqual({
-      assets: { k12: { gig_id: 'other-gig', status: 'On Site', scanned_at: '2026-10-01T10:00:00Z' } },
-      kits: { case: { gig_id: 'other-gig', status: 'Checked Out', scanned_at: '2026-10-02T10:00:00Z' } },
+      assets: { k12: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'On Site', location: 'Stage left', notes: 'Grille dented', scanned_by: 'user-3', scanned_at: '2026-10-01T10:00:00Z' } },
+      kits: { case: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'Checked Out', location: null, notes: null, scanned_by: 'user-4', scanned_at: '2026-10-02T10:00:00Z' } },
     });
   });
 
