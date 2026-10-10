@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #253** (coordinator's sub-agent, merged 10-10): Equipment → Locations shows each case, unit and lot at its newest record across gigs (Cameron's report: a case showed an older gig's In Transit / Car). New `currentRows()` in src/utils/locations.ts; filters applied after the newest-row pick.
+
 - **#226 item 6, PR #252** (coordinator's sub-agent, merged 10-10): a purchase line that is tracked and expensed needs an expense category before Save (filed years exempt).
 
 - **PR #251** (coordinator's sub-agent, merged 10-10): #248 follow-up. The $0-total guard skips filed years, "Use $X" keeps line costs, and the message replaces the Mismatch banner.

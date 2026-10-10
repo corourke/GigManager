@@ -1208,6 +1208,74 @@ describe('inventoryManagement.service', () => {
     });
   });
 
+  describe('getItemsByLocation', () => {
+    // A container ("Case") went out on gig A, came home by kit-only overrides, then went out
+    // and back on gig B (Cameron, 10-10). Rows are append-only; the newest row wins across gigs.
+    const kit = { name: 'Case', is_container: true };
+    const units = ['u1', 'u2', 'u3'];
+    const row = (id: string, gig_id: string, asset_id: string | null, status: string, location: string, scanned_at: string) => ({
+      id, gig_id, kit_id: 'case', asset_id, status, location, scanned_at, created_at: scanned_at,
+      scanned_by: 'user-1', notes: null, scanned_by_user: null, kit, gig: { title: gig_id },
+    });
+    const gigARows = [
+      row('a1', 'gig-a', null, 'In Transit', 'Car', '2026-10-02T00:06:09.133Z'),
+      ...units.map((u) => row(`a1-${u}`, 'gig-a', u, 'In Transit', 'Car', '2026-10-02T00:06:09.133Z')),
+      row('a2', 'gig-a', null, 'In Warehouse', 'Garage', '2026-10-06T17:21:50.575Z'),
+      row('a3', 'gig-a', null, 'In Warehouse', 'Garage', '2026-10-06T17:22:25.725Z'),
+      row('a4', 'gig-a', null, 'In Warehouse', 'Garage', '2026-10-07T14:24:45.187Z'),
+    ];
+    const gigBRows = [
+      row('b1', 'gig-b', null, 'In Transit', 'Truck', '2026-10-09T19:47:31.847Z'),
+      ...units.map((u) => row(`b1-${u}`, 'gig-b', u, 'In Transit', 'Truck', '2026-10-09T19:47:31.847Z')),
+      // The case's row sorts after its units' (same scanned_at, id breaks the tie).
+      row('b2', 'gig-b', null, 'In Warehouse', 'Garage', '2026-10-10T06:03:16.329Z'),
+      ...units.map((u) => row(`b0-${u}`, 'gig-b', u, 'In Warehouse', 'Garage', '2026-10-10T06:03:16.329Z')),
+    ];
+    const allStatuses = ['Checked Out', 'In Transit', 'On Site', 'In Warehouse'];
+
+    function mockRows(rows: any[]) {
+      mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+        ? { data: units.map((u) => ({ id: u, manufacturer_model: `Mic ${u}`, tag_number: `T-${u}`, serial_number: null })), error: null }
+        : { data: rows, error: null }));
+    }
+
+    it('shows a container where its newest scan puts it, not at an older gig\'s last scan', async () => {
+      const { getItemsByLocation } = await import('./inventoryManagement.service');
+      mockRows([...gigBRows, ...gigARows]);
+
+      const result = await getItemsByLocation('org-1', { status: allStatuses });
+
+      expect(result.filter((i) => i.status === 'In Transit')).toEqual([]);
+      expect(result.filter((i) => !i.asset_id)).toEqual([
+        expect.objectContaining({ kit_id: 'case', status: 'In Warehouse', location: 'Garage', gig_id: 'gig-b', scanned_at: '2026-10-10T06:03:16.329Z' }),
+      ]);
+      // Each unit once, from the same (tied) scan as the case.
+      expect(result.filter((i) => i.asset_id).map((i) => [i.asset_id, i.status, i.location, i.scanned_at]).sort()).toEqual(
+        units.map((u) => [u, 'In Warehouse', 'Garage', '2026-10-10T06:03:16.329Z']));
+    });
+
+    it('a newer kit-only scan of a container moves what\'s in it: its units\' older rows don\'t linger', async () => {
+      const { getItemsByLocation } = await import('./inventoryManagement.service');
+      mockRows(gigARows);
+
+      const result = await getItemsByLocation('org-1', { status: allStatuses });
+
+      expect(result).toEqual([
+        expect.objectContaining({ kit_id: 'case', asset_id: null, status: 'In Warehouse', location: 'Garage', scanned_at: '2026-10-07T14:24:45.187Z' }),
+      ]);
+    });
+
+    it('filters on where things are now: an older row that matches the filter isn\'t shown', async () => {
+      const { getItemsByLocation } = await import('./inventoryManagement.service');
+      mockRows([...gigBRows, ...gigARows]);
+
+      expect(await getItemsByLocation('org-1', { status: ['In Transit'] })).toEqual([]);
+      expect(await getItemsByLocation('org-1', { location: 'Car' })).toEqual([]);
+      expect(await getItemsByLocation('org-1', { gigId: 'gig-a' })).toEqual([]);
+      expect(await getItemsByLocation('org-1', { location: 'Garage' })).toHaveLength(1 + units.length);
+    });
+  });
+
   describe('getMaintenanceQueueReport', () => {
     // Regression: kit_components has two FKs to kits (kit_id and
     // child_kit_id) — an unhinted nested embed of kits through

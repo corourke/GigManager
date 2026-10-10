@@ -4,7 +4,7 @@ import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
 import { getKitComponentTree, flattenToScanUnits, type KitComponentTreeNode } from './kit.service';
 import type { DbInventoryTracking } from '../utils/supabase/types';
 import { isRetired, recordKind, type ItemRecord } from '../utils/equipmentItems';
-import { bucketsAt, type TrackingRow } from '../utils/locations';
+import { bucketsAt, currentRows, type TrackingRow } from '../utils/locations';
 
 const getSupabase = () => createClient();
 
@@ -428,39 +428,32 @@ export async function getItemsByLocation(
       return [];
     }
 
-    let query = supabase
+    // Where things are now (newest row wins, across gigs), then the filters: filtering the
+    // rows first would let an older row that matches stand in for a newer one that doesn't.
+    const { data, error } = await supabase
       .from('inventory_tracking')
       .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name, is_container), gig:gig_id(title)')
       .eq('organization_id', organizationId);
-
-    if (filters.location) {
-      query = query.eq('location', filters.location);
-    }
-    if (filters.status) {
-      if (Array.isArray(filters.status)) {
-        query = query.in('status', filters.status);
-      } else {
-        query = query.eq('status', filters.status);
-      }
-    }
-    if (filters.gigId) {
-      query = query.eq('gig_id', filters.gigId);
-    }
-
-    const { data, error } = await query;
     if (error) throw error;
 
     const records = (data ?? []) as any[];
-    const latest = getLatestByKey(records as DbInventoryTracking[]);
 
     const { data: assets, error: assetsError } = await supabase
       .from('assets')
-      .select('id, manufacturer_model, tag_number')
-      .in('id', latest.filter((r) => r.asset_id).map((r) => r.asset_id as string));
+      .select('id, manufacturer_model, tag_number, serial_number')
+      .in('id', [...new Set(records.filter((r) => r.asset_id).map((r) => r.asset_id as string))]);
 
     if (assetsError) throw assetsError;
 
     const assetMap = new Map((assets ?? []).map((a: any) => [a.id, a]));
+    const containers = new Set(records.filter((r) => r.kit_id && r.kit?.is_container).map((r) => r.kit_id as string));
+    const statuses = filters.status ? [filters.status].flat() : null;
+    const latest = currentRows(records as DbInventoryTracking[], {
+      isLot: (id) => assetMap.has(id) && recordKind(assetMap.get(id)) === 'lot',
+      isContainer: (id) => containers.has(id),
+    }).filter((r) => (!filters.location || r.location === filters.location)
+      && (!statuses || statuses.includes(r.status))
+      && (!filters.gigId || r.gig_id === filters.gigId));
 
     return latest.map((record): LocationItem => {
       const asset = record.asset_id ? assetMap.get(record.asset_id) : null;

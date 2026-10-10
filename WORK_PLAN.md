@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-10 19:00 UTC (coordinator check-in: #246 reviewed at adea8b3, needs changes; Docs Lead paused until the usage reset)
+- **Last updated:** 2026-10-10 19:40 UTC (coordinator: #253 Locations fix merged; #246 popup additions from Cameron sent to the Lead)
 
 ---
 
@@ -49,9 +49,9 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 (none)
 
 **Open PRs, 10-10 16:50 UTC:**
-- **#246 (#185 PR 2, phone) on hold.** Cameron 10-10: no "swap" (removed by the Lead); interchangeable gear goes in kits as "any N" lines; for kits that list specific tags the operator decides each step (Maintenance via the note popup's checkbox, add the replacement ad hoc, a human updates the kit later). No new scanner menu, no kit review flag. **Note rule (Cameron, 10-10):** saving a note always appends a new tracking row that carries the item's last status (and lot quantity, location) forward, never counting it as packed; ticking Send to Maintenance (renamed from "Maintenance Req'd") appends "Sent to Maintenance." to the note; the popup shows the person's name, never a UUID. No database procedure did this (checked); it goes in the app service. Sent to the Equipment Lead 10-10 17:10. **Cameron 10-10 18:50:** a note on a unit last recorded at another gig is still recorded at this gig (carrying that status); Send to Maintenance is never blocked. Review of adea8b3 (10-10 19:00): needs changes (un-check after a note, kit-level note rows read as checked, duplicate adds); sent to the Lead. Cameron tests the final phone changes on a branch before deploy. Mockup: https://claude.ai/artifact/JCVPy7Eid54tiLwZnteohd
+- **#246 (#185 PR 2, phone) on hold.** Cameron 10-10: no "swap" (removed by the Lead); interchangeable gear goes in kits as "any N" lines; for kits that list specific tags the operator decides each step (Maintenance via the note popup's checkbox, add the replacement ad hoc, a human updates the kit later). No new scanner menu, no kit review flag. **Note rule (Cameron, 10-10):** saving a note always appends a new tracking row that carries the item's last status (and lot quantity, location) forward, never counting it as packed; ticking Send to Maintenance (renamed from "Maintenance Req'd") appends "Sent to Maintenance." to the note; the popup shows the person's name, never a UUID. No database procedure did this (checked); it goes in the app service. Sent to the Equipment Lead 10-10 17:10. **Cameron 10-10 18:50:** a note on a unit last recorded at another gig is still recorded at this gig (carrying that status); Send to Maintenance is never blocked. Review of adea8b3 (10-10 19:00): needs changes (kit-level note rows read as checked, duplicate adds); sent to the Lead. Cameron 10-10 19:15: un-check after a note is not a bug; the note popup adds lines for last status / location, gig name, and last notes (if any); its buttons go in one row: Cancel, Clear note, Save. #246 must merge main (conflict with #253 in inventoryManagement.service.ts). Cameron tests the final phone changes on a branch before deploy. Mockup: https://claude.ai/artifact/JCVPy7Eid54tiLwZnteohd
 - **#250** (Docs Lead, equipment pages): reviewed 10-10; one change needed (the "any" line scan/count steps aren't live until #246). Sent to the Docs Lead, which is paused until the usage reset (Tue 10-13 00:00 PT).
-- #251 merged 10-10 (#248 follow-up); prod still has #248's two bugs until the next deploy.
+- Next prod deploy carries #251, #252, #253 (no migrations). Prod still has #248's two bugs and the Locations bug until then.
 
 ### 3c. Ready to build, nothing blocking
 
