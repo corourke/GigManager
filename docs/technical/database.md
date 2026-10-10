@@ -1094,6 +1094,7 @@ Junction table linking gigs to assigned kits
 | notes | TEXT | Notes about kit assignment (nullable) |
 | assigned_by | UUID | Reference to users.id (who assigned the kit) (NOT NULL) |
 | assigned_at | TIMESTAMPTZ | When the kit was assigned to the gig (NOT NULL) |
+| added_at_pack_out | BOOLEAN | The kit was added on the phone at pack-out, not planned (NOT NULL, default false). Migration 20261019000000 |
 
 **Notes:**
 
@@ -1101,6 +1102,7 @@ Junction table linking gigs to assigned kits
 - Composite unique constraint on (gig_id, kit_id) prevents duplicate kit assignments
 - `organization_id` should match the kit's organization_id
 - RLS is **ENABLED** on this table. Users can view assignments for accessible gigs; Admins/Managers can manage.
+- **Added at pack-out (#185 PR 2, migration 20261019000000).** Staff or above can also add one of their organization's kits to a gig their organization is on, with `added_at_pack_out = true` and `assigned_by` = themselves (`user_is_staff_or_above_of_org`). They can delete only such a row they added themselves, while still Staff or above, to undo a mistaken add. The gig editor updates rows in place, so the flag stays.
 
 ---
 
@@ -1152,6 +1154,10 @@ Tracks equipment check-in/check-out status at gigs.
   - Fewer back on Unload asks: **Leave at the gig** writes the partial-return row above, and **Mark missing** calls `write_off_pieces` (online, Admin or Manager). **Finish unload** does the same for everything still out; a container is left as one sealed unit.
   - A unit not on the list can be **added as an extra** (a row in the kit) or **swapped** for a listed unit of the same item. The swapped-out unit gets an `In Warehouse` row, and its line follows the unit swapped in from then on. Nothing else records the swap.
   - Pack-Out asks before packing a unit or lot in Maintenance or Inactive, or a unit still out at another gig.
+- **Added at pack-out (#185 PR 2).** In Pack-Out and Load Truck, Staff or above can add what isn't on the gig, by scanning any kit, unit or lot tag the organization owns (looked up in an offline index of the organization's kits and equipment in service) or by "+ Add" search.
+  - A kit becomes a `gig_kit_assignments` row with `added_at_pack_out = true`; its adder can remove it again while packing.
+  - A unit or lot (with a count) added on its own is a **no-kit row** (`kit_id` null). Its newest no-kit row per record says how many are at the gig. Un-checking it deletes that row.
+  - Both are listed under "Added at pack-out" on the phone and the packing list, and count in the gig's equipment checks (see conflict-detection.md). Online, the phone runs those checks first and says what the addition would newly double-book or leave short, with "Pack anyway".
 - RLS is **ENABLED** on this table. Users with gig access can manage inventory tracking.
 
 ---
@@ -1417,7 +1423,7 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 - `create_gig_complex(p_gig_data, p_participants, p_staff_slots)`: Transactionally creates a gig with participants and staff slots. Since migration 20260613000000 it requires `p_gig_data.primary_organization_id` and that the caller is Admin/Manager of that org; it is the only gig-creation path (no gigs INSERT policy).
 - `create_purchase_transaction_v1(p_header, p_items, p_assets)`: Transactionally creates a purchase header with item rows and associated assets.
 - `reclassify_expense_as_asset(p_purchase_item_id)`: Retired (dropped by migration 20261011000000, which also dropped `purchases.sub_category` and `assets.sub_category`).
-- `update_asset_status(p_asset_id, p_status)`: Updates asset status. Members of the asset's org can move it between Active, Maintenance and Inactive. **Status changes into or out of retired statuses follow the write-off rules:** Disposed and Returned, in or out, take an Admin or Manager; Missing is set only by `write_off_pieces` and left only by `undo_write_off`.
+- `update_asset_status(p_asset_id, p_status)`: Updates asset status. **Equipment status changes take Staff or above** (migration 20261019000000): Admins, Managers and Staff of the asset's org can move it between Active, Maintenance and Inactive; a Viewer can't change it (the app hides the controls). **Status changes into or out of retired statuses follow the write-off rules:** Disposed and Returned, in or out, take an Admin or Manager; Missing is set only by `write_off_pieces` and left only by `undo_write_off`.
 - `user_is_admin(user_uuid)`: Returns true if the user is Admin of **at least one** organization (not a global admin; migration 20260522000000).
 - `user_can_manage_org_contacts(p_organization_id, p_user_id)`: True if the user is `user_is_admin`, Admin/Manager of the org, or Admin/Manager of an org sharing a gig with it. Gates all contact RPCs and the broadened member/user read policies.
 - `user_is_contact_status(p_user_id)`: True if the user's `user_status = 'contact'` (breaks RLS recursion between `users` and `organization_members`).
