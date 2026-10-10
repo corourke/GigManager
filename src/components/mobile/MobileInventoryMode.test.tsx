@@ -622,8 +622,8 @@ describe('MobileInventoryMode', () => {
     })
   })
 
-  // #185 (Cameron, 10-09): a unit that isn't on the list: swap it for a listed unit of the same
-  // item (that one gets an In Warehouse row), or add it as an extra.
+  // #185 (Cameron, 10-10): a unit that isn't on the list is only ever added to the gig. There is no
+  // swap: nothing is written for a listed unit the operator didn't act on.
   describe('a unit not on the list', () => {
     const PACK_OUT = SCANNING_MODES[0].resultingStatus
     const k12 = (id: string, tag: string) => ({ id, manufacturer_model: 'K12 Speaker', tag_number: tag, equipment_item_id: 'item-k12', quantity: 1, status: 'Active' })
@@ -655,15 +655,11 @@ describe('MobileInventoryMode', () => {
       expect(screen.getByText('K12 Speaker (K12-2) isn\'t on the list.')).toBeInTheDocument()
     }
 
-    it('Swap: the new unit goes in the line\'s kit, the listed one goes back to the warehouse', async () => {
-      const user = userEvent.setup()
+    it('offers only "Add to this gig", and writes nothing for the listed unit', async () => {
       await scanK12Two()
-      await user.click(screen.getByRole('button', { name: 'Swap for K12-1' }))
-      expect(inventoryTrackingService.addExtraAsset).toHaveBeenCalledWith('gig-1', expect.objectContaining({ id: 'k12-2' }))
-      expect(vi.mocked(inventoryTrackingService.submitScan).mock.calls.map((c: any) => [c[0].kitId, c[0].assetId, c[0].status])).toEqual([
-        ['top', 'k12-2', PACK_OUT],
-        ['top', 'k12-1', 'In Warehouse'],
-      ])
+      expect(screen.queryByRole('button', { name: /Swap/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add to this gig' })).toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
     })
 
     it('Add to this gig: just the new unit, on its own (no kit)', async () => {
@@ -673,17 +669,17 @@ describe('MobileInventoryMode', () => {
       expect(vi.mocked(inventoryTrackingService.submitScan).mock.calls.map((c: any) => [c[0].kitId, c[0].assetId])).toEqual([[null, 'k12-2']])
     })
 
-    it('shows extras and swaps under their kit', async () => {
+    it('an extra under a kit shows as an extra; the listed unit keeps its own line', async () => {
       vi.mocked(idbStore.getPackingList).mockImplementation(async () =>
         list([row('k12-1', 'In Warehouse'), row('k12-2', PACK_OUT)], { 'k12-2': k12('k12-2', 'K12-2') }))
       Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
       render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
       expect(await screen.findByText('K12 Speaker (K12-2)')).toBeInTheDocument()
-      expect(screen.getByText('Swapped in for K12-1')).toBeInTheDocument()
-      expect(screen.getByText('Swapped for K12-2')).toBeInTheDocument()
-      // The K12-1 line follows K12-2, so it reads as packed.
-      expect(screen.getByRole('button', { name: 'Uncheck K12 Speaker' })).toBeInTheDocument()
-      expect(screen.getByText('1 / 1 pieces')).toBeInTheDocument()
+      expect(screen.getByText('Extra')).toBeInTheDocument()
+      expect(screen.queryByText(/Swapped/)).not.toBeInTheDocument()
+      // K12-1 was put back, and nothing stands in for it: its line isn't packed.
+      expect(screen.getByRole('button', { name: 'Check K12 Speaker' })).toBeInTheDocument()
+      expect(screen.getByText('0 / 1 pieces')).toBeInTheDocument()
     })
   })
 

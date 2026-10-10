@@ -624,9 +624,9 @@ describe('inventoryTrackingService', () => {
     ])
   })
 
-  // #185 (Cameron, 10-09): a unit that isn't on the list can be added as an extra, or swapped
-  // for a unit of the same item that is; the swapped-out unit gets an In Warehouse row.
-  describe('extras and swaps', () => {
+  // #185: a unit tracked at the gig that isn't on the list is an extra. There is no swap (Cameron,
+  // 10-10): an extra never stands in for a listed unit.
+  describe('extras', () => {
     const row = (asset_id: string, status: string, minute = 0) =>
       ({ gig_id: 'gig-1', kit_id: 'top', asset_id, status, quantity: 1, scanned_at: `2026-10-09T10:0${minute}:00.000Z`, scanned_by: 'u' })
     const list = (tracking: any[]) => ({
@@ -643,15 +643,10 @@ describe('inventoryTrackingService', () => {
         .toEqual([{ kit_id: 'top', asset_id: 'k12-2' }, { kit_id: 'top', asset_id: 'sub-9' }])
     })
 
-    it('a swapped-out line follows the unit swapped in for it', () => {
-      const swapped = [row('k12-1', 'In Warehouse'), row('k12-2', 'Checked Out')]
-      expect(inventoryTrackingService.getSwapFor(list(swapped), 'top', 'k12-1')).toBe('k12-2')
-      expect(inventoryTrackingService.getScanProgress(list(swapped), 'Checked Out')).toEqual({ done: 1, total: 1 })
-      expect(inventoryTrackingService.getScanProgress(list([row('k12-1', 'In Warehouse'), row('k12-2', 'On Site')]), 'In Warehouse')).toEqual({ done: 0, total: 1 })
-    })
-
-    it('an extra of the same item is not a swap while the listed unit is out too', () => {
-      expect(inventoryTrackingService.getSwapFor(list([row('k12-1', 'Checked Out'), row('k12-2', 'Checked Out')]), 'top', 'k12-1')).toBeNull()
+    it('an extra of the same item never stands in for a listed unit put back', () => {
+      const putBack = [row('k12-1', 'In Warehouse'), row('k12-2', 'Checked Out')]
+      expect(inventoryTrackingService.getScanProgress(list(putBack), 'Checked Out')).toEqual({ done: 0, total: 1 })
+      expect('getSwapFor' in inventoryTrackingService).toBe(false)
     })
 
     it('Finish unload lists extras still out', () => {

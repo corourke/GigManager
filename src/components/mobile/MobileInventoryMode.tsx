@@ -152,8 +152,9 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   const [counter, setCounter] = useState<CounterState | null>(null);
   // Pack-Out guard rails (#185): what to confirm before packing, and what to do if confirmed.
   const [packWarning, setPackWarning] = useState<{ messages: string[]; proceed: () => Promise<void> } | null>(null);
-  // A unit scanned that isn't on the list (#185): swap it for a listed unit of the same item, or add it as an extra.
-  const [extraScan, setExtraScan] = useState<{ asset: any; kitId: string; swapFor: { asset_id: string; label: string } | null } | null>(null);
+  // A unit scanned that isn't on the list (#185): it can be added to the gig on its own. Nothing is
+  // written for a listed unit the operator didn't act on (no swap; Cameron, 10-10).
+  const [extraScan, setExtraScan] = useState<{ asset: any } | null>(null);
   // Adding equipment at pack-out (#185 PR 2): the org's kits and equipment, cached on the device;
   // a kit to add; a lot to add with a count; the "+ Add" search.
   const [orgIndex, setOrgIndex] = useState<OrgIndex | null>(null);
@@ -372,62 +373,31 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     setPackWarning({ messages, proceed });
   }, []);
 
-  // The listed unit a scanned stranger could stand in for: same item, not swapped already, one
-  // not yet done in this mode first. Without one, it goes in as an extra under the first kit.
   const openExtraScan = useCallback((asset: any) => {
-    if (!packingList) return;
-    const roots: string[] = packingList.top_level_kit_ids?.length
-      ? packingList.top_level_kit_ids
-      : (packingList.kits || []).map((a: any) => a.kit_id ?? a.kit?.id);
-    const assetsById = new Map<string, any>();
-    for (const assignment of packingList.kits || []) {
-      for (const a of [...(assignment.kit?.assets || []), ...(assignment.kit?.direct_assets || [])]) {
-        const id = a.asset_id || a.asset?.id;
-        if (id && a.asset && !assetsById.has(id)) assetsById.set(id, a.asset);
-      }
-    }
-    const status = selectedMode.resultingStatus;
-    const candidates = roots
-      .flatMap((root) => inventoryTrackingService.getCascadeTargets(packingList, root))
-      .filter((t: { asset_id: string | null; quantity: number }) => t.asset_id && t.quantity === 1
-        && asset.equipment_item_id && assetsById.get(t.asset_id)?.equipment_item_id === asset.equipment_item_id
-        && !inventoryTrackingService.getSwapFor(packingList, (t as any).kit_id, t.asset_id));
-    const isDone = (t: any) => getLatestTrackingRecordForItem(packingList.tracking || [], t.kit_id, t.asset_id)?.status === status;
-    const pick: any = candidates.find((t: any) => !isDone(t)) ?? candidates[0] ?? null;
-    const listed = pick ? assetsById.get(pick.asset_id) : null;
     setIsScannerOpen(false);
-    setExtraScan({
-      asset,
-      kitId: pick?.kit_id ?? roots[0],
-      swapFor: pick ? { asset_id: pick.asset_id, label: listed?.tag_number || listed?.manufacturer_model || 'the listed one' } : null,
-    });
-  }, [packingList, selectedMode]);
+    setExtraScan({ asset });
+  }, []);
 
-  const confirmExtraScan = useCallback(async (swap: boolean) => {
+  // Added on its own (no kit), after the same second look as anything added at pack-out.
+  const confirmExtraScan = useCallback(async () => {
     if (!extraScan || !gigId || !selectedOrganization || !user) return;
-    const { asset, kitId, swapFor } = extraScan;
+    const { asset } = extraScan;
     setExtraScan(null);
     const run = async () => {
-    // Swap goes in the listed unit's kit; added on its own, it has no kit (#185 PR 2).
-    const scan = (assetId: string, status: string) => inventoryTrackingService.submitScan({
-      gigId,
-      kitId: swap ? kitId : null,
-      assetId,
-      status,
-      organizationId: selectedOrganization.id,
-      scannedBy: user.id,
-      location: locationInput || null,
-    });
-    await inventoryTrackingService.addExtraAsset(gigId, asset);
-    await scan(asset.id, selectedMode.resultingStatus);
-    // Swap (Cameron, 10-09): the swapped-out unit gets an In Warehouse row.
-    if (swap && swapFor) await scan(swapFor.asset_id, RETURNED_STATUS);
-    await refreshPackingList(gigId);
-    toast.success(swap ? `Swapped for ${swapFor?.label}` : 'Added to this gig');
+      await inventoryTrackingService.addExtraAsset(gigId, asset);
+      await inventoryTrackingService.submitScan({
+        gigId,
+        kitId: null,
+        assetId: asset.id,
+        status: selectedMode.resultingStatus,
+        organizationId: selectedOrganization.id,
+        scannedBy: user.id,
+        location: locationInput || null,
+      });
+      await refreshPackingList(gigId);
+      toast.success('Added to this gig');
     };
-    // A swap stands in for a listed unit; added on its own, it gets the same second look.
-    if (swap) await run();
-    else await guardAddition([...adHocWarnings(asset), ...await checkAddition({ records: [looseOf(asset)] })], run);
+    await guardAddition([...adHocWarnings(asset), ...await checkAddition({ records: [looseOf(asset)] })], run);
   }, [adHocWarnings, checkAddition, extraScan, gigId, guardAddition, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
 
   const addKit = useCallback(async (kit: IndexKit) => {
@@ -469,7 +439,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   }, [adHocWarnings, checkAddition, gigId, guardAddition, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
 
   // Something the org owns that isn't on this gig: a kit to add, a lot to count, or a unit to
-  // add on its own (or swap for a listed one).
+  // add on its own.
   const offerAdHoc = useCallback((tag: string): boolean => {
     const hit = orgIndexService.findTag(orgIndex, tag);
     if (!hit) return false;
@@ -798,8 +768,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         && inventoryTrackingService.getAnySlotFilled(packingList, s, selectedMode.resultingStatus) < s.quantity) ?? slot;
       return { type: 'asset' as const, kitId: open.kit_id, assetId: unit.id, label: slot.item_name };
     }
-    // What was added here off the list (#185 PR 2): a unit or lot on its own, or an extra or
-    // swapped-in unit under a kit. It's on the gig from then on, in every mode, under the kit
+    // What was added here off the list (#185 PR 2): a unit or lot on its own, or an extra under a
+    // kit (from before PR 2). It's on the gig from then on, in every mode, under the kit
     // (or no kit) its newest row here has, with that row's count.
     const newestFirst = [...(packingList.tracking || [])]
       .sort((a: any, b: any) => String(b.scanned_at ?? '').localeCompare(String(a.scanned_at ?? '')));
@@ -1250,10 +1220,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                           const assetId = assetAssignment.asset_id || asset.id || assetAssignment.id;
                           const assetName = asset.manufacturer_model || asset.name || asset.description || asset.category || assetAssignment.notes || 'Unnamed Asset';
                           const assetTag = asset.tag_number;
-                          // A swapped-out unit's line follows the unit swapped in for it (#185).
-                          const swapIn: string | null = packingList ? inventoryTrackingService.getSwapFor(packingList, trackKitId, assetId) : null;
-                          const lineAssetId = swapIn ?? assetId;
-                          const assetTracking = getDisplayedTrackingRecord(packingList?.tracking || [], trackKitId, lineAssetId);
+                          const assetTracking = getDisplayedTrackingRecord(packingList?.tracking || [], trackKitId, assetId);
                           const latestExactAssetTracking = getLatestTrackingRecordForItem(packingList?.tracking || [], trackKitId, assetId);
                           const assetNoTag = !assetTag;
                           // A line of more than one is a lot: counted, not ticked (#185). It's
@@ -1272,7 +1239,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                                 className="w-10 flex items-center justify-center shrink-0 active:scale-90 transition-transform"
                                 onClick={() => (isLotLine && !isAssetChecked
                                   ? guardPack(trackKitId, assetId, async () => openCounter(trackKitId, assetId, assetName, line))
-                                  : handleManualToggle(trackKitId, lineAssetId))}
+                                  : handleManualToggle(trackKitId, assetId))}
                               >
                                 <div className={cn(isAssetChecked ? 'text-emerald-500' : 'text-muted-foreground')}>
                                   {isAssetChecked ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
@@ -1285,11 +1252,6 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                                     {isLotLine && piecesHere > 0 && piecesHere < line ? `${piecesHere} / ${line}` : `Qty: ${line}`}
                                   </span>
                                   <TrackingStatusBadge status={assetTracking?.status} />
-                                  {swapIn ? (
-                                    <span className="text-[10px] text-muted-foreground">
-                                      Swapped for {packingList?.extra_assets?.[swapIn]?.tag_number || 'another unit'}
-                                    </span>
-                                  ) : null}
                                   {asset?.status === 'Maintenance' ? (
                                     <Badge variant="outline" className="text-[10px] py-0 h-4 px-1.5 font-normal border-orange-200 bg-orange-50 text-orange-700 gap-1">
                                       <Wrench className="w-3 h-3" />
@@ -1331,8 +1293,6 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                             const label = `${extra.manufacturer_model || extra.name || 'Unit'}${extra.tag_number ? ` (${extra.tag_number})` : ''}`;
                             const record = getLatestTrackingRecordForItem(packingList?.tracking || [], kit.id, e.asset_id);
                             const checked = record?.status === selectedMode.resultingStatus;
-                            const swappedFor = (kit.direct_assets ?? kit.assets ?? [])
-                              .find((a: any) => inventoryTrackingService.getSwapFor(packingList, kit.id, a.asset_id || a.asset?.id) === e.asset_id);
                             return (
                               <div key={`extra-${e.asset_id}`} className={cn('flex items-stretch rounded-lg border border-dashed text-sm transition-all', checked ? 'bg-emerald-50/50 border-emerald-200' : 'bg-muted/20 border-border')}>
                                 <button
@@ -1348,7 +1308,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                                   <p className="font-medium leading-tight truncate">{label}</p>
                                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                     <span className="text-[10px] text-muted-foreground">
-                                      {swappedFor ? `Swapped in for ${swappedFor.asset?.tag_number || swappedFor.asset?.manufacturer_model || 'a listed unit'}` : 'Extra'}
+                                      Extra
                                     </span>
                                     <TrackingStatusBadge status={record?.status} />
                                   </div>
@@ -1570,10 +1530,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
           </p>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" className="h-11" onClick={() => setExtraScan(null)}>Cancel</Button>
-            <Button variant="outline" className="h-11" onClick={() => void confirmExtraScan(false)}>Add to this gig</Button>
-            {extraScan?.swapFor ? (
-              <Button className="h-11" onClick={() => void confirmExtraScan(true)}>Swap for {extraScan.swapFor.label}</Button>
-            ) : null}
+            <Button className="h-11" onClick={() => void confirmExtraScan()}>Add to this gig</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

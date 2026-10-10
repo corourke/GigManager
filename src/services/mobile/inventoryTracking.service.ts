@@ -282,7 +282,7 @@ const listedKeys = (packingList: any): Set<string> => {
   return keys;
 };
 
-/** Units tracked at the gig that aren't on the list (#185): added as extras, or swapped in. */
+/** Units tracked at the gig under a kit that aren't on its list (#185): extras. */
 const getExtras = (packingList: any): { kit_id: string; asset_id: string }[] => {
   const listed = listedKeys(packingList);
   const seen = new Set<string>();
@@ -313,49 +313,9 @@ const getLoose = (packingList: any): { asset_id: string; quantity: number; statu
   return out;
 };
 
-const itemIdOf = (packingList: any, assetId: string): string | null => {
-  const extra = packingList?.extra_assets?.[assetId];
-  if (extra) return extra.equipment_item_id ?? null;
-  for (const assignment of packingList?.kits || []) {
-    for (const a of [...(assignment.kit?.assets || []), ...(assignment.kit?.direct_assets || [])]) {
-      if (assetIdOf(a) === assetId && a.asset) return a.asset.equipment_item_id ?? null;
-    }
-  }
-  return null;
-};
-
-/**
- * Swaps (#185): a listed unit whose newest row is In Warehouse while an extra of the same item
- * is in its kit was swapped out for that extra, and its line follows the extra from then on.
- * Each extra stands in for one line, first come first served.
- */
-const getSwaps = (packingList: any): Map<string, string> => {
-  const tracking = packingList?.tracking || [];
-  const free = getExtras(packingList);
-  const swaps = new Map<string, string>();
-  for (const root of rootsOf(packingList)) {
-    for (const t of getCascadeTargets(packingList, root)) {
-      if (!t.asset_id || t.quantity !== 1) continue;
-      const key = `${t.kit_id}|${t.asset_id}`;
-      if (swaps.has(key)) continue;
-      if (getLatestTrackingRecord(tracking, t.kit_id, t.asset_id)?.status !== RETURNED_STATUS) continue;
-      const item = itemIdOf(packingList, t.asset_id);
-      const i = item ? free.findIndex((e) => e.kit_id === t.kit_id && itemIdOf(packingList, e.asset_id) === item) : -1;
-      if (i < 0) continue;
-      swaps.set(key, free[i].asset_id);
-      free.splice(i, 1);
-    }
-  }
-  return swaps;
-};
-
-const getSwapFor = (packingList: any, kitId: string, assetId: string): string | null =>
-  getSwaps(packingList).get(`${kitId}|${assetId}`) ?? null;
-
 /** Pieces done and to do under `roots`, each line, container and "any" line counted once. */
 const progressUnder = (packingList: any, roots: string[], status: string): { done: number; total: number } => {
   const tracking = packingList?.tracking || [];
-  const swaps = getSwaps(packingList);
   const seen = new Set<string>();
   let done = 0;
   let total = 0;
@@ -365,8 +325,7 @@ const progressUnder = (packingList: any, roots: string[], status: string): { don
       if (seen.has(key)) continue;
       seen.add(key);
       total += t.quantity;
-      const tracked = swaps.get(key) ?? t.asset_id ?? undefined;
-      done += piecesIn(getLatestTrackingRecord(tracking, t.kit_id, tracked), status, t.quantity);
+      done += piecesIn(getLatestTrackingRecord(tracking, t.kit_id, t.asset_id ?? undefined), status, t.quantity);
     }
     for (const slot of getAnySlots(packingList, root)) {
       const key = `${slot.kit_id}|item:${slot.item_id}`;
@@ -549,7 +508,6 @@ export const inventoryTrackingService = {
   getStillOut,
   getExtras,
   getLoose,
-  getSwapFor,
 
   async matchTag(tagNumber: string) {
     const trimmed = tagNumber.trim();

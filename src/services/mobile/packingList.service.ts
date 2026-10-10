@@ -251,7 +251,7 @@ export const packingListService = {
 
     if (trackingError) throw trackingError;
 
-    // Units tracked here that aren't on the list: added as extras or swapped in (#185).
+    // Units tracked here that aren't on the list: added at pack-out, or extras (#185).
     const listedIds = new Set([...assetIdsNeeded, ...owned.map((r) => r.id), ...[...directAssetsByKit.values()].flat().map((a: any) => a.asset_id)]);
     const extraIds = [...new Set((tracking || []).map((r: any) => r.asset_id).filter((id: string | null) => id && !listedIds.has(id)))];
     const extraAssets: Record<string, any> = {};
