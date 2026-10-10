@@ -19,6 +19,8 @@
 const HARVEST_GALA = 'de000000-0000-4000-8000-000300000007';
 // Cedar Hall Fall Songwriter Showcase, which the seed makes conflict with another gig.
 const SONGWRITER_SHOWCASE = 'de000000-0000-4000-8000-000300000008';
+// Riverside festival (Completed, two days): gear still out after it, for Not returned.
+const FESTIVAL = 'de000000-0000-4000-8000-000300000005';
 
 // The bounding box of a locator, as a plain object.
 const box = async (locator) => {
@@ -29,6 +31,8 @@ const box = async (locator) => {
 // The card (rounded section) that contains a piece of text.
 const cardOf = (page, text) =>
   page.getByText(text, { exact: true }).first().locator('xpath=ancestor::div[contains(@class,"rounded-xl") or contains(@class,"rounded-lg")][1]');
+const gigSection = (page, title) =>
+  page.locator('h2').filter({ hasText: title }).first().locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]');
 const hideConflictBanner = (page) =>
   page.getByText(/Conflicts Detected/i).first().evaluate((el) => {
     el.closest('.mb-4')?.setAttribute('style', 'display:none');
@@ -648,6 +652,59 @@ export const shots = [
       return { x: 0, y: 56, width: 1200, height: Math.min(last.y + last.height + 24, 1750) - 56 };
     },
   },
+  // Gig sections (GigSection): the card around a section heading.
+  {
+    id: 'equipment/assigning-to-a-gig-equipment-table',
+    page: 'equipment/assigning-to-a-gig.md',
+    user: 'admin',
+    sources: ['src/components/gig/view/GigEquipmentTable.tsx', 'src/utils/packingSummary.ts'],
+    viewport: { width: 1200, height: 1800 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${HARVEST_GALA}/equipment`);
+      const card = gigSection(page, /^Equipment(\d|\s|$)/);
+      await card.getByRole('button', { name: 'Columns' }).click();
+      await page.getByText('Status', { exact: true }).last().click();
+      await page.getByText('Location', { exact: true }).last().click();
+      await page.keyboard.press('Escape');
+      await page.evaluate(() => document.activeElement?.blur());
+      await page.waitForTimeout(1500);
+    },
+    target: (page) => gigSection(page, /^Equipment(\d|\s|$)/),
+    pad: 6,
+  },
+  {
+    id: 'equipment/assigning-to-a-gig-not-returned',
+    page: 'equipment/assigning-to-a-gig.md',
+    user: 'admin',
+    sources: ['src/components/gig/NotReturnedSection.tsx', 'src/services/writeOff.service.ts'],
+    viewport: { width: 1200, height: 2200 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${FESTIVAL}/equipment`);
+      await gigSection(page, /^Not returned/).getByRole('button', { name: 'Mark missing' }).first().waitFor();
+    },
+    target: (page) => gigSection(page, /^Not returned/),
+    pad: 6,
+  },
+  {
+    id: 'equipment/assigning-to-a-gig-write-off-confirm',
+    page: 'equipment/assigning-to-a-gig.md',
+    user: 'admin',
+    sources: ['src/components/gig/NotReturnedSection.tsx'],
+    viewport: { width: 1200, height: 2200 },
+    // Opens the confirmation only; nothing is written off.
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${FESTIVAL}/equipment`);
+      const card = gigSection(page, /^Not returned/);
+      const row = card.locator('li').filter({ hasText: 'Tessel T58' }).first();
+      await row.getByRole('button', { name: 'Mark missing' }).click();
+      await row.getByRole('button', { name: 'Write off' }).click();
+      await page.getByRole('alertdialog').waitFor();
+    },
+    target: (page) => page.getByRole('alertdialog'),
+    pad: 8,
+  },
+  // Held: equipment/inventory-reports-packing-list waits for #249 (the Name column
+  // pushes the other columns off-screen).
   // Supplied by hand (Cameron, 10-08): these screens open only from a link in an
   // email, which the script can't follow, so they aren't taken here. Retake them by
   // hand from a dev email (Mailtrap) when the screen changes.
