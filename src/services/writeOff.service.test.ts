@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getGigReturns, writeOffPieces, undoWriteOff, markReturned } from './writeOff.service';
+import { WRITE_OFF_LOCKED_MESSAGE } from '../utils/writeOffMessages';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { RETURNED_STATUS } from '../config/inventoryWorkflow';
@@ -78,6 +79,22 @@ describe('writeOff.service (#185)', () => {
   it('a refused write-off throws', async () => {
     supabase.rpc.mockResolvedValue({ data: null, error: { message: 'Permission denied' } });
     await expect(undoWriteOff('x')).rejects.toBeTruthy();
+  });
+
+  // #242: the DB says "Record the equipment as found instead", but the app has no found action.
+  it('undoWriteOff maps the locked-year refusal to the app\'s own wording', async () => {
+    const dbMessage = 'The 2026 tax year is locked (filed), so this write-off stays. Record the equipment as found instead.';
+    supabase.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: dbMessage } });
+    const err = await undoWriteOff('x').catch((e) => e);
+    expect(err.message).toBe(WRITE_OFF_LOCKED_MESSAGE);
+    expect(err.message).toBe('This write-off is in a filed tax year, so it can\'t be undone. If the equipment turns up, add it again as new equipment.');
+    expect(err.message).not.toMatch(/found/i);
+  });
+
+  it('undoWriteOff leaves other refusals alone (a permission error is still a permission error)', async () => {
+    const dbMessage = 'Permission denied: Only Admins and Managers of this organization can undo a write-off';
+    supabase.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: dbMessage } });
+    await expect(undoWriteOff('x')).rejects.toMatchObject({ message: dbMessage });
   });
 
   it('markReturned writes a return row in the kit\'s bucket', async () => {

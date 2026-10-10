@@ -16,6 +16,8 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
   'asset.created',
   'asset.updated',
   'asset.status_changed',
+  'asset.written_off',
+  'asset.write_off_undone',
   'kit.created',
   'kit.updated',
   'kit.asset_added',
@@ -29,8 +31,8 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
 ];
 
 describe('ACTIVITY_EVENTS', () => {
-  it('contains exactly 26 event types', () => {
-    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(26);
+  it('contains exactly 28 event types', () => {
+    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(28);
   });
 
   it('contains all expected event type keys', () => {
@@ -188,6 +190,28 @@ describe('ACTIVITY_EVENTS', () => {
   it('asset.updated format with empty field_changes returns fallback', () => {
     const cfg = ACTIVITY_EVENTS['asset.updated'];
     expect(cfg.format({ context_version: 1, actor_display_name: '', actor_org_name: '' })).toBe('Asset updated');
+  });
+
+  // #242: write-offs read as sentences in Gig History and on the equipment's own history.
+  it('asset.written_off says how many pieces went missing, with the note', () => {
+    const cfg = ACTIVITY_EVENTS['asset.written_off'];
+    expect(cfg.label).toBe('Equipment Written Off');
+    expect(cfg.format({ ...ctx, quantity: 2 })).toBe('Equipment written off: 2 pieces missing');
+    expect(cfg.format({ ...ctx, quantity: 1 })).toBe('Equipment written off: 1 piece missing');
+    expect(cfg.format({ ...ctx, quantity: 3, note: 'lost at load-out' }))
+      .toBe('Equipment written off: 3 pieces missing (lost at load-out)');
+  });
+
+  it('asset.written_off without a quantity still reads well', () => {
+    expect(ACTIVITY_EVENTS['asset.written_off'].format(ctx)).toBe('Equipment written off as missing');
+  });
+
+  it('asset.write_off_undone reads on the equipment\'s own history (no gig)', () => {
+    const cfg = ACTIVITY_EVENTS['asset.write_off_undone'];
+    expect(cfg.label).toBe('Write-off Undone');
+    expect(cfg.format({ ...ctx, quantity: 1 })).toBe('Write-off undone: 1 piece back');
+    expect(cfg.format({ ...ctx, quantity: 2, merged_from: 'asset-9' })).toBe('Write-off undone: 2 pieces back in the lot they came from');
+    expect(cfg.format(ctx)).toBe('Write-off undone');
   });
 
   it('kit.created format returns "Kit created"', () => {
