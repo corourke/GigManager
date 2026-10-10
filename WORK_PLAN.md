@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-10 20:50 UTC (coordinator check-in: #246 re-reviewed at a47064d, two small fixes left; then Cameron's branch test on dev)
+- **Last updated:** 2026-10-10 23:10 UTC (coordinator check-in: pre-deploy test done; #250 merged; #257 fixes #255; #246 ready for Cameron's branch test)
 
 ---
 
@@ -50,8 +50,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 **Open PRs, 10-10 16:50 UTC:**
 - **#246 (#185 PR 2, phone) on hold.** Cameron 10-10: no "swap" (removed by the Lead); interchangeable gear goes in kits as "any N" lines; for kits that list specific tags the operator decides each step (Maintenance via the note popup's checkbox, add the replacement ad hoc, a human updates the kit later). No new scanner menu, no kit review flag. **Note rule (Cameron, 10-10):** saving a note always appends a new tracking row that carries the item's last status (and lot quantity, location) forward, never counting it as packed; ticking Send to Maintenance (renamed from "Maintenance Req'd") appends "Sent to Maintenance." to the note; the popup shows the person's name, never a UUID. No database procedure did this (checked); it goes in the app service. Sent to the Equipment Lead 10-10 17:10. **Cameron 10-10 18:50:** a note on a unit last recorded at another gig is still recorded at this gig (carrying that status); Send to Maintenance is never blocked. Review of adea8b3 (10-10 19:00): needs changes (kit-level note rows read as checked, duplicate adds); sent to the Lead. Cameron 10-10 19:15: un-check after a note is not a bug; the note popup adds lines for last status / location, gig name, and last notes (if any); its buttons go in one row: Cancel, Clear note, Save. #246 must merge main (conflict with #253 in inventoryManagement.service.ts). **Kit notes (Cameron, 10-10 19:35):** a note on a kit writes one kit row with the note and nothing else (prod bug on main: a note on "Stage Snakes" at 19:26:30Z cascaded into two Checked Out unit rows and lost the note); a kit note must never make unscanned items read as checked. Sent to the Lead; fix ships with #246. **Re-review at a47064d (10-10 20:45):** Cameron's items all pass (kit note = one kit row, lines never inherit a kit row, popup lines and one-row buttons, duplicate adds); two small fixes sent (carry location from another gig's record; "+ Add" on a lot opens the counter). After that: Cameron tests claude/185-phone against dev before merge (dev already has 20261019000000). Cameron tests the final phone changes on a branch before deploy. Mockup: https://claude.ai/artifact/JCVPy7Eid54tiLwZnteohd
-- **#250** (Docs Lead, equipment pages): reviewed 10-10; one change needed (the "any" line scan/count steps aren't live until #246). Sent to the Docs Lead, which is paused until the usage reset (Tue 10-13 00:00 PT).
-- Next prod deploy carries #251, #252, #253, #254 (no migrations). Prod still has #248's two bugs and the Locations bug until then.
+- #250 merged 10-10 (equipment user-guide pages).
+- Next prod deploy carries #251, #252, #253, #254 (no migrations). Docs Lead's pre-deploy test of main @ 248994e (on #250): #251 and #252 pass; #253/#254 improve on prod, but lots in a case showed once per gig (#255). **Cameron (10-10 ~23:00): wait for the #255 fix (PR #257), then deploy.** The Docs Lead re-tests #257 on dev first. Also found: #256 (desktop Track a gig: the scanner's manual tag entry is blocked by the dialog; old bug, not yet released). Prod still has #248's two bugs and the Locations bug until then.
 
 ### 3c. Ready to build, nothing blocking
 
@@ -91,6 +91,28 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
+  - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
+  - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
+- **#246 guide drafts (Docs Lead, 10-10 22:45 UTC):** on branch `claude/docs-246-draft` (67642f1), not a PR. Held until #246 merges; I'll update them after Cameron's test.
+  - **Pages:** `mobile/field-inventory.md` (Scanning equipment on your phone) and the new `mobile/adding-at-pack-out.md`, plus cross-references from the gig Equipment and packing-list pages.
+  - **Written from claude/185-phone at 7fa117b,** with labels checked on dev. Nothing saved: I only opened the + Add search, the note popup, the counter and Finish unload.
+  - **Noticed in #246 while drafting, for the Equipment Lead** (not filed; the branch is still changing):
+    1. Scanning a listed lot's tag records 1 piece without opening the counter. "+ Add" on the same lot does open it.
+    2. A note on a line with no record anywhere writes In Warehouse, so in Unload that line reads as checked.
+    3. "Select a gig from the dashboard…" is shown to Admins, Managers and Viewers, whose bottom bar says Gigs, not Dashboard.
+    4. "Before you pack" and "Pack anyway" also appear in Load Truck. Fine, but the guide says "in Pack-Out" for planned gear.
+    5. Wording differs between screens for "any" lines: the phone shows "Any · 2 / 4"; the web packing list shows "2 of 4" or "7 counted · 3 short".
+    6. Only the person who added a kit can Remove it; Admins can't.
+    7. Additions and "any" lines have no note button.
+- **Pre-deploy test of main @ 248994e (Docs Lead, 10-10 22:30 UTC).** The full report is on PR #250.
+  - **#251 and #252: pass** for Admin and Manager, filed-year cases included. Staff and Viewer have no Financials.
+  - **#253 and #254: partial.**
+    - Pass: a case and tagged units show once, at their newest record; a newer case-only record doesn't move the case's contents; the status and location filters use where things are now; lot splits show at each gig.
+    - Fail, filed as **#255**: untagged items in a case are listed once per gig they've been to; they bring back a stale copy of the case; the gig filter still lists them.
+    - **Not a regression:** prod already keys everything per gig. Whether #255 holds the deploy is Cameron's call.
+  - **Also filed: #256.** On desktop, Track a gig → Scan: manual entry can't be typed into or submitted. Pre-existing; the phone layout works.
+  - **Dev data:** the test tracking rows are left for repro. Harbor Truck has a $0 total and an edited line description until `./scripts/seed-demo.sh` is re-run.
 - **Docs Lead status, 10-09 20:45 UTC.**
   - **Post-release screenshot check (prod 10-09):** I retook all 41 shots from main. None needs replacing: #235 had already retaken the changed screens, and 3 of the 4 diffs are invisible anti-aliasing.
   - **Known gap: the team members table's Last Login** shows the screenshot runs' real sign-in times (Oct 8–9), later than the pinned date (Oct 7), and they change each run. Signing in is what updates it.
@@ -133,7 +155,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **Rotating:** create the new token in the Supabase dashboard (Account → Access Tokens), replace the variable's value, start a new session, run the access test, then revoke the old token.
 - Dev Auth sends email through a Mailtrap sandbox (custom SMTP set by Cameron 10-08). The SMTP password lives only in the Supabase dashboard, not in the environment or the repo.
 
-**Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. Cameron (10-08 evening): sub-agents do the coordinator's builds; the coordinator reviews, merges and may deploy to **dev** with `./deploy_dev.sh` (never prod). The coordinator checks in at least every 4 hours (Routine `trig_013iEPNzrK1NR8j2Qih9jzJy`, bound to coordinator session `session_01XTmXKhviMSkyy5PqcRAfUn` in the Supabase Prod environment; it disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
+**Pace through 11-10 (Cameron, 10-08; extended from 10-17 on 10-10):** keep triage and the leads busy. Cameron (10-08 evening): sub-agents do the coordinator's builds; the coordinator reviews, merges and may deploy to **dev** with `./deploy_dev.sh` (never prod). The coordinator checks in every 2 hours (Routine `trig_013iEPNzrK1NR8j2Qih9jzJy`, bound to coordinator session `session_01XTmXKhviMSkyy5PqcRAfUn` in the Supabase Prod environment; it disables itself after 11-10) to queue work, review ready PRs and ask Cameron about blockers.
 
 **Equipment Lead** (next: #186 Locations and #185 in parallel, after #230) (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
 
