@@ -138,8 +138,10 @@ export function bucketsAt(rows: readonly TrackingRow[], record: ItemRecord, gigI
  * The rows that say where things are now, for a view of everything by place (Equipment →
  * Locations). A kit's own (kit-only) row: its newest, across gigs. A unit: its newest row,
  * across gigs and kits. A lot (`isLot`): its newest row per (gig, kit), as placementOf counts
- * it. Each item reports its own newest row: a container's newer kit-only row (a note, an
- * override) doesn't move what's in it (Cameron, 10-10).
+ * it, so pieces still out show at each gig; but a bucket whose newest row is a return isn't a
+ * place on its own: the pieces back home show once, at the lot's newest return (#255). Each
+ * item reports its own newest row: a container's newer kit-only row (a note, an override)
+ * doesn't move what's in it (Cameron, 10-10).
  */
 export function currentRows<R extends TrackingRow>(
   rows: readonly R[],
@@ -154,6 +156,11 @@ export function currentRows<R extends TrackingRow>(
         : `unit:${r.asset_id}`;
     if (newer(r, latest.get(key))) latest.set(key, r);
   }
-  return [...latest.values()];
+  const isHome = (key: string, r: R) => key.startsWith('lot:') && r.status === RETURNED_STATUS;
+  const lotHome = new Map<string, R>();
+  for (const [key, r] of latest) {
+    if (isHome(key, r) && newer(r, lotHome.get(r.asset_id as string))) lotHome.set(r.asset_id as string, r);
+  }
+  return [...latest].filter(([key, r]) => !isHome(key, r) || lotHome.get(r.asset_id as string) === r).map(([, r]) => r);
 }
 
