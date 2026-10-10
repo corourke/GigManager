@@ -604,15 +604,17 @@ export const inventoryTrackingService = {
   /** Remove a kit you added at pack-out: what was scanned for it first, then the assignment. */
   async removePackOutKit(params: { gigId: string; kitId: string; userId: string }) {
     const { gigId, kitId, userId } = params;
-    await this.clearTracking({ gigId, kitId });
+    // Every row it wrote here, in every mode: it was never meant to be on the gig.
     const packingList = await idbStore.getPackingList(gigId);
     if (packingList) {
       await idbStore.putPackingList(gigId, {
         ...packingList,
         top_level_kit_ids: (packingList.top_level_kit_ids || []).filter((id: string) => id !== kitId),
         kits: (packingList.kits || []).filter((a: any) => a.kit_id !== kitId),
+        tracking: (packingList.tracking || []).filter((r: TrackingRecord) => !(r.gig_id === gigId && r.kit_id === kitId)),
       });
     }
+    await offlineSyncService.queueTrackingUpdate({ gig_id: gigId, kit_id: kitId, all_for_kit: true }, 'INVENTORY_CLEAR');
     await offlineSyncService.queueTrackingUpdate({ gig_id: gigId, kit_id: kitId, assigned_by: userId }, 'KIT_ASSIGNMENT_REMOVE');
     await syncIfOnline();
   },

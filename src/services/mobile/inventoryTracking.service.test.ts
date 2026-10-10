@@ -697,6 +697,28 @@ describe('inventoryTrackingService', () => {
       expect(saved.kits.map((k: any) => k.kit_id)).toEqual(['main'])
     })
 
+    // #246 review: after Pack-Out then Load Truck, Remove left the Pack-Out rows behind.
+    it('removePackOutKit removes every row of the kit at the gig, from every mode', async () => {
+      const at = (m: number) => `2026-10-10T10:0${m}:00.000Z`
+      const withAdded = {
+        ...list(),
+        top_level_kit_ids: ['main', 'amps'],
+        kits: [...list().kits, { kit_id: 'amps', added_at_pack_out: true, assigned_by: 'user-1', kit: { id: 'amps', name: 'Amps', is_container: false, direct_assets: [{ asset_id: 'a1', quantity: 1 }] } }],
+        tracking: [
+          { id: 'r1', gig_id: 'gig-1', kit_id: 'amps', asset_id: 'a1', status: 'Checked Out', scanned_at: at(0) },
+          { id: 'r2', gig_id: 'gig-1', kit_id: 'amps', asset_id: 'a1', status: 'In Transit', scanned_at: at(1) },
+          { gig_id: 'gig-1', kit_id: 'amps', asset_id: 'a1', status: 'On Site', scanned_at: at(2) },
+          { id: 'r9', gig_id: 'gig-1', kit_id: 'main', asset_id: 'm1', status: 'Checked Out', scanned_at: at(0) },
+        ],
+      }
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(withAdded)
+      await inventoryTrackingService.removePackOutKit({ gigId: 'gig-1', kitId: 'amps', userId: 'user-1' })
+      const saved = vi.mocked(idbStore.putPackingList).mock.calls.at(-1)![1] as any
+      expect(saved.tracking.map((r: any) => r.id)).toEqual(['r9'])
+      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledWith({ gig_id: 'gig-1', kit_id: 'amps', all_for_kit: true }, 'INVENTORY_CLEAR')
+      expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => c[1])).toEqual(['INVENTORY_CLEAR', 'KIT_ASSIGNMENT_REMOVE'])
+    })
+
     it('a unit or lot added at pack-out is a no-kit row', async () => {
       vi.mocked(idbStore.getPackingList).mockResolvedValue(list())
       await inventoryTrackingService.submitScan({ gigId: 'gig-1', kitId: null, assetId: 'lot-1', quantity: 6, status: 'Checked Out', organizationId: 'org-1', scannedBy: 'user-1' })

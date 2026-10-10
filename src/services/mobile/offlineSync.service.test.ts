@@ -179,6 +179,25 @@ describe('offlineSyncService — INVENTORY_CLEAR handler (by record_id)', () => 
   })
 })
 
+// #246 review: removing a kit added at pack-out removes every row it wrote at the gig.
+describe('offlineSyncService — INVENTORY_CLEAR handler (all of a kit)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('deletes every row of the kit at the gig', async () => {
+    const chain = makeChain({ data: null, error: null })
+    mockFrom.mockReturnValue(chain)
+
+    await offlineSyncService.syncItem(outboxItem('INVENTORY_CLEAR', { gig_id: 'gig-1', kit_id: 'kit-1', all_for_kit: true }))
+
+    expect(mockFrom).toHaveBeenCalledTimes(1)
+    expect(chain.delete).toHaveBeenCalled()
+    expect(chain.eq).toHaveBeenCalledWith('gig_id', 'gig-1')
+    expect(chain.eq).toHaveBeenCalledWith('kit_id', 'kit-1')
+  })
+})
+
 describe('offlineSyncService — INVENTORY_CLEAR handler (bulk, no record_id)', () => {
   beforeEach(() => {
     vi.clearAllMocks()

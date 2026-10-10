@@ -54,6 +54,15 @@ registerSyncHandler('INVENTORY_SCAN', async (payload: any) => {
 });
 
 registerSyncHandler('INVENTORY_CLEAR', async (payload: any) => {
+  // A kit added at pack-out, removed: every row it wrote at the gig (#185 PR 2). Rows queued
+  // before this sync first, so they go too.
+  if (payload.all_for_kit) {
+    const { error } = await supabase.from('inventory_tracking').delete()
+      .eq('gig_id', payload.gig_id)
+      .eq('kit_id', payload.kit_id);
+    if (error) throw error;
+    return;
+  }
   if (payload.record_id) {
     const { error } = await supabase
       .from('inventory_tracking')
