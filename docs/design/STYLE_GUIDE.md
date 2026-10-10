@@ -142,7 +142,7 @@ The gig page (`src/components/gig/GigPage.tsx`) is the model for a record page: 
 ### 4. Columns Picker
 -   For tables where viewers want different detail (staffing, participants, equipment): `ColumnsPicker` plus `useColumnVisibility` in `src/components/gig/view/`.
 -   Trigger: a ghost `Columns` button with the `Columns3` icon in the card's `actions`, hidden when printing (`no-print`).
--   Menu: a `Popover` with the metadata label "Show columns" and a checkbox per optional column. Required columns aren't listed; `defaultHidden` columns start off.
+-   Menu: a `Popover` with the metadata label "Show columns" and a checkbox per optional column. Required columns aren't listed; `defaultHidden` columns start off, also for a viewer who chose columns before the column was added (e.g. the gig Equipment card's Status and Location).
 -   The choice is remembered per table in this browser (`localStorage`, key `gw.columns.<table>`), and the page still works when storage is unavailable.
 
 ---
