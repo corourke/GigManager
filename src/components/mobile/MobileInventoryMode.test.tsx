@@ -21,6 +21,8 @@ vi.mock('../../services/mobile/orgIndex.service', async (importOriginal) => {
   return { orgIndexService: { ...actual.orgIndexService, get: vi.fn(async () => orgIndex.value), refresh: vi.fn(async () => orgIndex.value) } }
 })
 
+const overlap = vi.hoisted(() => ({ warnings: vi.fn() }))
+vi.mock('../../services/conflictDetection.service', () => ({ additionWarnings: overlap.warnings }))
 vi.mock('../../services/writeOff.service', () => ({
   writeOffPieces: vi.fn().mockResolvedValue('split-1'),
 }))
@@ -783,6 +785,55 @@ describe('MobileInventoryMode', () => {
 
       await user.click(within(group).getByRole('button', { name: 'Uncheck XLR Cable' }))
       expect(inventoryTrackingService.clearTracking).toHaveBeenCalledWith({ gigId: 'gig-1', kitId: null, assetId: 'lot-x' })
+    })
+
+    // Online, an addition gets the overlap check first: what it would double-book or leave short.
+    describe('online: the overlap check before adding', () => {
+      const timed = { gig_start: '2026-10-10T18:00:00Z', gig_end: '2026-10-10T23:00:00Z', gig_timezone: 'America/Los_Angeles' }
+      beforeEach(() => {
+        Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+        vi.mocked(idbStore.getPackingList).mockImplementation(async () => list(timed))
+        vi.mocked(packingListService.fetchGigPackingList).mockImplementation(async () => list(timed) as any)
+        overlap.warnings.mockReset()
+      })
+
+      it('a unit booked on an overlapping gig: warns, and adds only on "Pack anyway"', async () => {
+        overlap.warnings.mockResolvedValue(['K12 Speaker (#K12-9) is also on Friday Show, at the same time.'])
+        const user = await renderIn()
+        await act(async () => { await scannerProps.onScan('K12-9') })
+        await user.click(screen.getByRole('button', { name: 'Add to this gig' }))
+        expect(overlap.warnings).toHaveBeenCalledWith(
+          { id: 'gig-1', start: timed.gig_start, end: timed.gig_end, timezone: timed.gig_timezone }, 'org-1',
+          { records: [expect.objectContaining({ asset_id: 'u9', quantity: 1 })] },
+        )
+        expect(screen.getByText('K12 Speaker (#K12-9) is also on Friday Show, at the same time.')).toBeInTheDocument()
+        expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+        await user.click(screen.getByRole('button', { name: 'Pack anyway' }))
+        expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: null, assetId: 'u9' }))
+      })
+
+      it('a lot: the check counts what is going', async () => {
+        overlap.warnings.mockResolvedValue(['XLR Cable: 2 short while Friday Show runs.'])
+        const user = await renderIn()
+        await act(async () => { await scannerProps.onScan('BOX-1') })
+        const count = screen.getByLabelText('How many')
+        await user.clear(count)
+        await user.type(count, '6')
+        await user.click(screen.getByRole('button', { name: 'Add to this gig' }))
+        expect(overlap.warnings).toHaveBeenCalledWith(expect.anything(), 'org-1', { records: [expect.objectContaining({ asset_id: 'lot-x', quantity: 6 })] })
+        expect(screen.getByText('XLR Cable: 2 short while Friday Show runs.')).toBeInTheDocument()
+        await user.click(screen.getByRole('button', { name: 'Cancel' }))
+        expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+      })
+
+      it('a kit: checked too; nothing to say, it is added straight away', async () => {
+        overlap.warnings.mockResolvedValue([])
+        const user = await renderIn()
+        await act(async () => { await scannerProps.onScan('CASE-1') })
+        await user.click(screen.getByRole('button', { name: 'Add to this gig' }))
+        expect(overlap.warnings).toHaveBeenCalledWith(expect.anything(), 'org-1', { kitIds: ['case-1'] })
+        expect(inventoryTrackingService.addKitAtPackOut).toHaveBeenCalled()
+      })
     })
 
     it('Remove is only offered while packing', async () => {

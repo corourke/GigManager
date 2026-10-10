@@ -17,6 +17,7 @@ import {
 import { NOT_RETURNED_STATUS, RETURNED_STATUS, SCANNING_MODES, ScanningMode } from '../../config/inventoryWorkflow';
 import { writeOffPieces } from '../../services/writeOff.service';
 import { orgIndexService, type IndexKit, type IndexRecord, type OrgIndex } from '../../services/mobile/orgIndex.service';
+import { additionWarnings, type Addition } from '../../services/conflictDetection.service';
 import { canManage } from '../../utils/permissions';
 import { packingListService } from '../../services/mobile/packingList.service';
 import { inventoryTrackingService } from '../../services/mobile/inventoryTracking.service';
@@ -333,6 +334,42 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     setPackWarning({ messages, proceed });
   }, [getPackWarnings]);
 
+  // Before adding something at pack-out: what's worth a second look, as for planned gear.
+  const adHocWarnings = useCallback((record: { item_name?: string; manufacturer_model?: string; status?: string | null }) => {
+    const name = record.item_name || record.manufacturer_model || 'This item';
+    return record.status === 'Maintenance' || record.status === 'Inactive' ? [`${name} is in ${record.status}.`] : [];
+  }, []);
+
+  // Online: what the addition would newly double-book or leave short while an overlapping gig runs.
+  const checkAddition = useCallback(async (adding: Addition): Promise<string[]> => {
+    if (!navigator.onLine || !gigId || !selectedOrganization || !packingList?.gig_start || !packingList?.gig_end) return [];
+    return additionWarnings(
+      { id: gigId, start: packingList.gig_start, end: packingList.gig_end, timezone: packingList.gig_timezone },
+      selectedOrganization.id,
+      adding,
+    );
+  }, [gigId, packingList, selectedOrganization]);
+
+  // Each record added on its own, as the overlap check reads it.
+  const looseOf = (record: { id: string; quantity?: number | null; equipment_item_id?: string | null; manufacturer_model?: string; item_name?: string; tag_number?: string | null; serial_number?: string | null }, quantity = 1) => ({
+    asset_id: record.id,
+    quantity,
+    asset: {
+      equipment_item_id: record.equipment_item_id ?? null, manufacturer_model: record.item_name ?? record.manufacturer_model,
+      tag_number: record.tag_number ?? null, serial_number: record.serial_number ?? null, quantity: record.quantity ?? 1,
+    },
+  });
+
+  // Ask first if anything is worth a second look; otherwise go ahead.
+  const guardAddition = useCallback(async (messages: string[], proceed: () => Promise<void>) => {
+    if (messages.length === 0) {
+      await proceed();
+      return;
+    }
+    setIsScannerOpen(false);
+    setPackWarning({ messages, proceed });
+  }, []);
+
   // The listed unit a scanned stranger could stand in for: same item, not swapped already, one
   // not yet done in this mode first. Without one, it goes in as an extra under the first kit.
   const openExtraScan = useCallback((asset: any) => {
@@ -368,6 +405,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     if (!extraScan || !gigId || !selectedOrganization || !user) return;
     const { asset, kitId, swapFor } = extraScan;
     setExtraScan(null);
+    const run = async () => {
     // Swap goes in the listed unit's kit; added on its own, it has no kit (#185 PR 2).
     const scan = (assetId: string, status: string) => inventoryTrackingService.submitScan({
       gigId,
@@ -384,24 +422,24 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     if (swap && swapFor) await scan(swapFor.asset_id, RETURNED_STATUS);
     await refreshPackingList(gigId);
     toast.success(swap ? `Swapped for ${swapFor?.label}` : 'Added to this gig');
-  }, [extraScan, gigId, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
-
-  // Before adding something at pack-out: what's worth a second look, as for planned gear.
-  const adHocWarnings = useCallback((record: { item_name?: string; manufacturer_model?: string; status?: string | null }) => {
-    const name = record.item_name || record.manufacturer_model || 'This item';
-    return record.status === 'Maintenance' || record.status === 'Inactive' ? [`${name} is in ${record.status}.`] : [];
-  }, []);
+    };
+    // A swap stands in for a listed unit; added on its own, it gets the same second look.
+    if (swap) await run();
+    else await guardAddition([...adHocWarnings(asset), ...await checkAddition({ records: [looseOf(asset)] })], run);
+  }, [adHocWarnings, checkAddition, extraScan, gigId, guardAddition, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
 
   const addKit = useCallback(async (kit: IndexKit) => {
     if (!gigId || !selectedOrganization || !user) return;
     setKitToAdd(null);
     setAddSearch(null);
-    await inventoryTrackingService.addKitAtPackOut({ gigId, organizationId: selectedOrganization.id, userId: user.id, kit });
-    // Online, the list comes back with the kit's contents; offline, they follow on the next sync.
-    if (navigator.onLine) await loadPackingList(gigId);
-    else await refreshPackingList(gigId);
-    toast.success(`${kit.name} added to this gig`);
-  }, [gigId, refreshPackingList, selectedOrganization, user]);
+    await guardAddition(await checkAddition({ kitIds: [kit.id] }), async () => {
+      await inventoryTrackingService.addKitAtPackOut({ gigId, organizationId: selectedOrganization.id, userId: user.id, kit });
+      // Online, the list comes back with the kit's contents; offline, they follow on the next sync.
+      if (navigator.onLine) await loadPackingList(gigId);
+      else await refreshPackingList(gigId);
+      toast.success(`${kit.name} added to this gig`);
+    });
+  }, [checkAddition, gigId, guardAddition, refreshPackingList, selectedOrganization, user]);
 
   // A unit or lot added on its own: a no-kit row in this mode's status.
   const addLoose = useCallback(async (record: IndexRecord, quantity: number) => {
@@ -424,13 +462,9 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       await refreshPackingList(gigId);
       toast.success(`${record.item_name} added to this gig`);
     };
-    const messages = adHocWarnings(record);
-    if (messages.length === 0) await proceed();
-    else {
-      setIsScannerOpen(false);
-      setPackWarning({ messages, proceed });
-    }
-  }, [adHocWarnings, gigId, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
+    const messages = [...adHocWarnings(record), ...await checkAddition({ records: [looseOf(record, quantity)] })];
+    await guardAddition(messages, proceed);
+  }, [adHocWarnings, checkAddition, gigId, guardAddition, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
 
   // Something the org owns that isn't on this gig: a kit to add, a lot to count, or a unit to
   // add on its own (or swap for a listed one).

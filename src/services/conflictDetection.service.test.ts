@@ -1245,3 +1245,63 @@ describe('equipment added at pack-out counts in the checks', () => {
     expect(onB.details.conflicting_kits).toEqual([{ kit_id: 'loose:B', kit_name: 'Added at pack-out', shared_assets: ['PD-20 (#DSL-0211)'] }])
   })
 })
+
+// #185 PR 2: before something is added at pack-out, what the addition makes newly double-booked
+// or short while an overlapping gig runs. What was already so isn't repeated.
+describe('additionWarnings', () => {
+  const pd20 = { manufacturer_model: 'PD-20', tag_number: 'DSL-0211', serial_number: null, quantity: 1, equipment_item_id: 'item-pd20' }
+  const gig = { id: 'gig-1', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z' }
+  const tables = (over: Record<string, any> = {}): Record<string, any> => ({
+    gig_kit_assignments: { data: [{ kit_id: 'mine', organization_id: 'org-1' }], error: null },
+    gigs: { data: [{ id: 'gig-2', title: 'Other', start: '2026-10-10T18:00:00Z', end: '2026-10-10T23:00:00Z',
+      kit_assignments: [{ kit_id: 'lights', organization_id: 'org-1', kit: { id: 'lights', name: 'Lights' } }] }], error: null },
+    kit_flattened_cache: { data: [{ kit_id: 'lights', asset_id: 'pd20', asset: pd20 }, { kit_id: 'mine', asset_id: 'amp', asset: { manufacturer_model: 'Amp', tag_number: 'A-1', quantity: 1 } }, { kit_id: 'lights', asset_id: 'amp', asset: { manufacturer_model: 'Amp', tag_number: 'A-1', quantity: 1 } }], error: null },
+    ...over,
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.resetModules()
+    needs.load.mockResolvedValue(noNeeds())
+  })
+
+  it('a unit booked on an overlapping gig: says so, and not what was already double-booked', async () => {
+    const t = tables()
+    ;(createClient as any).mockReturnValue({ from: vi.fn((name: string) => createQueryBuilder(t[name] || { data: [], error: null })) })
+    const { additionWarnings } = await import('./conflictDetection.service')
+    const messages = await additionWarnings(gig, 'org-1', { records: [{ asset_id: 'pd20', quantity: 1, asset: pd20 }] })
+    expect(messages).toEqual(['PD-20 (#DSL-0211) is also on Other, at the same time.'])
+  })
+
+  it('a kit whose units are booked on an overlapping gig', async () => {
+    const t = tables({
+      kit_flattened_cache: { data: [{ kit_id: 'lights', asset_id: 'pd20', asset: pd20 }, { kit_id: 'spare', asset_id: 'pd20', asset: pd20 }], error: null },
+    })
+    ;(createClient as any).mockReturnValue({ from: vi.fn((name: string) => createQueryBuilder(t[name] || { data: [], error: null })) })
+    const { additionWarnings } = await import('./conflictDetection.service')
+    expect(await additionWarnings(gig, 'org-1', { kitIds: ['spare'] })).toEqual(['PD-20 (#DSL-0211) is also on Other, at the same time.'])
+  })
+
+  it('a lot that leaves an item short while an overlapping gig runs', async () => {
+    needs.load.mockImplementation(async (_k: string[], _o: string, extra: any) => ({
+      ctx: {
+        kits: new Map([['lights', { id: 'lights', name: 'Lights', is_container: false }], ...extra.kits.map((k: any) => [k.id, k])]),
+        lines: new Map([['lights', [{ equipment_item_id: 'trio', quantity: 4 }]], ...extra.lines]),
+        assetItem: new Map(extra.assetItem),
+      },
+      counts: new Map([['trio', { name: 'Intimidator Trio', owned: 6, available: 6, inMaintenance: 0, inContainers: 0 }]]),
+    }))
+    const t = tables({ kit_flattened_cache: { data: [], error: null } })
+    ;(createClient as any).mockReturnValue({ from: vi.fn((name: string) => createQueryBuilder(t[name] || { data: [], error: null })) })
+    const { additionWarnings } = await import('./conflictDetection.service')
+    const trio = { manufacturer_model: 'Trio', tag_number: null, serial_number: null, quantity: 8, equipment_item_id: 'trio' }
+    expect(await additionWarnings(gig, 'org-1', { records: [{ asset_id: 'trio-lot', quantity: 4, asset: trio }] }))
+      .toEqual(['Intimidator Trio: 2 short while Other runs.'])
+  })
+
+  it('says nothing if the check can\'t run', async () => {
+    ;(createClient as any).mockReturnValue({ from: vi.fn(() => createQueryBuilder({ data: null, error: { message: 'offline' } })) })
+    const { additionWarnings } = await import('./conflictDetection.service')
+    expect(await additionWarnings(gig, 'org-1', { kitIds: ['spare'] })).toEqual([])
+  })
+})

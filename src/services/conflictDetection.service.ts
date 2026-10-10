@@ -166,7 +166,7 @@ const looseKitId = (gigId: string) => LOOSE_KIT + gigId;
 const isLooseKit = (kitId: string) => kitId.startsWith(LOOSE_KIT);
 const LOOSE_PAGE = 1000;
 
-interface LooseRecord {
+export interface LooseRecord {
   asset_id: string;
   quantity: number;
   asset: { equipment_item_id?: string | null; manufacturer_model?: string; tag_number?: string | null; serial_number?: string | null; quantity?: number | null } | null;
@@ -405,7 +405,13 @@ export async function checkParticipantConflicts(gigId: string, startTime: string
   }
 }
 
-export async function checkEquipmentConflicts(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string): Promise<ConflictResult> {
+/** Equipment about to be added to a gig at pack-out (#185): kits, or units and lots on their own. */
+export interface Addition {
+  kitIds?: string[];
+  records?: LooseRecord[];
+}
+
+export async function checkEquipmentConflicts(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string, adding?: Addition): Promise<ConflictResult> {
   const supabase = getSupabase();
   try {
     const { data: assigned, error: currentError } = await supabase
@@ -415,9 +421,13 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
 
     if (currentError) throw currentError;
     // Only the viewing organization's kits: another participant's equipment isn't ours to count.
-    const currentGigKits = ofOrg((assigned ?? []) as any[], organizationId);
+    const currentGigKits = [
+      ...ofOrg((assigned ?? []) as any[], organizationId),
+      ...(adding?.kitIds ?? []).map((kit_id) => ({ kit_id, organization_id: organizationId })),
+    ];
     // With no kits, only what was added at pack-out can be in use.
-    if (currentGigKits.length === 0 && (await loadLooseSafely(supabase, [gigId], organizationId)).size === 0) return { conflicts: [], warnings: [] };
+    if (currentGigKits.length === 0 && !adding?.records?.length
+      && (await loadLooseSafely(supabase, [gigId], organizationId)).size === 0) return { conflicts: [], warnings: [] };
 
     const { effectiveStart: currentStart, effectiveEnd: currentEnd } = getEffectiveRange(startTime, endTime, timezone);
     const { queryStart, queryEnd } = widenedQueryRange(currentStart, currentEnd);
@@ -436,6 +446,10 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
 
     if (candidateError) throw candidateError;
     const looseByGig = await loadLooseSafely(supabase, [gigId, ...(candidates ?? []).map((g: any) => g.id)], organizationId);
+    if (adding?.records?.length) {
+      const adds = new Set(adding.records.map((r) => r.asset_id));
+      looseByGig.set(gigId, [...(looseByGig.get(gigId) ?? []).filter((r) => !adds.has(r.asset_id)), ...adding.records]);
+    }
     const kitIds = [...currentGigKits, ...looseAssignment(gigId, looseByGig, organizationId)].map((a: any) => a.kit_id as string);
     if (kitIds.length === 0) return { conflicts: [], warnings: [] };
     const candidateGigs = (candidates ?? [])
@@ -528,6 +542,39 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
     return { conflicts, warnings };
   } catch (err) {
     return handleApiError(err, 'check equipment conflicts');
+  }
+}
+
+/** What a check says about the gigs overlapping this one, one line each. */
+function conflictMessages(result: ConflictResult): string[] {
+  return result.conflicts.flatMap((c) => [
+    ...(c.details.conflicting_kits ?? []).flatMap((k: { shared_assets: string[] }) =>
+      k.shared_assets.map((label) => `${label} is also on ${c.gig_title}, at the same time.`)),
+    ...(c.details.items_short ?? []).map((s: ItemShort) => `${s.item_name}: ${s.short} short while ${c.gig_title} runs.`),
+  ]);
+}
+
+/**
+ * Before adding at pack-out (#185): what the addition would newly double-book, or leave short,
+ * while an overlapping gig runs. What's already so isn't repeated. Nothing if the check fails:
+ * it's a second look, not a gate.
+ */
+export async function additionWarnings(
+  gig: { id: string; start: string; end: string; timezone?: string | null },
+  organizationId: string,
+  adding: Addition,
+): Promise<string[]> {
+  try {
+    const tz = gig.timezone ?? undefined;
+    const [before, after] = await Promise.all([
+      checkEquipmentConflicts(gig.id, gig.start, gig.end, tz, organizationId),
+      checkEquipmentConflicts(gig.id, gig.start, gig.end, tz, organizationId, adding),
+    ]);
+    const already = new Set(conflictMessages(before));
+    return [...new Set(conflictMessages(after))].filter((m) => !already.has(m));
+  } catch (err) {
+    console.error('Error checking an addition:', err);
+    return [];
   }
 }
 

@@ -524,6 +524,7 @@ export type Database = {
       }
       gig_kit_assignments: {
         Row: {
+          added_at_pack_out: boolean
           assigned_at: string
           assigned_by: string
           gig_id: string
@@ -533,6 +534,7 @@ export type Database = {
           organization_id: string
         }
         Insert: {
+          added_at_pack_out?: boolean
           assigned_at?: string
           assigned_by: string
           gig_id: string
@@ -542,6 +544,7 @@ export type Database = {
           organization_id: string
         }
         Update: {
+          added_at_pack_out?: boolean
           assigned_at?: string
           assigned_by?: string
           gig_id?: string

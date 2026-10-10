@@ -271,7 +271,7 @@ export const packingListService = {
 
     const { data: gigData } = await supabase
       .from('gigs')
-      .select('title')
+      .select('title, start, end, timezone')
       .eq('id', gigId)
       .single();
 
@@ -293,6 +293,10 @@ export const packingListService = {
     const packingListData = {
       gig_id: gigId,
       gig_title: gigData?.title || null,
+      // When the gig runs, for the overlap check before adding at pack-out (#185).
+      gig_start: gigData?.start ?? null,
+      gig_end: gigData?.end ?? null,
+      gig_timezone: gigData?.timezone ?? null,
       kits: kitAssignments,
       hierarchy_edges: hierarchyEdges,
       top_level_kit_ids: [...topLevelIds],
