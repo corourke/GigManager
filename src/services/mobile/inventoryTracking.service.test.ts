@@ -620,4 +620,58 @@ describe('inventoryTrackingService', () => {
         .toEqual([{ kit_id: 'top', asset_id: 'k12-2', quantity: 1 }])
     })
   })
+
+  // #185 PR 2: a kit added at pack-out joins the gig's list on the device at once, and goes to the
+  // server as a flagged assignment through the outbox (offline too). Its adder can remove it.
+  describe('kits added at pack-out', () => {
+    const list = () => ({ gig_id: 'gig-1', top_level_kit_ids: ['main'], kits: [{ kit_id: 'main', kit: { id: 'main', name: 'Main', is_container: false } }], tracking: [] })
+
+    it('addKitAtPackOut queues a flagged assignment and adds the kit to the list', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list())
+      await inventoryTrackingService.addKitAtPackOut({
+        gigId: 'gig-1', organizationId: 'org-1', userId: 'user-1',
+        kit: { id: 'case-1', name: 'Mic Case', tag_number: 'CASE-1', is_container: true },
+      })
+      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledWith(
+        { organization_id: 'org-1', gig_id: 'gig-1', kit_id: 'case-1', assigned_by: 'user-1', added_at_pack_out: true },
+        'KIT_ASSIGNMENT_ADD',
+      )
+      const saved = vi.mocked(idbStore.putPackingList).mock.calls[0][1] as any
+      expect(saved.top_level_kit_ids).toEqual(['main', 'case-1'])
+      expect(saved.kits[1]).toMatchObject({ kit_id: 'case-1', added_at_pack_out: true, assigned_by: 'user-1', kit: { id: 'case-1', name: 'Mic Case', is_container: true } })
+    })
+
+    it('removePackOutKit clears what was scanned for it, then queues the removal', async () => {
+      const withAdded = {
+        ...list(),
+        top_level_kit_ids: ['main', 'case-1'],
+        kits: [...list().kits, { kit_id: 'case-1', added_at_pack_out: true, assigned_by: 'user-1', kit: { id: 'case-1', name: 'Mic Case', is_container: true, assets: [] } }],
+        tracking: [{ id: 'r1', gig_id: 'gig-1', kit_id: 'case-1', asset_id: null, status: 'Checked Out', scanned_at: '2026-10-10T10:00:00.000Z', scanned_by: 'user-1' }],
+      }
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(withAdded)
+      await inventoryTrackingService.removePackOutKit({ gigId: 'gig-1', kitId: 'case-1', userId: 'user-1' })
+      const calls = vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls.map((c: any) => c[1])
+      expect(calls).toEqual(['INVENTORY_CLEAR', 'KIT_ASSIGNMENT_REMOVE'])
+      expect(vi.mocked(offlineSyncService.queueTrackingUpdate).mock.calls[1][0]).toEqual({ gig_id: 'gig-1', kit_id: 'case-1', assigned_by: 'user-1' })
+      const saved = vi.mocked(idbStore.putPackingList).mock.calls.at(-1)![1] as any
+      expect(saved.top_level_kit_ids).toEqual(['main'])
+      expect(saved.kits.map((k: any) => k.kit_id)).toEqual(['main'])
+    })
+
+    it('a unit or lot added at pack-out is a no-kit row', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list())
+      await inventoryTrackingService.submitScan({ gigId: 'gig-1', kitId: null, assetId: 'lot-1', quantity: 6, status: 'Checked Out', organizationId: 'org-1', scannedBy: 'user-1' })
+      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledWith(expect.objectContaining({ kit_id: null, asset_id: 'lot-1', quantity: 6 }), 'INVENTORY_SCAN')
+    })
+  })
+
+  it('Finish unload lists units and lots added at pack-out on their own that are still out (#185)', () => {
+    const at = (asset_id: string, status: string, quantity: number, minute: number) =>
+      ({ gig_id: 'gig-1', kit_id: null, asset_id, status, quantity, scanned_at: `2026-10-10T10:0${minute}:00.000Z`, scanned_by: 'u' })
+    const packingList = { top_level_kit_ids: [], kits: [], tracking: [at('lot-1', 'Checked Out', 6, 0), at('u9', 'On Site', 1, 1), at('u8', 'In Warehouse', 1, 2)] }
+    expect(inventoryTrackingService.getStillOut(packingList)).toEqual([
+      { kit_id: null, asset_id: 'u9', quantity: 1 },
+      { kit_id: null, asset_id: 'lot-1', quantity: 6 },
+    ])
+  })
 })

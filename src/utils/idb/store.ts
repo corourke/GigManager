@@ -2,7 +2,8 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
 export interface OutboxItem {
   id?: number;
-  type: 'INVENTORY_SCAN' | 'INVENTORY_CLEAR' | 'INVENTORY_NOTE_UPDATE' | 'ASSET_STATUS_UPDATE' | 'BIO_ENROLL' | 'STAFF_ASSIGNMENT_UPDATE';
+  type: 'INVENTORY_SCAN' | 'INVENTORY_CLEAR' | 'INVENTORY_NOTE_UPDATE' | 'ASSET_STATUS_UPDATE' | 'BIO_ENROLL' | 'STAFF_ASSIGNMENT_UPDATE'
+    | 'KIT_ASSIGNMENT_ADD' | 'KIT_ASSIGNMENT_REMOVE';
   payload: any;
   timestamp: number;
   attempts: number;
@@ -27,10 +28,14 @@ interface GigWranglerDB extends DBSchema {
     key: string;
     value: any;
   };
+  org_index: {
+    key: string;
+    value: any;
+  };
 }
 
 const DB_NAME = 'gig-manager-mobile';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise: Promise<IDBPDatabase<GigWranglerDB>>;
 
@@ -60,6 +65,10 @@ export const getDB = () => {
         }
         if (oldVersion < 3) {
           db.createObjectStore('staff_assignments', { keyPath: 'assignment.id' });
+        }
+        if (oldVersion < 4) {
+          // The organization's kits and equipment, for scanning or adding anything it owns (#185).
+          db.createObjectStore('org_index', { keyPath: 'org_id' });
         }
       },
     });
@@ -129,5 +138,13 @@ export const idbStore = {
   async clearStaffAssignments() {
     const db = await getDB();
     return db.clear('staff_assignments');
+  },
+  async putOrgIndex(index: any) {
+    const db = await getDB();
+    return db.put('org_index', index);
+  },
+  async getOrgIndex(orgId: string) {
+    const db = await getDB();
+    return db.get('org_index', orgId);
   },
 };

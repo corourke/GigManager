@@ -12,7 +12,8 @@ type TrackingRecord = {
   id?: string;
   organization_id?: string;
   gig_id: string;
-  kit_id: string;
+  /** null: a no-kit row (#185: a unit or lot added at pack-out on its own). */
+  kit_id: string | null;
   asset_id: string | null;
   status: string;
   scanned_at: string;
@@ -32,7 +33,8 @@ type TrackingRecord = {
 
 type SubmitScanParams = {
   gigId: string;
-  kitId: string;
+  /** null: a unit or lot added at pack-out on its own, not in a kit (#185). */
+  kitId: string | null;
   assetId?: string;
   status: string;
   organizationId: string;
@@ -85,13 +87,13 @@ const normalizeNotes = (notes?: string | null) => {
   return trimmed ? trimmed : null;
 };
 
-const getTrackingHistory = (tracking: TrackingRecord[] = [], kitId: string, assetId?: string) => {
+const getTrackingHistory = (tracking: TrackingRecord[] = [], kitId: string | null, assetId?: string) => {
   return tracking
     .filter((record) => record.kit_id === kitId && (record.asset_id ?? null) === (assetId || null))
     .sort(compareTrackingRecords);
 };
 
-const getLatestTrackingRecord = (tracking: TrackingRecord[] = [], kitId: string, assetId?: string) => {
+const getLatestTrackingRecord = (tracking: TrackingRecord[] = [], kitId: string | null, assetId?: string) => {
   return getTrackingHistory(tracking, kitId, assetId)[0] || null;
 };
 
@@ -259,13 +261,29 @@ const getExtras = (packingList: any): { kit_id: string; asset_id: string }[] => 
   const seen = new Set<string>();
   const extras: { kit_id: string; asset_id: string }[] = [];
   for (const row of (packingList?.tracking || []) as TrackingRecord[]) {
-    if (!row.asset_id) continue;
+    // A no-kit row is a unit or lot added at pack-out on its own (getLoose), not an extra in a kit.
+    if (!row.asset_id || !row.kit_id) continue;
     const key = `${row.kit_id}|${row.asset_id}`;
     if (listed.has(key) || seen.has(key)) continue;
     seen.add(key);
     extras.push({ kit_id: row.kit_id, asset_id: row.asset_id });
   }
   return extras;
+};
+
+/**
+ * Units and lots added at pack-out on their own (#185): the gig's no-kit rows, newest per record,
+ * with what that row says is there. Un-checking one deletes its row.
+ */
+const getLoose = (packingList: any): { asset_id: string; quantity: number; status: string; row: TrackingRecord }[] => {
+  const seen = new Set<string>();
+  const out: { asset_id: string; quantity: number; status: string; row: TrackingRecord }[] = [];
+  for (const row of [...(packingList?.tracking || []) as TrackingRecord[]].sort(compareTrackingRecords)) {
+    if (row.kit_id || !row.asset_id || seen.has(row.asset_id)) continue;
+    seen.add(row.asset_id);
+    out.push({ asset_id: row.asset_id, quantity: Math.max(1, Number(row.quantity ?? 1) || 1), status: row.status, row });
+  }
+  return out;
 };
 
 const itemIdOf = (packingList: any, assetId: string): string | null => {
@@ -340,18 +358,21 @@ const getScanProgress = (packingList: any, status: string) => progressUnder(pack
 /** One kit's progress in pieces: what toggling it as a whole covers. */
 const getKitProgress = (packingList: any, kitId: string, status: string) => progressUnder(packingList, [kitId], status);
 
+/** One thing still out at the gig: kit_id null for a unit or lot added at pack-out on its own. */
+type StillOut = { kit_id: string | null; asset_id: string | null; quantity: number };
+
 /**
  * What's still out at the gig (#185), for Finish unload: every unit and lot whose newest row in
  * its kit isn't a return or a partial return, with what that row says is there. A container is
  * one sealed unit (its own row), so its contents aren't listed apart from it.
  */
-const getStillOut = (packingList: any): CascadeTarget[] => {
+const getStillOut = (packingList: any): StillOut[] => {
   const roots: string[] = packingList?.top_level_kit_ids?.length
     ? packingList.top_level_kit_ids
     : (packingList?.kits || []).map((a: any) => a.kit?.id).filter(Boolean);
   const tracking = packingList?.tracking || [];
   const seen = new Set<string>();
-  const out: CascadeTarget[] = [];
+  const out: StillOut[] = [];
   for (const root of roots) {
     for (const t of [...getCascadeTargets(packingList, root), ...getAnySlotTargets(packingList, root)]) {
       if (t.asset_id && getKitAssignment(packingList, t.kit_id)?.kit?.is_container) continue;
@@ -367,6 +388,10 @@ const getStillOut = (packingList: any): CascadeTarget[] => {
     const latest = getLatestTrackingRecord(tracking, e.kit_id, e.asset_id);
     if (!latest || latest.status === RETURNED_STATUS || latest.status === NOT_RETURNED_STATUS) continue;
     out.push({ kit_id: e.kit_id, asset_id: e.asset_id, quantity: Math.max(1, Number(latest.quantity ?? 1) || 1) });
+  }
+  for (const l of getLoose(packingList)) {
+    if (l.status === RETURNED_STATUS || l.status === NOT_RETURNED_STATUS) continue;
+    out.push({ kit_id: null, asset_id: l.asset_id, quantity: l.quantity });
   }
   return out;
 };
@@ -496,6 +521,7 @@ export const inventoryTrackingService = {
   getKitProgress,
   getStillOut,
   getExtras,
+  getLoose,
   getSwapFor,
 
   async matchTag(tagNumber: string) {
@@ -524,6 +550,46 @@ export const inventoryTrackingService = {
     return null;
   },
 
+  /**
+   * A kit added at pack-out (#185): on the device's list at once, and on the server as a flagged
+   * assignment through the outbox. Its contents come with the next packing-list sync.
+   */
+  async addKitAtPackOut(params: { gigId: string; organizationId: string; userId: string; kit: { id: string; name: string; tag_number: string | null; is_container: boolean } }) {
+    const { gigId, organizationId, userId, kit } = params;
+    const packingList = await idbStore.getPackingList(gigId);
+    if (packingList && !(packingList.kits || []).some((a: any) => a.kit_id === kit.id)) {
+      await idbStore.putPackingList(gigId, {
+        ...packingList,
+        top_level_kit_ids: [...(packingList.top_level_kit_ids || []), kit.id],
+        kits: [...(packingList.kits || []), {
+          kit_id: kit.id, notes: null, added_at_pack_out: true, assigned_by: userId,
+          kit: { ...kit, assets: [], direct_assets: [], any_lines: [] },
+        }],
+      });
+    }
+    await offlineSyncService.queueTrackingUpdate(
+      { organization_id: organizationId, gig_id: gigId, kit_id: kit.id, assigned_by: userId, added_at_pack_out: true },
+      'KIT_ASSIGNMENT_ADD'
+    );
+    await syncIfOnline();
+  },
+
+  /** Remove a kit you added at pack-out: what was scanned for it first, then the assignment. */
+  async removePackOutKit(params: { gigId: string; kitId: string; userId: string }) {
+    const { gigId, kitId, userId } = params;
+    await this.clearTracking({ gigId, kitId });
+    const packingList = await idbStore.getPackingList(gigId);
+    if (packingList) {
+      await idbStore.putPackingList(gigId, {
+        ...packingList,
+        top_level_kit_ids: (packingList.top_level_kit_ids || []).filter((id: string) => id !== kitId),
+        kits: (packingList.kits || []).filter((a: any) => a.kit_id !== kitId),
+      });
+    }
+    await offlineSyncService.queueTrackingUpdate({ gig_id: gigId, kit_id: kitId, assigned_by: userId }, 'KIT_ASSIGNMENT_REMOVE');
+    await syncIfOnline();
+  },
+
   /** Keep a unit that isn't on the list with the gig's packing list, so it can be shown (#185). */
   async addExtraAsset(gigId: string, asset: any) {
     const packingList = await idbStore.getPackingList(gigId);
@@ -537,7 +603,7 @@ export const inventoryTrackingService = {
     const packingList = await idbStore.getPackingList(gigId);
     const tracking = packingList?.tracking || [];
 
-    const buildEntry = (targetKitId: string, targetAssetId: string | null, n = 1): TrackingRecord => ({
+    const buildEntry = (targetKitId: string | null, targetAssetId: string | null, n = 1): TrackingRecord => ({
       organization_id: organizationId,
       gig_id: gigId,
       kit_id: targetKitId,
@@ -553,9 +619,10 @@ export const inventoryTrackingService = {
     // Scanning a specific asset directly never cascades. Scanning a kit's
     // own row cascades to every scannable unit inside it, respecting
     // container boundaries at every level — see getCascadeTargets.
+    if (!assetId && !kitId) return null;
     const entries: TrackingRecord[] = assetId
       ? [buildEntry(kitId, assetId, quantity ?? 1)]
-      : [
+      : !kitId ? [] : [
           ...getCascadeTargets(packingList, kitId).map((target) => buildEntry(target.kit_id, target.asset_id, target.quantity)),
           ...getAnySlots(packingList, kitId).flatMap((slot) =>
             getAnySlotFills(packingList, slot, status, gigId).fills.map((f) => buildEntry(slot.kit_id, f.asset_id, f.quantity))),

@@ -138,6 +138,33 @@ registerSyncHandler('ASSET_STATUS_UPDATE', async (payload: any) => {
   }
 });
 
+// A kit added at pack-out (#185): a flagged assignment. Already there (a retry) counts as done;
+// refused (not allowed, or the kit is gone) won't change on a retry, so say why and drop it.
+registerSyncHandler('KIT_ASSIGNMENT_ADD', async (payload: any) => {
+  const { error } = await (supabase.from('gig_kit_assignments') as any).insert(payload);
+  if ((error as any)?.code === '23505') return;
+  if ((error as any)?.code === '42501') {
+    toast.error(`Kit not added to the gig: ${(error as any).message}`);
+    return;
+  }
+  if (error) throw error;
+});
+
+// Removing a kit added at pack-out: only the adder's own flagged assignment.
+registerSyncHandler('KIT_ASSIGNMENT_REMOVE', async (payload: any) => {
+  const { error } = await (supabase.from('gig_kit_assignments') as any)
+    .delete()
+    .eq('gig_id', payload.gig_id)
+    .eq('kit_id', payload.kit_id)
+    .eq('added_at_pack_out', true)
+    .eq('assigned_by', payload.assigned_by);
+  if ((error as any)?.code === '42501') {
+    toast.error(`Kit not removed from the gig: ${(error as any).message}`);
+    return;
+  }
+  if (error) throw error;
+});
+
 registerSyncHandler('STAFF_ASSIGNMENT_UPDATE', async (payload: any) => {
   const updateData: Record<string, any> = { status: payload.status };
   if (payload.status === 'Confirmed') {

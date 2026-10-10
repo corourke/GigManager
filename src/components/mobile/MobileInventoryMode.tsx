@@ -152,7 +152,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   const [extraScan, setExtraScan] = useState<{ asset: any; kitId: string; swapFor: { asset_id: string; label: string } | null } | null>(null);
   const [shortReturn, setShortReturn] = useState<ShortReturnState | null>(null);
   // Finish unload (#185): what's still out, and which of it to mark missing.
-  const [finishing, setFinishing] = useState<{ kit_id: string; asset_id: string | null; quantity: number; name: string; missing: boolean }[] | null>(null);
+  const [finishing, setFinishing] = useState<{ kit_id: string | null; asset_id: string | null; quantity: number; name: string; missing: boolean }[] | null>(null);
 
   const refreshPackingList = useCallback(async (id: string) => {
     const updated = await idbStore.getPackingList(id);
@@ -479,7 +479,11 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         }
       }
     }
-    setFinishing(inventoryTrackingService.getStillOut(packingList).map((t: { kit_id: string; asset_id: string | null; quantity: number }) => ({
+    // Units and lots that aren't on the list (extras, pack-out additions) are named from their own records.
+    for (const [id, a] of Object.entries((packingList.extra_assets || {}) as Record<string, any>)) {
+      if (!names.has(id)) names.set(id, `${a.manufacturer_model || a.name || 'Unit'}${a.tag_number ? ` (${a.tag_number})` : ''}`);
+    }
+    setFinishing(inventoryTrackingService.getStillOut(packingList).map((t: { kit_id: string | null; asset_id: string | null; quantity: number }) => ({
       ...t,
       name: t.asset_id ? names.get(t.asset_id) ?? 'Item' : names.get(`kit:${t.kit_id}`) ?? 'Kit',
       missing: false,

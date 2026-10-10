@@ -287,3 +287,38 @@ describe('offlineSyncService — ASSET_STATUS_UPDATE refused', () => {
     expect(idbStore.updateOutboxItem).toHaveBeenCalled()
   })
 })
+
+describe('offlineSyncService: kits added at pack-out (#185)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('KIT_ASSIGNMENT_ADD inserts a flagged assignment; one already there counts as done', async () => {
+    const chain = makeChain({ data: null, error: null })
+    mockFrom.mockReturnValue(chain)
+    const payload = { organization_id: 'org-1', gig_id: 'gig-1', kit_id: 'case-1', assigned_by: 'user-1', added_at_pack_out: true }
+    await offlineSyncService.syncItem(outboxItem('KIT_ASSIGNMENT_ADD', payload))
+    expect(mockFrom).toHaveBeenCalledWith('gig_kit_assignments')
+    expect(chain.insert).toHaveBeenCalledWith(payload)
+
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { code: '23505', message: 'duplicate key' } }))
+    await expect(offlineSyncService.syncItem(outboxItem('KIT_ASSIGNMENT_ADD', payload))).resolves.toBeUndefined()
+  })
+
+  it('KIT_ASSIGNMENT_REMOVE deletes only the adder\'s own pack-out addition', async () => {
+    const chain = makeChain({ data: null, error: null })
+    mockFrom.mockReturnValue(chain)
+    await offlineSyncService.syncItem(outboxItem('KIT_ASSIGNMENT_REMOVE', { gig_id: 'gig-1', kit_id: 'case-1', assigned_by: 'user-1' }))
+    expect(chain.delete).toHaveBeenCalled()
+    expect(chain.eq.mock.calls).toEqual([['gig_id', 'gig-1'], ['kit_id', 'case-1'], ['added_at_pack_out', true], ['assigned_by', 'user-1']])
+  })
+
+  it('a refused add is dropped with a message, not retried', async () => {
+    const { idbStore } = await import('../../utils/idb/store')
+    const { toast } = await import('sonner')
+    const item = { ...outboxItem('KIT_ASSIGNMENT_ADD', { gig_id: 'gig-1', kit_id: 'k' }), id: 9 }
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([item])
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { code: '42501', message: 'new row violates row-level security policy' } }))
+    await offlineSyncService.processOutbox()
+    expect(idbStore.removeFromOutbox).toHaveBeenCalledWith(9)
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Kit not added'))
+  })
+})
