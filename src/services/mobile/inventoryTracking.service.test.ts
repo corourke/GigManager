@@ -212,6 +212,15 @@ describe('inventoryTrackingService', () => {
     expect(queued).toEqual([['cables', 7], ['k12', 1]])
   })
 
+  // #246 review: adding a kit that's already on the gig queues nothing.
+  it('addKitAtPackOut does nothing for a kit already on the gig', async () => {
+    vi.mocked(idbStore.getPackingList).mockResolvedValue({ gig_id: 'gig-1', top_level_kit_ids: ['case-1'], kits: [{ kit_id: 'case-1', kit: { id: 'case-1' } }], tracking: [] })
+    const added = await inventoryTrackingService.addKitAtPackOut({ gigId: 'gig-1', organizationId: 'org-1', userId: 'user-1', kit: { id: 'case-1', name: 'Mic Case', tag_number: null, is_container: true } })
+    expect(added).toBe(false)
+    expect(idbStore.putPackingList).not.toHaveBeenCalled()
+    expect(offlineSyncService.queueTrackingUpdate).not.toHaveBeenCalled()
+  })
+
   // #246 (Cameron, 10-10): saving a note always appends a new row that carries the item's last
   // status (and count and place) forward. It never edits a row, and never invents a scan.
   describe('saveNote', () => {
@@ -248,12 +257,40 @@ describe('inventoryTrackingService', () => {
       expect(inventoryTrackingService.getScanProgress(list(appended()), 'Checked Out').done).toBe(0)
     })
 
-    it('a unit out at another gig is not moved here by a note: nothing is written', async () => {
-      vi.mocked(idbStore.getPackingList).mockResolvedValue(list([], { elsewhere: { u1: { gig_id: 'gig-2', gig_title: 'Other Gig', status: 'On Site' } } }))
+    // Cameron, 10-10: a note is recorded here anyway, carrying the newest record from anywhere.
+    it('a unit whose last record is at another gig gets its note here, carrying that status', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list([], {
+        elsewhere: { u1: { gig_id: 'gig-2', gig_title: 'Other Gig', status: 'On Site' } },
+        last_records: { assets: { u1: { gig_id: 'gig-2', status: 'On Site', scanned_at: at(0) } }, kits: {} },
+      }))
       const result = await save()
-      expect(result).toEqual({ saved: false, elsewhere: { gig_id: 'gig-2', gig_title: 'Other Gig', status: 'On Site' } })
-      expect(idbStore.putPackingList).not.toHaveBeenCalled()
-      expect(offlineSyncService.queueTrackingUpdate).not.toHaveBeenCalled()
+      expect(result).toMatchObject({ saved: true, record: { gig_id: 'gig-1', asset_id: 'u1', status: 'On Site', notes: 'Fan rattles' } })
+      expect(appended()).toEqual([expect.objectContaining({ gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'u1', status: 'On Site' })])
+      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledWith(expect.objectContaining({ gig_id: 'gig-1', asset_id: 'u1', status: 'On Site' }), 'INVENTORY_SCAN')
+    })
+
+    it('the newer of the row here and the last record anywhere is carried', async () => {
+      const mine = { id: 'r1', gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'u1', status: 'Checked Out', quantity: 1, location: 'Truck', notes: null, scanned_at: at(2), scanned_by: 'user-1' }
+      const away = { last_records: { assets: { u1: { gig_id: 'gig-2', status: 'On Site', scanned_at: at(1) } }, kits: {} } }
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list([mine], away))
+      await save()
+      expect(appended().find((r: any) => r.id !== 'r1')).toMatchObject({ status: 'Checked Out', location: 'Truck' })
+
+      vi.clearAllMocks()
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(list([{ ...mine, scanned_at: at(0) }], away))
+      await save()
+      expect(appended().find((r: any) => r.id !== 'r1')).toMatchObject({ status: 'On Site', location: null })
+    })
+
+    it('a container with no row here carries its own last record from anywhere, not In Warehouse', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue({
+        gig_id: 'gig-1',
+        kits: [{ kit: { id: 'case-1', is_container: true, assets: [] } }],
+        tracking: [],
+        last_records: { assets: {}, kits: { 'case-1': { gig_id: 'gig-2', status: 'Checked Out', scanned_at: at(0) } } },
+      })
+      await save({ kitId: 'case-1', assetId: undefined, notes: 'Latch loose' })
+      expect(appended()).toEqual([expect.objectContaining({ gig_id: 'gig-1', kit_id: 'case-1', asset_id: null, status: 'Checked Out', notes: 'Latch loose' })])
     })
 
     it('a note on a kit row carries that row forward too', async () => {

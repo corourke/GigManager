@@ -19,6 +19,8 @@ function createSupabaseMock(tableResponses: Record<string, any>, rpcResponse: an
         in: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
         range: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue(response),
         then: (resolve: any, reject?: any) => Promise.resolve(response).then(resolve, reject),
       };
@@ -220,6 +222,38 @@ describe('packingListService.fetchGigPackingList', () => {
 
     // Units only: a lot's pieces elsewhere show in what's at home, not as a warning.
     expect(result.elsewhere).toEqual({ k12: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'On Site' } });
+  });
+
+  // #246 (Cameron, 10-10): a note carries the newest record from anywhere, for units and containers.
+  it('keeps each unit\'s and container\'s newest record from any gig', async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [
+        { kit_id: 'rack', notes: null, kit: { id: 'rack', name: 'Rack', tag_number: null, is_container: false } },
+        { kit_id: 'case', notes: null, kit: { id: 'case', name: 'Case', tag_number: null, is_container: true } },
+      ], error: null },
+      kit_flattened_cache: { data: [{ kit_id: 'rack', asset_id: 'k12', total_quantity: 1 }, { kit_id: 'rack', asset_id: 'xlr', total_quantity: 10 }], error: null },
+      kit_components: { data: [], error: null },
+      assets: { data: [
+        { id: 'k12', manufacturer_model: 'K12', tag_number: 'K12-1', quantity: 1, status: 'Active' },
+        { id: 'xlr', manufacturer_model: 'XLR', tag_number: null, quantity: 20, status: 'Active' },
+      ], error: null },
+      inventory_tracking: { data: [
+        { id: 't1', gig_id: 'old-gig', kit_id: 'k', asset_id: 'k12', status: 'In Warehouse', quantity: 1, scanned_at: '2026-09-01T10:00:00Z', created_at: '2026-09-01T10:00:00Z' },
+        { id: 't2', gig_id: 'other-gig', kit_id: 'k', asset_id: 'k12', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+        { id: 't3', gig_id: 'other-gig', kit_id: 'k', asset_id: 'xlr', status: 'On Site', quantity: 4, scanned_at: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z' },
+        { id: 't4', gig_id: 'old-gig', kit_id: 'case', asset_id: null, status: 'In Warehouse', quantity: 1, scanned_at: '2026-09-01T10:00:00Z', created_at: '2026-09-01T10:00:00Z' },
+        { id: 't5', gig_id: 'other-gig', kit_id: 'case', asset_id: null, status: 'Checked Out', quantity: 1, scanned_at: '2026-10-02T10:00:00Z', created_at: '2026-10-02T10:00:00Z' },
+      ], error: null },
+      gigs: { data: [{ id: 'other-gig', title: 'Other Gig' }], error: null },
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+    expect(result.last_records).toEqual({
+      assets: { k12: { gig_id: 'other-gig', status: 'On Site', scanned_at: '2026-10-01T10:00:00Z' } },
+      kits: { case: { gig_id: 'other-gig', status: 'Checked Out', scanned_at: '2026-10-02T10:00:00Z' } },
+    });
   });
 
   // #246 review: a kit added at pack-out offline stays on the list until its add has synced.

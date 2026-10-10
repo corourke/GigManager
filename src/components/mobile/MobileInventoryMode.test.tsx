@@ -215,14 +215,22 @@ describe('MobileInventoryMode', () => {
       expect(inventoryTrackingService.updateAssetStatus).not.toHaveBeenCalled()
     })
 
-    it('B: a unit out at another gig says so, and nothing changes', async () => {
+    // Cameron, 10-10: where the unit is never blocks a note or Send to Maintenance.
+    it('B: a unit out at another gig still takes its note and Send to Maintenance', async () => {
       const { toast } = await import('sonner')
-      vi.mocked(inventoryTrackingService.saveNote).mockResolvedValueOnce({ saved: false, elsewhere: { gig_id: 'gig-2', gig_title: 'Friday Show', status: 'On Site' } } as any)
-      const user = await open()
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => ({
+        ...list('Active'), elsewhere: { 'asset-1': { gig_id: 'gig-2', gig_title: 'Friday Show', status: 'On Site' } },
+      }))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByRole('button', { name: /edit note for shure qlxd/i }))
+      await screen.findByText(/notes on item condition/i)
       await user.click(screen.getByLabelText('Send to Maintenance'))
       await user.click(screen.getByRole('button', { name: 'Save' }))
-      expect(toast.error).toHaveBeenCalledWith('Shure QLXD is out at Friday Show. Add its note there.')
-      expect(inventoryTrackingService.updateAssetStatus).not.toHaveBeenCalled()
+      expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-1', notes: 'Sent to Maintenance.' }))
+      expect(inventoryTrackingService.updateAssetStatus).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-1', status: 'Maintenance' }))
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(toast.success).toHaveBeenCalledWith('Note saved')
     })
 
     it('C: newly sending to Maintenance adds "Sent to Maintenance." to the note, and sets the status', async () => {
@@ -254,6 +262,7 @@ describe('MobileInventoryMode', () => {
 
     it('D: a row written here by the current user shows their name, not the id', async () => {
       await open('Active', [row('user-1')])
+      expect(screen.getByText('Last record')).toBeInTheDocument()
       expect(screen.getByText('Sam Lee')).toBeInTheDocument()
       expect(screen.queryByText('user-1')).not.toBeInTheDocument()
     })
@@ -861,6 +870,53 @@ describe('MobileInventoryMode', () => {
       await user.type(screen.getByLabelText('Find equipment'), 'mic')
       await user.click(screen.getByRole('button', { name: 'Add Mic Case' }))
       expect(inventoryTrackingService.addKitAtPackOut).toHaveBeenCalledWith(expect.objectContaining({ kit: index.kits[0] }))
+    })
+
+    // #246 review: what's already on the gig is marked, never added twice.
+    it('"+ Add" marks a kit already on the gig, and offers nothing to add for it', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({
+        top_level_kit_ids: ['top', 'case-1'],
+        kits: [...list().kits, { kit_id: 'case-1', added_at_pack_out: true, assigned_by: 'user-1', kit: { id: 'case-1', name: 'Mic Case', is_container: true, assets: [] } }],
+      }))
+      const user = await renderIn()
+      await user.click(screen.getByRole('button', { name: '+ Add' }))
+      await user.type(screen.getByLabelText('Find equipment'), 'mic')
+      expect(screen.queryByRole('button', { name: 'Add Mic Case' })).not.toBeInTheDocument()
+      const marked = screen.getByRole('button', { name: 'Mic Case is on this gig' })
+      expect(marked).toBeDisabled()
+      expect(inventoryTrackingService.addKitAtPackOut).not.toHaveBeenCalled()
+    })
+
+    it('"+ Add" on a unit already on the gig scans it there, without adding it again', async () => {
+      const { toast } = await import('sonner')
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({
+        kits: [{ kit_id: 'top', kit: { id: 'top', name: 'Stage Box', is_container: false,
+          direct_assets: [{ asset_id: 'u9', quantity: 1, asset: { id: 'u9', manufacturer_model: 'K12 Speaker', tag_number: 'K12-9', quantity: 1, status: 'Active' } }],
+          assets: [{ asset_id: 'u9', quantity: 1, asset: { id: 'u9', manufacturer_model: 'K12 Speaker', tag_number: 'K12-9', quantity: 1, status: 'Active' } }] } }],
+      }))
+      const user = await renderIn()
+      await user.click(screen.getByRole('button', { name: '+ Add' }))
+      await user.type(screen.getByLabelText('Find equipment'), 'k12')
+      expect(screen.queryByRole('button', { name: 'Add K12 Speaker (K12-9)' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Scan K12 Speaker (K12-9), on this gig' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'top', assetId: 'u9', status: SCANNING_MODES[0].resultingStatus }))
+      expect(inventoryTrackingService.addExtraAsset).not.toHaveBeenCalled()
+      expect(toast.success).toHaveBeenCalledWith('Scanned: K12 Speaker')
+      expect(toast.success).not.toHaveBeenCalledWith('K12 Speaker added to this gig')
+    })
+
+    it('"+ Add" on a lot already added on its own scans it again with its count, without asking how many', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({
+        extra_assets: { 'lot-x': { id: 'lot-x', manufacturer_model: 'XLR Cable', tag_number: 'BOX-1', quantity: 20 } },
+        tracking: [{ id: 't1', gig_id: 'gig-1', kit_id: null, asset_id: 'lot-x', status: SCANNING_MODES[0].resultingStatus, quantity: 6, scanned_at: '2026-10-10T10:00:00.000Z', scanned_by: 'user-1' }],
+      }))
+      const user = await renderIn()
+      await user.click(screen.getByRole('button', { name: '+ Add' }))
+      await user.type(screen.getByLabelText('Find equipment'), 'xlr')
+      await user.click(screen.getByRole('button', { name: 'Scan XLR Cable (lot of 20), on this gig' }))
+      expect(screen.queryByLabelText('How many')).not.toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: null, assetId: 'lot-x', quantity: 6 }))
+      expect(inventoryTrackingService.addExtraAsset).not.toHaveBeenCalled()
     })
 
     it('lists what was added at pack-out; the adder can remove their kit, and un-checking a loose item deletes its row', async () => {

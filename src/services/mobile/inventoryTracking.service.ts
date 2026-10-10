@@ -61,10 +61,10 @@ type SaveNoteParams = {
   scannedBy: string;
 };
 
-/** A saved note, or why nothing was written: the unit is out at another gig. */
-type SaveNoteResult =
-  | { saved: true; record: TrackingRecord }
-  | { saved: false; elsewhere: { gig_id: string; gig_title: string | null; status: string } };
+type SaveNoteResult = { saved: true; record: TrackingRecord };
+
+/** The newest row for a unit or container at any gig, as of the packing list's fetch. */
+type LastRecord = { gig_id: string; status: string; scanned_at: string };
 
 type AssetStatusParams = {
   gigId: string;
@@ -520,12 +520,14 @@ export const inventoryTrackingService = {
 
   /**
    * A kit added at pack-out (#185): on the device's list at once, and on the server as a flagged
-   * assignment through the outbox. Its contents come with the next packing-list sync.
+   * assignment through the outbox. Its contents come with the next packing-list sync. A kit
+   * already on the gig is left as it is: false, and nothing is queued (#246 review).
    */
   async addKitAtPackOut(params: { gigId: string; organizationId: string; userId: string; kit: { id: string; name: string; tag_number: string | null; is_container: boolean } }) {
     const { gigId, organizationId, userId, kit } = params;
     const packingList = await idbStore.getPackingList(gigId);
-    if (packingList && !(packingList.kits || []).some((a: any) => a.kit_id === kit.id)) {
+    if ((packingList?.kits || []).some((a: any) => (a.kit_id ?? a.kit?.id) === kit.id)) return false;
+    if (packingList) {
       await idbStore.putPackingList(gigId, {
         ...packingList,
         top_level_kit_ids: [...(packingList.top_level_kit_ids || []), kit.id],
@@ -541,6 +543,7 @@ export const inventoryTrackingService = {
       'KIT_ASSIGNMENT_ADD'
     );
     await syncIfOnline();
+    return true;
   },
 
   /** Remove a kit you added at pack-out: the assignment, then every row it wrote at the gig. */
@@ -610,26 +613,28 @@ export const inventoryTrackingService = {
   },
 
   /**
-   * Save a note (#246, Cameron 10-10): always a new row, carrying the item's last state forward
-   * unchanged, so a note never counts as a scan. The newest row for it at this gig and kit gives
-   * status, count and place; with none, it's at home (In Warehouse). A unit out at another gig
-   * would be moved here by a row at this gig, so nothing is written for it.
+   * Save a note (#246, Cameron 10-10): always a new row at this gig, carrying the item's last
+   * status forward unchanged, so a note never counts as a scan. That's the newer of its newest row
+   * here and its last record anywhere (a unit, or a container's own row), so a unit out at another
+   * gig keeps that status; with neither, it's at home (In Warehouse).
    */
   async saveNote(params: SaveNoteParams): Promise<SaveNoteResult> {
     const { gigId, kitId, assetId, organizationId, scannedBy } = params;
     const packingList = await idbStore.getPackingList(gigId);
     const here = getLatestTrackingRecord(packingList?.tracking || [], kitId, assetId);
-    const away = !here && assetId ? packingList?.elsewhere?.[assetId] : null;
-    if (away) return { saved: false, elsewhere: away };
+    const last: LastRecord | undefined = assetId
+      ? packingList?.last_records?.assets?.[assetId]
+      : getKitAssignment(packingList, kitId)?.kit?.is_container ? packingList?.last_records?.kits?.[kitId] : undefined;
+    const fromAway = !!last && (!here || Date.parse(last.scanned_at) > Date.parse(here.scanned_at));
 
     const record: TrackingRecord = {
       organization_id: organizationId,
       gig_id: gigId,
       kit_id: kitId,
       asset_id: assetId ?? null,
-      status: here?.status ?? RETURNED_STATUS,
-      quantity: Math.max(1, Number(here?.quantity ?? 1) || 1),
-      location: here?.location ?? null,
+      status: fromAway ? last!.status : here?.status ?? RETURNED_STATUS,
+      quantity: fromAway ? 1 : Math.max(1, Number(here?.quantity ?? 1) || 1),
+      location: fromAway ? null : here?.location ?? null,
       scanned_at: new Date().toISOString(),
       scanned_by: scannedBy,
       notes: normalizeNotes(params.notes),

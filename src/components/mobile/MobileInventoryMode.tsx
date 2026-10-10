@@ -423,18 +423,26 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     await guardAddition([...adHocWarnings(asset), ...await checkAddition({ records: [looseOf(asset)] })], run);
   }, [adHocWarnings, checkAddition, extraScan, gigId, guardAddition, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
 
+  const isKitOnGig = useCallback((kitId: string) =>
+    (packingList?.kits || []).some((a: any) => (a.kit_id ?? a.kit?.id) === kitId), [packingList]);
+
   const addKit = useCallback(async (kit: IndexKit) => {
     if (!gigId || !selectedOrganization || !user) return;
     setKitToAdd(null);
     setAddSearch(null);
+    // Already on the gig: nothing to add, and nothing queued (#246 review).
+    if (isKitOnGig(kit.id)) {
+      toast(`${kit.name} is already on this gig`);
+      return;
+    }
     await guardAddition(await checkAddition({ kitIds: [kit.id] }), async () => {
-      await inventoryTrackingService.addKitAtPackOut({ gigId, organizationId: selectedOrganization.id, userId: user.id, kit });
+      if (!await inventoryTrackingService.addKitAtPackOut({ gigId, organizationId: selectedOrganization.id, userId: user.id, kit })) return;
       // Online, the list comes back with the kit's contents; offline, they follow on the next sync.
       if (navigator.onLine) await loadPackingList(gigId);
       else await refreshPackingList(gigId);
       toast.success(`${kit.name} added to this gig`);
     });
-  }, [checkAddition, gigId, guardAddition, refreshPackingList, selectedOrganization, user]);
+  }, [checkAddition, gigId, guardAddition, isKitOnGig, refreshPackingList, selectedOrganization, user]);
 
   // A unit or lot added on its own: a no-kit row in this mode's status.
   const addLoose = useCallback(async (record: IndexRecord, quantity: number) => {
@@ -707,7 +715,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     const notes = wantsMaintenance && !isMaintenance ? [typed, SENT_TO_MAINTENANCE].filter(Boolean).join(' ') : noteDialog.note;
 
     // A new row carrying the item's state forward: a note is never a scan (#246).
-    const result = await inventoryTrackingService.saveNote({
+    await inventoryTrackingService.saveNote({
       gigId,
       kitId: noteDialog.kitId,
       assetId: noteDialog.assetId,
@@ -715,10 +723,6 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       organizationId: selectedOrganization.id,
       scannedBy: user.id,
     });
-    if (!result.saved) {
-      toast.error(`${noteDialog.itemName || 'This item'} is out at ${result.elsewhere.gig_title || 'another gig'}. Add its note there.`);
-      return;
-    }
 
     if (noteDialog.assetId) {
       if (wantsMaintenance && !isMaintenance) {
@@ -750,13 +754,17 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     setSelectedMode(mode);
   }, [selectedMode]);
 
-  const matchTagLocally = useCallback((tagNumber: string) => {
+  // What a scan would write for something on this gig: by its tag, or (from "+ Add") by its
+  // record's id (#246 review: something already on the gig is scanned, not added again).
+  const matchLocally = useCallback((by: { tag: string } | { assetId: string }) => {
     if (!packingList?.kits) return null;
-    const tag = tagNumber.trim();
+    const tag = 'tag' in by ? by.tag.trim() : null;
+    const isIt = (id: string | null | undefined, asset: any) =>
+      tag !== null ? (asset?.tag_number ?? '').trim() === tag && !!tag : 'assetId' in by && id === by.assetId;
 
     for (const assignment of packingList.kits) {
       const kit = assignment.kit;
-      if (!kit) continue;
+      if (!kit || tag === null) continue;
 
       if (kit.tag_number === tag) {
         return { type: 'kit' as const, kitId: kit.id, assetId: undefined, label: kit.name || 'Kit' };
@@ -778,7 +786,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     for (const root of roots) {
       for (const target of inventoryTrackingService.getCascadeTargets(packingList, root)) {
         const asset = target.asset_id ? assetsById.get(target.asset_id) : null;
-        if (asset?.tag_number === tag) {
+        if (asset && isIt(target.asset_id, asset)) {
           return {
             type: 'asset' as const,
             kitId: target.kit_id,
@@ -792,7 +800,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     // line of that item that isn't full yet in this mode.
     const slots: AnySlot[] = roots.flatMap((root) => inventoryTrackingService.getAnySlots(packingList, root));
     for (const slot of slots) {
-      const unit = (packingList.item_records?.[slot.item_id] || []).find((r: any) => r.tag_number === tag);
+      const unit = (packingList.item_records?.[slot.item_id] || []).find((r: any) => isIt(r.id, r));
       if (!unit) continue;
       const open = slots.find((s) => s.item_id === slot.item_id
         && inventoryTrackingService.getAnySlotFilled(packingList, s, selectedMode.resultingStatus) < s.quantity) ?? slot;
@@ -805,7 +813,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       .sort((a: any, b: any) => String(b.scanned_at ?? '').localeCompare(String(a.scanned_at ?? '')));
     for (const row of newestFirst) {
       const asset = row.asset_id ? packingList.extra_assets?.[row.asset_id] : null;
-      if (!asset || (asset.tag_number ?? '').trim() !== tag) continue;
+      if (!asset || !isIt(row.asset_id, asset)) continue;
       return {
         type: 'asset' as const,
         kitId: (row.kit_id ?? null) as string | null,
@@ -816,6 +824,43 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     }
     return null;
   }, [packingList, selectedMode]);
+
+  const matchTagLocally = useCallback((tagNumber: string) => matchLocally({ tag: tagNumber }), [matchLocally]);
+
+  // Scan something on this gig, after the same second look as any scan.
+  const scanMatch = useCallback(async (match: NonNullable<ReturnType<typeof matchLocally>>) => {
+    if (!gigId || !selectedOrganization || !user) return;
+    await guardPack(match.kitId, match.assetId, async () => {
+      await inventoryTrackingService.submitScan({
+        gigId,
+        kitId: match.kitId,
+        assetId: match.assetId,
+        ...('quantity' in match ? { quantity: match.quantity } : {}),
+        status: selectedMode.resultingStatus,
+        organizationId: selectedOrganization.id,
+        scannedBy: user.id,
+        location: locationInput || null,
+      });
+
+      await refreshPackingList(gigId);
+      toast.success(`Scanned: ${match.label}`);
+    });
+  }, [gigId, guardPack, locationInput, refreshPackingList, selectedMode, selectedOrganization, user]);
+
+  // From "+ Add": a unit or lot already on the gig is scanned there, as its tag would be; anything
+  // else is added on its own (a lot asks how many first).
+  const addOrScanRecord = useCallback((record: IndexRecord) => {
+    const match = matchLocally({ assetId: record.id });
+    if (match) {
+      setAddSearch(null);
+      void scanMatch(match);
+    } else if (Number(record.quantity ?? 1) > 1) {
+      setLotToAdd({ record, count: Number(record.quantity ?? 1) });
+    } else {
+      setAddSearch(null);
+      void addLoose(record, 1);
+    }
+  }, [addLoose, matchLocally, scanMatch]);
 
   const handleScan = async (tagNumber: string) => {
     if (!gigId || !packingList || !selectedOrganization || !user) {
@@ -858,21 +903,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         return;
       }
 
-      await guardPack(match.kitId, match.assetId, async () => {
-        await inventoryTrackingService.submitScan({
-          gigId,
-          kitId: match.kitId,
-          assetId: match.assetId,
-          ...('quantity' in match ? { quantity: match.quantity } : {}),
-          status: selectedMode.resultingStatus,
-          organizationId: selectedOrganization.id,
-          scannedBy: user.id,
-          location: locationInput || null,
-        });
-
-        await refreshPackingList(gigId);
-        toast.success(`Scanned: ${match.label}`);
-      });
+      await scanMatch(match);
     } catch (error) {
       console.error('Scan processing failed:', error);
       setScannerError('Failed to process scan. Please try again.');
@@ -1514,12 +1545,16 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                 {found.kits.length > 0 ? (
                   <div className="space-y-1">
                     <p className="text-xs font-semibold text-muted-foreground">Kits</p>
-                    {found.kits.map((kit) => (
-                      <Button key={kit.id} variant="outline" className="w-full justify-start h-10" aria-label={`Add ${kit.name}`}
-                        onClick={() => void addKit(kit)}>
-                        {kit.name}{kit.tag_number ? ` (${kit.tag_number})` : ''}
-                      </Button>
-                    ))}
+                    {found.kits.map((kit) => {
+                      const onGig = isKitOnGig(kit.id);
+                      return (
+                        <Button key={kit.id} variant="outline" className="w-full justify-start h-10" disabled={onGig}
+                          aria-label={onGig ? `${kit.name} is on this gig` : `Add ${kit.name}`}
+                          onClick={() => void addKit(kit)}>
+                          {kit.name}{kit.tag_number ? ` (${kit.tag_number})` : ''}{onGig ? ' · on this gig' : ''}
+                        </Button>
+                      );
+                    })}
                   </div>
                 ) : null}
                 {found.items.length > 0 ? (
@@ -1531,12 +1566,12 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                         {item.records.map((r) => {
                           const isLot = Number(r.quantity ?? 1) > 1;
                           const label = isLot ? `${item.name} (lot of ${r.quantity})` : `${item.name} (${r.tag_number || r.serial_number || 'untagged'})`;
+                          const onGig = !!matchLocally({ assetId: r.id });
                           return (
-                            <Button key={r.id} variant="outline" className="w-full justify-start h-9 text-xs" aria-label={`Add ${label}`}
-                              onClick={() => (isLot
-                                ? setLotToAdd({ record: r, count: Number(r.quantity ?? 1) })
-                                : (setAddSearch(null), void addLoose(r, 1)))}>
-                              {isLot ? `Lot of ${r.quantity}` : r.tag_number || r.serial_number || 'Untagged unit'}
+                            <Button key={r.id} variant="outline" className="w-full justify-start h-9 text-xs"
+                              aria-label={onGig ? `Scan ${label}, on this gig` : `Add ${label}`}
+                              onClick={() => addOrScanRecord(r)}>
+                              {isLot ? `Lot of ${r.quantity}` : r.tag_number || r.serial_number || 'Untagged unit'}{onGig ? ' · on this gig' : ''}
                             </Button>
                           );
                         })}
@@ -1660,7 +1695,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
 
             <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 space-y-2 text-sm">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Last scanned</span>
+                <span className="text-muted-foreground">Last record</span>
                 <span className="text-right font-medium">{formatScannedAt(noteDialog.lastScannedAt)}</span>
               </div>
               <div className="flex items-center justify-between gap-4">

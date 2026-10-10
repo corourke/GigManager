@@ -1,7 +1,7 @@
 import { createClient } from '../../utils/supabase/client';
 import { idbStore } from '../../utils/idb/store';
 import { isRetired, recordKind } from '../../utils/equipmentItems';
-import { placementOf, type TrackingRow } from '../../utils/locations';
+import { compareNewestFirst, placementOf, type TrackingRow } from '../../utils/locations';
 
 /** Tracking rows per request: PostgREST's default most. */
 const PLACEMENT_PAGE = 1000;
@@ -227,6 +227,32 @@ export const packingListService = {
       const away = placementOf(placed as TrackingRow[], asset).find((p) => p.gig_id !== null && p.gig_id !== gigId);
       if (away?.gig_id) elsewhere[asset.id] = { gig_id: away.gig_id, gig_title: null, status: away.status ?? 'Out' };
     }
+    // Each unit's and container's newest record from any gig: a note carries its status (#246, Cameron 10-10).
+    type LastRecord = { gig_id: string; status: string; scanned_at: string };
+    const lastOf = (rows: TrackingRow[]): LastRecord | undefined => {
+      const r = [...rows].sort(compareNewestFirst)[0];
+      return r ? { gig_id: r.gig_id, status: r.status, scanned_at: r.scanned_at } : undefined;
+    };
+    const lastRecords: { assets: Record<string, LastRecord>; kits: Record<string, LastRecord> } = { assets: {}, kits: {} };
+    for (const asset of assetMap.values()) {
+      if (recordKind(asset) !== 'unit') continue;
+      const last = lastOf((placed as TrackingRow[]).filter((r) => r.asset_id === asset.id));
+      if (last) lastRecords.assets[asset.id] = last;
+    }
+    const containerIds = [...new Set(kitAssignments.filter((a: any) => a.kit?.is_container).map((a: any) => a.kit_id as string))];
+    await Promise.all(containerIds.map(async (kitId) => {
+      const { data, error } = await supabase.from('inventory_tracking')
+        .select('gig_id, kit_id, asset_id, status, scanned_at, created_at')
+        .eq('kit_id', kitId)
+        .is('asset_id', null)
+        .order('scanned_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      const last = lastOf(((data ?? []) as TrackingRow[]).filter((r) => r.kit_id === kitId && r.asset_id == null));
+      if (last) lastRecords.kits[kitId] = last;
+    }));
+
     const awayGigIds = [...new Set(Object.values(elsewhere).map((e) => e.gig_id))];
     if (awayGigIds.length > 0) {
       const { data: awayGigs } = await supabase.from('gigs').select('id, title').in('id', awayGigIds);
@@ -322,6 +348,7 @@ export const packingListService = {
       top_level_kit_ids: [...topLevelIds],
       item_records: itemRecords,
       elsewhere,
+      last_records: lastRecords,
       extra_assets: extraAssets,
       tracking: mergedTracking,
       last_synced: Date.now()
