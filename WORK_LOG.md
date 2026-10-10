@@ -5,6 +5,14 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#185 PR 1b, PR #240** (Equipment Lead, merged 10-10): web packing list with "any" lines, counted lines, lot sizes, container contents, pieces summary, print blanks; packed counts from the shared location rule; Holds column.
+
+- **PR #244** (coordinator's sub-agents, merged 10-10): Status and Location columns on the gig's Equipment table (Cameron 10-09; off by default, counts from the packing list); #242 items 1–4 (History labels for write-offs, confirm before Write off, Missing records' retired date and disposal amount locked, honest filed-year wording).
+
+- **User guide, PR #241** (Docs Lead, merged 10-10): Equipment overview uses items, units and lots; gig Equipment tab lists Equipment needed.
+
+- **Next prod deploy ready 10-10** (pending Cameron): #239, #240, #244 + migration 20261018000000 (write-offs). Read-only prod pre-checks clean (no tracking rows break the new rule; no recovery period without a line; no Missing yet).
+
 - **#185 PR 1, PR #239** (Equipment Lead, merged 10-09): write off missing equipment (whole or part of a lot, disposal with no proceeds, undo unless the tax year is filed), the gig's Not returned list, Missing out of owned/available/insured, Disposals by record; tracking rows reference their own organization's equipment; status changes into or out of retired statuses follow the write-off rules. **Migration 20261018000000 on dev; prod with the next deploy (Cameron).**
 
 - **Prod deploy, 10-09 ~20:30 UTC** (Cameron): #225, #228, #230, #232, #233, #236, #237, #238 (plus #231, #234, no prod effect). No migrations; prod at 20261017000000. Coordinator verified: new code-split build served (entry 839 KB), Equipment needed table, Needs attention present. Caveat until #240: "N × any" kit lines count in conflicts but aren't on packing lists.
