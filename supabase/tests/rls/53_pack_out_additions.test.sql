@@ -81,6 +81,9 @@ SELECT rls_test.expect('Staff can bring it back from maintenance', rls_test.run(
 SELECT rls_test.expect('Staff still can''t mark it Disposed', rls_test.run('a_staff', rls_test.set_status('unit_s', 'Disposed')), -1);
 SELECT rls_test.expect('A manager still can', rls_test.run('a_manager', rls_test.set_status('unit_s', 'Disposed')), 1);
 SELECT rls_test.expect('Missing is still set only by a write-off', rls_test.run('a_admin', rls_test.set_status('unit_s', 'Missing')), -1);
+SELECT rls_test.expect('A status must be one of the known statuses', rls_test.run('a_admin', rls_test.set_status('unit_s', 'missing')), -1);
+SELECT rls_test.expect('Not a made-up one either', rls_test.run('a_admin', rls_test.set_status('unit_s', 'Lost')), -1);
+SELECT rls_test.expect('Nor none', rls_test.run('a_admin', rls_test.set_status('unit_s', NULL)), -1);
 SELECT rls_test.expect('Another organization''s Staff can''t change it', rls_test.run('b_staff', rls_test.set_status('unit_s', 'Maintenance')), -1);
 SELECT rls_test.expect('The status helper is for signed-in users only',
   (SELECT count(*)::int FROM information_schema.routine_privileges

@@ -68,6 +68,9 @@ BEGIN
   IF p_status = 'Missing' THEN
     RAISE EXCEPTION 'Equipment is marked missing by writing it off.' USING ERRCODE = '42501';
   END IF;
+  IF p_status IS NULL OR p_status NOT IN ('Active', 'Inactive', 'Maintenance', 'Disposed', 'Returned') THEN
+    RAISE EXCEPTION 'A status must be one of the known statuses.' USING ERRCODE = '22023';
+  END IF;
   IF (p_status IN ('Disposed', 'Returned') OR v_old IN ('Disposed', 'Returned'))
      AND NOT public.user_is_admin_or_manager_of_org(v_org, auth.uid()) THEN
     RAISE EXCEPTION 'Only Admins and Managers can mark equipment Disposed or Returned, or bring it back.' USING ERRCODE = '42501';
