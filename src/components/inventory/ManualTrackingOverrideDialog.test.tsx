@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('../../services/inventoryManagement.service', () => ({
   createManualTrackingRecord: vi.fn(),
+  moveLotPieces: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./LocationCombobox', () => ({
@@ -11,15 +12,24 @@ vi.mock('./LocationCombobox', () => ({
   ),
 }));
 
-vi.mock('../ui/select', () => ({
-  Select: ({ children }: any) => <div>{children}</div>,
-  SelectTrigger: ({ children, id }: any) => <button id={id}>{children}</button>,
-  SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: any) => <div>{children}</div>,
-  SelectItem: ({ children }: any) => <div role="option">{children}</div>,
-}));
+// An option can be picked: its click goes to its own Select (#186).
+vi.mock('../ui/select', async () => {
+  const { createContext, useContext } = await import('react');
+  const Ctx = createContext<(v: string) => void>(() => {});
+  return {
+    Select: ({ children, onValueChange }: any) => <Ctx.Provider value={onValueChange}><div>{children}</div></Ctx.Provider>,
+    SelectTrigger: ({ children, id }: any) => <button id={id}>{children}</button>,
+    SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
+    SelectContent: ({ children }: any) => <div>{children}</div>,
+    SelectItem: function SelectItem({ children, value }: any) {
+      const change = useContext(Ctx);
+      return <div role="option" onClick={() => change(value)}>{children}</div>;
+    },
+  };
+});
 
 import { ManualTrackingOverrideDialog } from './ManualTrackingOverrideDialog';
+import { createManualTrackingRecord, moveLotPieces } from '../../services/inventoryManagement.service';
 
 const baseProps = {
   open: true,
@@ -57,5 +67,40 @@ describe('ManualTrackingOverrideDialog', () => {
   it('renders without a target label when none is provided (existing InventorySummaryDashboard usage)', () => {
     render(<ManualTrackingOverrideDialog {...baseProps} />);
     expect(screen.getByText('Manual Tracking Override')).toBeInTheDocument();
+  });
+
+  // #186 / #160 (Cameron, 10-11): move N of a lot's M pieces.
+  describe('a lot', () => {
+    const lot = { here: 6, of: 10, status: 'On Site', location: 'Stage', place: 'Summer Festival (Stage)' };
+
+    it('moves N of the M, says what follows, and writes it by the lot rules', async () => {
+      const onSuccess = vi.fn();
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={lot} onSuccess={onSuccess} />);
+      const n = screen.getByLabelText('How many to move') as HTMLInputElement;
+      expect(n.value).toBe('6');
+      expect(screen.getByText('of the 6 at Summer Festival (Stage)')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('option', { name: 'In Warehouse' }));
+      fireEvent.change(n, { target: { value: '4' } });
+      expect(screen.getByText('After: 2 stay at Summer Festival (Stage) · 4 back home')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Move 4' }));
+      await waitFor(() => expect(moveLotPieces).toHaveBeenCalledWith(expect.objectContaining({
+        organizationId: 'org-1', assetId: 'lot-1', kitId: 'kit-1', fromGigId: 'gig-1', fromStatus: 'On Site', fromLocation: 'Stage',
+        here: 6, n: 4, toGigId: 'gig-1', toStatus: 'In Warehouse', createdBy: 'user-1',
+      })));
+      expect(createManualTrackingRecord).not.toHaveBeenCalled();
+      await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    });
+
+    it('a new status at the same gig is for the whole lot here: no count to choose', () => {
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={lot} />);
+      fireEvent.click(screen.getByRole('option', { name: 'In Transit' }));
+      expect(screen.queryByLabelText('How many to move')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save Override' })).toBeInTheDocument();
+    });
+  });
+
+  it('a unit has no count to move', () => {
+    render(<ManualTrackingOverrideDialog {...baseProps} assetId="unit-1" />);
+    expect(screen.queryByLabelText('How many to move')).not.toBeInTheDocument();
   });
 });
