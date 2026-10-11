@@ -299,6 +299,39 @@ describe('LocationExplorer', () => {
     expect(screen.queryByText('LED Par')).not.toBeInTheDocument();
   });
 
+  it('lists every item of a container whose contents sit apart from the case, under a "Contents" heading (#255)', async () => {
+    // A case-only record moved the case elsewhere; its contents' own newest rows are here,
+    // so this place has no row for the case itself. No item may be promoted to stand in for it.
+    const contentsOnly = ['LED Par', 'LED Wash'].map((name, i) => ({
+      kit_id: 'kit-2',
+      kit_name: 'Lighting Rig B',
+      is_container: true,
+      asset_id: `asset-c${i}`,
+      asset_name: name,
+      tag_number: null,
+      status: 'In Warehouse',
+      location: 'Warehouse',
+      gig_id: 'gig-2',
+      gig_title: 'Corporate Event',
+      scanned_at: '2026-07-02T09:00:00Z',
+      scanned_by_name: null,
+    }));
+    (getItemsByLocation as any).mockResolvedValue(contentsOnly);
+
+    render(<LocationExplorer organizationId="org-1" />);
+    fireEvent.change(screen.getByPlaceholderText('Filter by location...'), { target: { value: 'Warehouse' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Lighting Rig B')).toBeInTheDocument();
+    }, { timeout: 3000 });
+
+    expect(screen.getByText('Contents')).toBeInTheDocument();
+    expect(screen.queryByText('Container')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Expand container contents'));
+    expect(screen.getByText('LED Par')).toBeInTheDocument();
+    expect(screen.getByText('LED Wash')).toBeInTheDocument();
+  });
+
   it('shows empty table message when filters return no results', async () => {
     (getItemsByLocation as any).mockResolvedValue([]);
 

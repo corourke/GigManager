@@ -287,8 +287,11 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                               const expanded = expandedContainers.has(expandKey);
 
                               if (group.isContainer) {
-                                const representative = group.kitLevelItem ?? group.assetItems[0];
-                                const hiddenChildren = group.kitLevelItem ? group.assetItems : group.assetItems.slice(1);
+                                // Only the case's own row stands for the case. Contents whose newest rows sit
+                                // apart from it (a case-only record moved the case) list under a "Contents"
+                                // heading; none of them is promoted to stand in for the case (#255).
+                                const representative = group.kitLevelItem;
+                                const hiddenChildren = group.assetItems;
                                 return (
                                   <Fragment key={group.kitId}>
                                     <TableRow>
@@ -306,7 +309,9 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                           )}
                                           <Layers className="h-3.5 w-3.5 text-muted-foreground" />
                                           {group.kitName}
-                                          <Badge className="text-[10px]">Container</Badge>
+                                          {representative
+                                            ? <Badge className="text-[10px]">Container</Badge>
+                                            : <Badge variant="outline" className="text-[10px]">Contents</Badge>}
                                         </div>
                                       </TableCell>
                                       <TableCell className="font-mono text-xs">—</TableCell>
