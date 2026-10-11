@@ -94,6 +94,11 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
+- **Locations guide draft (Docs Lead, 10-11 10:40 UTC):** on branch `claude/docs-locations-draft` (402905d), not a PR. Held until #258/#260 are in prod.
+  - **What it covers:** reading the page, cases and Contents, untagged items (in a case vs loose), the three filters, and Override for Admins and Managers. The Equipment overview links to it.
+  - **App notes, not filed:**
+    - Items not in any kit are listed under an "Unknown Kit" heading, for example gear added at pack-out on its own and the Wash Bars on the Repair Bench. A heading like "Not in a kit" or "Added at pack-out" would read better.
+    - The Override (pencil) buttons have no label or tooltip.
 - **#260 re-tested @ cd98ef8 (Docs Lead, 10-11 06:45 UTC): pass.** T58 shows at Halloween Bash and the festival. There are no Cedar Hall entries and no stale Warehouse entry. K91 and the other lots show once each, under one Mic Case heading. The earlier result follows.
 - **#260 (the #258 follow-up) tested on dev @ b07b728 (Docs Lead, 10-11 06:05 UTC): regression.** Cedar Hall's stale places are gone and K91 shows once. But the festival T58 (1 piece, On Site, Not returned) now disappears from Locations, because the Paper Lanterns return (the same 4 pieces that went back out) fills the lot. Suggested a different key: a container's contents per (lot, container) across gigs. Details on #260.
 - **#258 tested on dev @ 978b83a (Docs Lead, 10-11 05:45 UTC): partial.** The full result is on #258.
@@ -201,7 +206,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/csv-asset-import.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/inventory-reports.md` | published (PRs #250, #259), packing list only | 2026-10-11 (Docs Lead; matches prod 10-11) | Added at pack-out group; packing-list shot held for #249; manifest and maintenance queue to come |
 | `equipment/kits.md` | draft, written (branch `claude/docs-kits-draft`) | 2026-10-09 (Docs Lead) | held until #185/#186; N × any lines, kit editor, kit page |
-| `equipment/location-explorer.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/location-explorer.md` | draft, written (branch `claude/docs-locations-draft`) | 2026-10-11 (Docs Lead; matches main with #258/#260) | publish after #258/#260 reach prod |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
