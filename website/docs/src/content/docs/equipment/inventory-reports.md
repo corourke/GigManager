@@ -41,6 +41,10 @@ get headings of their own. For example, the gear in "FOH Console Package" and
 same item or lot appears in two nested kits, it's one line with the quantities added
 up.
 
+Gear added from a phone while packing is marked too. A kit added that way has an
+**Added at pack-out** badge. Units and lots added on their own are listed last, under
+**Added at pack-out**. See [Adding equipment at pack-out](/mobile/adding-at-pack-out/).
+
 The columns are:
 
 - **✓**: a box to check off on screen. See [Checking items off](#checking-items-off).
