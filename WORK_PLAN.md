@@ -95,7 +95,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
-- **#246 guide drafts (Docs Lead, 10-10 22:45 UTC):** on branch `claude/docs-246-draft` (67642f1), not a PR. Held until #246 merges; I'll update them after Cameron's test.
+- **#246 guide drafts (Docs Lead; updated 10-11 04:55 UTC to match #246 as merged, c1bbe38):** held until prod has the deploy, then a "publish what's live" PR. Note 1 below is fixed in the merge (a lot's tag opens the counter). on branch `claude/docs-246-draft` (67642f1), not a PR. Held until #246 merges; I'll update them after Cameron's test.
   - **Pages:** `mobile/field-inventory.md` (Scanning equipment on your phone) and the new `mobile/adding-at-pack-out.md`, plus cross-references from the gig Equipment and packing-list pages.
   - **Written from claude/185-phone at 7fa117b,** with labels checked on dev. Nothing saved: I only opened the + Add search, the note popup, the counter and Finish unload.
   - **Noticed in #246 while drafting, for the Equipment Lead** (not filed; the branch is still changing):
