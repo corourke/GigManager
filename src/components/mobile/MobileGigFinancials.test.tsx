@@ -10,8 +10,8 @@ vi.mock('../../services/gig.service', () => ({
 
 // Mock QuickActionButtons to simplify testing
 vi.mock('../gig/QuickActionButtons', () => ({
-  default: ({ onSuccess }: any) => (
-    <div data-testid="quick-actions">
+  default: ({ onSuccess, financials }: any) => (
+    <div data-testid="quick-actions" data-financials={(financials ?? []).map((f: any) => f.id).join(',')}>
       <button onClick={onSuccess}>Add Mock Record</button>
     </div>
   ),
@@ -95,6 +95,13 @@ describe('MobileGigFinancials', () => {
 
     rerender(<MobileGigFinancials {...defaultProps} isEditing={true} />);
     expect(screen.getByTestId('quick-actions')).toBeInTheDocument();
+  });
+
+  it("gives the quick actions the gig's rows, so Payment received can pay off a booking", async () => {
+    render(<MobileGigFinancials {...defaultProps} isEditing={true} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-actions')).toHaveAttribute('data-financials', 'fin-1');
+    });
   });
 
   it('opens transactions modal when tiles are clicked', async () => {
