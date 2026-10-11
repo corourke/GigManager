@@ -1333,6 +1333,20 @@ describe('inventoryManagement.service', () => {
         ]);
         expect(shown(await getItemsByLocation('org-1', { gigId: 'gig-c' }))).toEqual([['t58', 'gig-c', 'Stage']]);
       });
+
+      it('a one-piece untagged item shows once: an older gig\'s "still out" row is stale (SndEng Case, 10-11)', async () => {
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+          ? { data: [{ id: 'evo', manufacturer_model: 'Audient EVO 4', tag_number: null, serial_number: null, quantity: 1 }], error: null }
+          : { data: [
+            row('wr-evo', 'white-road', 'evo', 'In Transit', 'Car', '2026-10-02T00:06:09.133Z'),
+            row('bv-out-evo', 'blue-valley', 'evo', 'In Transit', 'Truck', '2026-10-09T19:47:31.847Z'),
+            row('bv-back-evo', 'blue-valley', 'evo', 'In Warehouse', 'Garage', '2026-10-10T06:03:16.329Z'),
+          ], error: null }));
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([['evo', 'blue-valley', 'Garage']]);
+        expect(await getItemsByLocation('org-1', { gigId: 'white-road' })).toEqual([]);
+      });
     });
   });
 
