@@ -20,8 +20,10 @@ import {
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
+import { Input } from '../ui/input';
 import { LocationCombobox } from './LocationCombobox';
-import { createManualTrackingRecord } from '../../services/inventoryManagement.service';
+import { createManualTrackingRecord, moveLotPieces } from '../../services/inventoryManagement.service';
+import { RETURNED_STATUS } from '../../config/inventoryWorkflow';
 import { TRACKING_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { UserRole } from '../../utils/supabase/types';
 
@@ -43,6 +45,8 @@ interface ManualTrackingOverrideDialogProps {
   targetLabel?: string;
   /** When provided, the gig becomes editable via a selector (defaulting to `gigId`) instead of being fixed. */
   gigs?: { id: string; title: string }[];
+  /** Part of a lot at one place (#186): move N of its pieces there, by the lot rules. */
+  lot?: { here: number; of: number; status: string; location: string | null; place: string };
 }
 
 export function ManualTrackingOverrideDialog({
@@ -59,6 +63,7 @@ export function ManualTrackingOverrideDialog({
   onSuccess,
   targetLabel,
   gigs,
+  lot,
 }: ManualTrackingOverrideDialogProps) {
   const [selectedGigId, setSelectedGigId] = useState<string>(gigId);
   const [status, setStatus] = useState<string>('');
@@ -66,6 +71,18 @@ export function ManualTrackingOverrideDialog({
   const [notes, setNotes] = useState<string>('');
   const [markForMaintenance, setMarkForMaintenance] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [moveCount, setMoveCount] = useState<number>(lot?.here ?? 1);
+
+  // A lot (#186): how many go, unless it's a new status for all of it at the same gig.
+  const fromHome = lot?.status === RETURNED_STATUS;
+  const goingHome = status === RETURNED_STATUS;
+  const wholeBucket = !!lot && !!status && !goingHome && !fromHome && selectedGigId === gigId;
+  const choosesCount = !!lot && !!assetId && !wholeBucket;
+  const n = Math.max(1, Math.min(Math.floor(moveCount) || 1, fromHome ? Number.MAX_SAFE_INTEGER : lot?.here ?? 1));
+  const destination = goingHome ? 'back home' : `to ${gigs?.find((g) => g.id === selectedGigId)?.title ?? 'the gig'}`;
+  const after = lot && status && choosesCount
+    ? `After: ${[!fromHome && lot.here - n > 0 ? `${lot.here - n} stay at ${lot.place}` : null, `${n} ${destination}`].filter(Boolean).join(' · ')}`
+    : null;
 
   // Re-sync to the current target's gig whenever the dialog opens (or its
   // target changes while open) — this instance may be reused across
@@ -82,6 +99,32 @@ export function ManualTrackingOverrideDialog({
 
     setSubmitting(true);
     try {
+      if (lot && assetId) {
+        await moveLotPieces({
+          organizationId,
+          assetId,
+          kitId: kitId || null,
+          fromGigId: gigId,
+          fromStatus: lot.status,
+          fromLocation: lot.location,
+          here: lot.here,
+          n: wholeBucket ? lot.here : n,
+          toGigId: selectedGigId,
+          // Unchanged in this step (Cameron, 10-11): the row's status, as for a unit.
+          toStatus: markForMaintenance ? 'Maintenance' : status,
+          toLocation: location || null,
+          notes: notes || null,
+          createdBy: userId,
+        });
+        toast.success('Tracking record updated');
+        onOpenChange(false);
+        setStatus('');
+        setLocation('');
+        setNotes('');
+        setMarkForMaintenance(false);
+        onSuccess();
+        return;
+      }
       await createManualTrackingRecord({
         organizationId,
         gigId: selectedGigId,
@@ -177,6 +220,24 @@ export function ManualTrackingOverrideDialog({
               placeholder="Optional notes..."
             />
           </div>
+          {choosesCount && lot && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 text-sm">
+                <span>Move</span>
+                <Input
+                  type="number"
+                  aria-label="How many to move"
+                  className="h-9 w-20"
+                  min={1}
+                  max={fromHome ? lot.of : lot.here}
+                  value={moveCount}
+                  onChange={(e) => setMoveCount(Number(e.target.value))}
+                />
+                <span>{`of the ${lot.here} at ${lot.place}`}</span>
+              </div>
+              {after && <p className="text-xs text-muted-foreground">{after}</p>}
+            </div>
+          )}
           {assetId && (
             <div className="flex items-center gap-2">
               <Checkbox
@@ -196,7 +257,7 @@ export function ManualTrackingOverrideDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={submitting || !status}>
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Override
+            {choosesCount && status ? `Move ${n}` : 'Save Override'}
           </Button>
         </DialogFooter>
       </DialogContent>

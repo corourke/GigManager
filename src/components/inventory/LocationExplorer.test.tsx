@@ -362,6 +362,16 @@ describe('LocationExplorer', () => {
       expect(screen.getByText('2 of 10')).toBeInTheDocument();
     });
 
+    it('opens the override on a lot line to move N of its pieces there (#160)', async () => {
+      (getItemsByLocation as any).mockResolvedValue([lotLine]);
+      render(<LocationExplorer {...mockPropsAdmin} />);
+      await screen.findByText('2 of 10');
+      const row = screen.getByText('2 of 10').closest('tr')!;
+      fireEvent.click(row.querySelector('button')!);
+      expect(await screen.findByLabelText('How many to move')).toHaveValue(2);
+      expect(screen.getByText('of the 2 at Summer Festival (Stage Left)')).toBeInTheDocument();
+    });
+
     it('filters by item, and says where all of it is', async () => {
       (getItems as any).mockResolvedValue([dmx]);
       (getItemsByLocation as any).mockResolvedValue([lotLine]);
