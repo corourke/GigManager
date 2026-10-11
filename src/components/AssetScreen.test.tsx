@@ -174,7 +174,7 @@ describe('AssetScreen', () => {
       expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled()
       expect(screen.getByLabelText('Retired On')).toBeDisabled()
       expect(screen.getByLabelText(/Disposal or Salvage Amount/)).toBeDisabled()
-      expect(screen.getAllByText(/use Undo in the gig's Not returned list/).length).toBeGreaterThanOrEqual(3)
+      expect(screen.getAllByText(/Undo write-off on this equipment's page, or Undo in the gig's Not returned list/).length).toBeGreaterThanOrEqual(3)
       await restore()
     })
 
