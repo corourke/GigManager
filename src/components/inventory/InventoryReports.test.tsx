@@ -242,6 +242,28 @@ describe('PackingList: any lines, counted lines and pieces (#185)', () => {
     expect(screen.getByText('8 × Shure SM58 · 2 × Radial DI')).toBeInTheDocument();
   });
 
+  // #249: a long contents line wraps instead of widening the Name column; #245 item 5: indented.
+  it('a container\'s contents line wraps and is indented under it', async () => {
+    (getPackingListReport as any).mockResolvedValue(ROWS);
+    await renderPackingListTab();
+    const contents = await screen.findByText('8 × Shure SM58 · 2 × Radial DI');
+    expect(contents.className).toMatch(/\bwhitespace-normal\b/);
+    expect(contents.className).toMatch(/\bpl-6\b/);
+  });
+
+  // #245 item 1: a partly packed lot says how many, as "any" lines do; a full one doesn't need to.
+  it('a partly packed lot line says how many of it are packed', async () => {
+    const lot = (packed: number, asset_id: string, asset_name: string) => ({ kit_id: 'kit-pa', kit_name: 'Main PA', is_container: false, kind: 'lot' as const,
+      lot_of: 12, asset_id, asset_name, tag_number: null, quantity: 6, packed, ...pa, ...blank, status: 'Checked Out' });
+    (getPackingListReport as any).mockResolvedValue([lot(4, 'dmx', 'DMX Cable'), lot(6, 'edison', 'Edison Cord')]);
+    await renderPackingListTab();
+    const part = (await screen.findByText('DMX Cable')).closest('tr')!;
+    expect(within(part).getByText('4 of 6')).toBeInTheDocument();
+    expect(within(part).getByText('Checked Out')).toBeInTheDocument();
+    const full = screen.getByText('Edison Cord').closest('tr')!;
+    expect(within(full).queryByText(/of 6/)).not.toBeInTheDocument();
+  });
+
   it('sums pieces and packed pieces, and prints write-in blanks for scanned lines and a count box for counted ones', async () => {
     (getPackingListReport as any).mockResolvedValue(ROWS);
     await renderPackingListTab();
