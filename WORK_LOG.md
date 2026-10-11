@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #264** (coordinator, merged 10-11 with Cameron's OK): the open app checks for a new version on returning to the foreground and every 30 min, and shows "A new version of GigWrangler is ready." with Reload (never reloads by itself). Failing test first.
+
 - **Open-issue audit** (coordinator, 10-11, Cameron's OK): closed #184 (kit editor, overlap; #225, #230, #236, #238), #185 (packing list, phone scanning; #239, #240, #246), #226 (released items #233, #237, #248/#251, #252; parked items to WORK_PLAN §5) and #174 (#199; item 4 in §5). Filed #265 (container still out at another gig) and #266 (kit-page follow-ups).
 
 - **PR #263** (coordinator, merged 10-11 with Cameron's OK): mobile transactions name rows Booking / Expense and show the desktop stage text ("Accepted, payment due", "Paid Oct 11"); rowName/stageText shared in financials/format.ts. Failing test first.

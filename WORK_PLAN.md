@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-11 21:00 UTC (coordinator: open-issue audit; #184, #185, #226, #174 closed with Cameron's OK; #265, #266 filed)
+- **Last updated:** 2026-10-11 21:30 UTC (coordinator: Cameron answered every open question; #264 merged; Equipment Lead queue and four helper tasks released; see §3c)
 
 ---
 
@@ -64,6 +64,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. ~~**Item 5, $0 invoice total.**~~ **Done: PR #248 (in prod 10-10), follow-up fix PR #251.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
+
+**Released by Cameron 10-11 (answers recorded on each issue):**
+- **Equipment Lead, in order, one PR each:** (1) #245 + #249: ticks don't print (blank boxes); the Columns choice is remembered per browser; print header "N kits · M pieces". (2) #186 next Locations step: home pieces show "Not checked out"; gig ↔ home moves only; desktop Mark for Maintenance waits; Item filter, piece counts, "2 of 10", where-is-it card, Move N of a lot (fixes #160), Item page "Where they are". (3) #265 container still out warning. (4) #242 items 5 (Undo write-off on the equipment page) and 7 (amber "asks for 6, lot has 4"); item 6 is kept as is and documented.
+- **Coordinator's helper agents:** #175 stopgap (Delete gig shown to Admins only); #256 desktop scanner manual entry; #266 items 1–4 (item 5: "4 × any + a specific unit" = 5, kept, document it); #183 D CSV import (plan first, questions to Cameron).
+- Merges still need Cameron's OK.
 
 **[#245](https://github.com/corourke/GigManager/issues/245) and [#249](https://github.com/corourke/GigManager/issues/249): packing-list fixes, released to the Equipment Lead (Cameron, 10-11).** #245: partly packed lots show no count; a unit's status can disagree with its packed count; print ignores the Columns choice; the print header's counts; container contents aren't indented. #249: the Name column (~1,190px) pushes the other columns out of view. Plan comment on each issue first; failing test first; no migrations expected (stop and ask if one is needed); "Ready for coordinator re-review: <sha>" on the PR. Not yet released: #256 (desktop scanner in dialog), the "still out at …" container warning, the next #186 PR.
 
