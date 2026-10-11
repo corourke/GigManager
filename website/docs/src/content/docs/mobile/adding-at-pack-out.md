@@ -28,8 +28,8 @@ Scan the tag of a kit, unit or lot that isn't on the gig.
 2. Enter a kit, item or lot name. Results are grouped under **Kits** and **Items**.
 3. Tap the one you want. For a lot, enter how many.
 
-Something already on the gig is marked "on this gig", and tapping it scans it instead
-of adding it twice.
+Something already on the gig is marked "on this gig". Tapping it scans it rather than
+adding it twice; for a lot, the counter opens.
 
 <!-- 📸 The Add to this gig search, with Kits and Items results. -->
 

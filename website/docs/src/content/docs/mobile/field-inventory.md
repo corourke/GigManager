@@ -50,7 +50,7 @@ You can also tap a unit's circle to check it off by hand, and tap it again to un
 
 Gear without tags, such as cables and stands, is counted. Tap the line's circle. A
 counter opens at the number the kit calls for. Use **−** and **+**, or type the
-number, and tap **Confirm**.
+number, and tap **Confirm**. Scanning a lot's tag opens the same counter.
 
 If you pack fewer than the line calls for, the line shows how many, such as
 "6 / 8", and stays unchecked until the rest are packed.
@@ -91,8 +91,10 @@ Tap the note button on a kit or a line to record its condition, such as "Cracked
 grille" or "Channel 3 crackles".
 
 The note shows the last record for that item: when, who scanned it, its **Status /
-Location**, the gig and any earlier notes. Enter your note and tap **Save**. A note
-doesn't check anything off.
+Location**, the gig and any earlier notes. Enter your note and tap **Save**.
+
+A note is a record of its own: it never checks anything off or changes a count. A
+note on a kit is about the kit as a whole and doesn't touch what's inside it.
 
 To take a unit or lot out of service, turn on **Send to Maintenance** and tap **Save**.
 It goes to Maintenance, and the note ends with "Sent to Maintenance." Admins, Managers
