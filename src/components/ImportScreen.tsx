@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { Upload, Download, FileText, CheckCircle, XCircle, AlertCircle, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -25,6 +25,8 @@ import {
   downloadTemplate,
   validateGigRow,
   validateAssetRow,
+  revalidateAssetRows,
+  downloadAssetExample,
   type ImportType,
   type ParsedRow,
   type GigRow,
@@ -34,6 +36,9 @@ import {
 } from '../utils/csvImport';
 import { createGig } from '../services/gig.service';
 import { importPurchases } from '../services/purchase.service';
+import { getItems } from '../services/equipmentItem.service';
+import { getKitOptions } from '../services/kit.service';
+import { buildAssetImportPlan, type ExistingItem } from '../utils/csvAssetImportPlan';
 import { searchOrganizations, createOrganization } from '../services/organization.service';
 import { createClient } from '../utils/supabase/client';
 import { 
@@ -77,7 +82,28 @@ export default function ImportScreen({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importResults, setImportResults] = useState<{ success: number; errors: string[] } | null>(null);
+  /** Notes about the file that don't block it, e.g. columns no longer read (#183 D). */
+  const [notices, setNotices] = useState<string[]>([]);
+  /** The organization's items and kit names, which an assets import matches by name (#183 D). */
+  const [catalog, setCatalog] = useState<{ items: ExistingItem[]; kitNames: string[] }>({ items: [], kitNames: [] });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadCatalog = useCallback(async () => {
+    try {
+      const [items, kits] = await Promise.all([getItems(organization.id), getKitOptions(organization.id)]);
+      const next = {
+        items: (items ?? []).map((i) => ({ id: i.id, manufacturer_model: i.manufacturer_model, category: i.category,
+          type: i.type, description: i.description, insurance_class: i.insurance_class })),
+        kitNames: (kits ?? []).map((k) => k.name),
+      };
+      setCatalog(next);
+      return next;
+    } catch (error) {
+      console.error('Error loading items and kits for the import:', error);
+      toast.warning('Couldn’t load your items and kits, so the preview treats every item and kit as new. Saving still reuses them.');
+      return null;
+    }
+  }, [organization.id]);
 
   const handleFileSelect = useCallback(async (selectedFile: File) => {
     if (!selectedFile.name.endsWith('.csv')) {
@@ -90,9 +116,13 @@ export default function ImportScreen({
     setImportResults(null);
 
     try {
-      const result = await parseAndValidateCSV(selectedFile, importType, user?.timezone);
+      const [result] = await Promise.all([
+        parseAndValidateCSV(selectedFile, importType, user?.timezone),
+        importType === 'assets' ? loadCatalog() : Promise.resolve(null),
+      ]);
       setValidRows(result.validRows);
       setInvalidRows(result.invalidRows);
+      setNotices(result.notices);
       
       if (result.invalidRows.length > 0) {
         toast.warning(`${result.invalidRows.length} row(s) have validation errors. Please fix them before importing.`);
@@ -106,7 +136,7 @@ export default function ImportScreen({
     } finally {
       setIsProcessing(false);
     }
-  }, [importType]);
+  }, [importType, user, loadCatalog]);
 
   const handleFileDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -127,6 +157,14 @@ export default function ImportScreen({
     downloadTemplate(importType);
   };
 
+  // What an assets file will make, row by row: items matched or new, units or a lot, kits (#183 D).
+  const assetPlan = useMemo(
+    () => (importType === 'assets' && validRows.length
+      ? buildAssetImportPlan(organization.id, validRows as ParsedRow<AssetRow>[], catalog)
+      : null),
+    [importType, validRows, organization.id, catalog],
+  );
+
   const handleEditInvalidRow = (rowIndex: number, field: string, value: string) => {
     setInvalidRows(prev => prev.map(row => {
       if (row.rowIndex === rowIndex) {
@@ -136,7 +174,8 @@ export default function ImportScreen({
           const validated = validateGigRow(updatedData, rowIndex, user?.timezone);
           return validated as ParsedRow<GigRow | AssetRow>;
         } else {
-          const validated = validateAssetRow(updatedData, rowIndex);
+          // From the row as read, so a later re-check re-runs the file's grouping and costs.
+          const validated = validateAssetRow({ ...(row.raw ?? row.data), [field]: value }, rowIndex);
           return validated as ParsedRow<GigRow | AssetRow>;
         }
       }
@@ -178,6 +217,8 @@ export default function ImportScreen({
     setImportResults(null);
     const errors: string[] = [];
     let successCount = 0;
+    // Assets: rows in purchases that didn't save (a kit warning alone isn't a failure).
+    let failedAssetRows = 0;
 
     // Only process rows that are ready for import
     const updatedValidRows = [...validRows];
@@ -304,50 +345,42 @@ export default function ImportScreen({
           }
         }
       } else {
-        // Import assets - grouped transactional import
-        // Mark all as importing
-        setValidRows(prev => prev.map(r => readyRows.find(rr => rr.rowIndex === r.rowIndex) ? { ...r, importStatus: 'importing' } : r));
-        
-        const result = await importPurchases(
-          organization.id, 
-          readyRows,
-          (count, errCount) => {
-            // Callback to update progress UI
-            successCount = count;
-            setImportResults({ success: count, errors: [] }); // Partial update
-          }
-        );
-        successCount = result.successCount;
-        
-        if (result.errors.length > 0) {
-          errors.push(...result.errors);
-        }
+        // Import assets: one purchase at a time, each saved whole or not at all (#183 D).
+        const readySet = new Set(readyRows.map(r => r.rowIndex));
+        setValidRows(prev => prev.map(r => readySet.has(r.rowIndex) ? { ...r, importStatus: 'importing' } : r));
 
-        // Update UI status for all rows
+        const plan = buildAssetImportPlan(organization.id, readyRows as ParsedRow<AssetRow>[], catalog);
+        const result = await importPurchases(organization.id, plan, (count) => {
+          successCount = count;
+          setImportResults({ success: count, errors: [] }); // Partial update
+        });
+        successCount = result.successCount;
+        errors.push(...result.errors);
+        failedAssetRows = result.results.filter(r => r.status === 'failed').reduce((n, r) => n + r.rowIndexes.length, 0);
+
+        const outcome = new Map<number, { status: 'success' | 'failed'; error?: string }>();
+        for (const r of result.results) {
+          for (const rowIndex of r.rowIndexes) outcome.set(rowIndex, { status: r.status, error: r.error ?? r.warning });
+        }
         setValidRows(prev => prev.map(r => {
-          const isReady = readyRows.find(rr => rr.rowIndex === r.rowIndex);
-          if (isReady) {
-            // For now we mark all as success if there are no errors, 
-            // or failed if there were errors in the transaction.
-            // A more granular status would be better but importPurchases is coarse right now.
-            return {
-              ...r,
-              importStatus: result.errors.length === 0 ? 'success' : 'failed',
-              importError: result.errors.length === 0 ? undefined : 'Part of a failed transaction',
-            };
-          }
-          return r;
+          const o = outcome.get(r.rowIndex);
+          return o ? { ...r, importStatus: o.status, importError: o.error } : r;
         }));
+        // Items and kits made by this import are matched by the next one.
+        void loadCatalog();
       }
 
       setImportResults({ success: successCount, errors });
       
       if (successCount > 0) {
-        toast.success(`Successfully imported ${successCount} ${importType === 'gigs' ? 'gig(s)' : 'asset(s)'}`);
+        toast.success(`Successfully imported ${successCount} ${importType === 'gigs' ? 'gig(s)' : 'row(s)'}`);
         // Keep all rows visible to show import status - don't remove or navigate
       }
       
-      if (errors.length > 0) {
+      if (importType === 'assets') {
+        if (failedAssetRows > 0) toast.error(`Failed to import ${failedAssetRows} row(s). Check errors below.`);
+        else if (errors.length > 0) toast.warning('Imported, with problems adding equipment to kits. Check errors below.');
+      } else if (errors.length > 0) {
         toast.error(`Failed to import ${errors.length} row(s). Check errors below.`);
       }
     } catch (error: any) {
@@ -359,6 +392,15 @@ export default function ImportScreen({
   };
 
   const handleRevalidateInvalidRows = () => {
+    if (importType === 'assets') {
+      // Re-run the whole file, so a fixed row joins its own invoice and its costs (#183 D).
+      const next = revalidateAssetRows(validRows as ParsedRow<AssetRow>[], invalidRows as ParsedRow<AssetRow>[]);
+      const moved = invalidRows.length - next.invalidRows.length;
+      setValidRows(next.validRows);
+      setInvalidRows(next.invalidRows);
+      if (moved > 0) toast.success(`Moved ${moved} fixed row(s) to valid rows`);
+      return;
+    }
     // Move fixed rows from invalid to valid
     const fixedRows = invalidRows.filter(row => row.isValid);
     const stillInvalid = invalidRows.filter(row => !row.isValid);
@@ -400,6 +442,7 @@ export default function ImportScreen({
                 setValidRows([]);
                 setInvalidRows([]);
                 setImportResults(null);
+                setNotices([]);
               }}>
                 <SelectTrigger className="w-48">
                   <SelectValue />
@@ -424,6 +467,17 @@ export default function ImportScreen({
                 Download a CSV template with example data
               </p>
             </div>
+            {importType === 'assets' && (
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={downloadAssetExample} className="flex items-center gap-2">
+                  <Download className="w-4 h-4" />
+                  Download Example
+                </Button>
+                <p className="text-sm text-gray-500">
+                  A microphone purchase that goes into a kit: serial numbers and tags separated by &quot;;&quot;, a lot, and an expensed line
+                </p>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -440,6 +494,7 @@ export default function ImportScreen({
                     setValidRows([]);
                     setInvalidRows([]);
                     setImportResults(null);
+                    setNotices([]);
                     if (fileInputRef.current) {
                       fileInputRef.current.value = '';
                     }
@@ -483,6 +538,18 @@ export default function ImportScreen({
             </div>
           </div>
         </Card>
+
+        {/* Notes about the file that don't block it (#183 D) */}
+        {notices.length > 0 && (
+          <Card className="p-4 mb-6 border-amber-200 bg-amber-50">
+            {notices.map((n) => (
+              <p key={n} className="text-sm text-amber-900 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+                {n}
+              </p>
+            ))}
+          </Card>
+        )}
 
         {/* Results Summary */}
         {(validRows.length > 0 || invalidRows.length > 0) && (
@@ -921,6 +988,28 @@ export default function ImportScreen({
                             placeholder="YYYY-MM-DD"
                           />
                         </div>
+                        {/* Units, lots and kits (#183 D): one serial or tag per unit, separated by ";". */}
+                        {([
+                          ['quantity', 'Quantity', ''],
+                          ['serial_number', 'Serial numbers', 'One per unit, separated by ;'],
+                          ['tag_number', 'Tags', 'One per unit, separated by ;'],
+                          ['kit', 'Kit', 'Kit name'],
+                        ] as const).map(([field, label, placeholder]) => {
+                          const validation = getFieldValidation(row, field);
+                          const id = `import-row-${row.rowIndex}-${field}`;
+                          return (
+                            <div key={field}>
+                              <Label htmlFor={id} className="text-xs">{label}</Label>
+                              <Input
+                                id={id}
+                                value={(row.data as AssetRow)[field] ?? ''}
+                                onChange={(e) => handleEditInvalidRow(row.rowIndex, field, e.target.value)}
+                                className={validation.hasError ? validation.className : 'h-8 text-sm'}
+                                placeholder={placeholder}
+                              />
+                            </div>
+                          );
+                        })}
                       </>
                     )}
                   </div>
@@ -973,6 +1062,8 @@ export default function ImportScreen({
                         <TableHead className="text-[0.8rem] px-2">Qty</TableHead>
                         <TableHead className="text-[0.8rem] px-2">Price</TableHead>
                         <TableHead className="text-[0.8rem] px-2">Cost</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Kit</TableHead>
+                        <TableHead className="text-[0.8rem] px-2">Notes</TableHead>
                       </>
                     )}
                     <TableHead>Import Status</TableHead>
@@ -1009,6 +1100,19 @@ export default function ImportScreen({
                           <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).quantity || '-'}</TableCell>
                           <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).item_price || '-'}</TableCell>
                           <TableCell className="text-[0.8rem] px-2">{(row.data as AssetRow).item_cost || '-'}</TableCell>
+                          {(() => {
+                            const plan = assetPlan?.rows[row.rowIndex];
+                            return (
+                              <>
+                                <TableCell className="text-[0.8rem] px-2">
+                                  {plan?.kit ? `${plan.kit.name}${plan.kit.isNew ? ' (new kit)' : ''}` : '-'}
+                                </TableCell>
+                                <TableCell className="text-[0.8rem] px-2 text-gray-600">
+                                  {(plan?.notes ?? row.notes ?? []).map((n) => <div key={n}>{n}</div>)}
+                                </TableCell>
+                              </>
+                            );
+                          })()}
                         </>
                       )}
                       <TableCell>

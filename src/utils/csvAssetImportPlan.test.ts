@@ -103,6 +103,7 @@ describe('buildAssetImportPlan (#183 D)', () => {
       HEAD,
       '0,2025-11-03,Vendor A,100,,,,,,,,,,,,',
       '1,,,,Item A1,Audio,,,,1,,,,,,50',
+      '1,,,,Item A2,,,,,1,,,,,,50', // no category: invalid, so not in the valid rows
       '0,2025-11-04,Vendor B,100,,,,,,,,,,,,',
       '1,,,,Item B1,Audio,,,,1,,,,,,100',
     ]);

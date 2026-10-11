@@ -41,6 +41,8 @@ export interface LineUnitInput {
   replacement_value?: number | null;
   insurance_policy_added?: boolean;
   recovery_period?: number | null;
+  /** Active when not sent. The CSV import sends a row's status (#183 D). */
+  status?: string;
 }
 
 const blank = (s: string | null | undefined) => !s || s.trim() === '';

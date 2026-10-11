@@ -162,3 +162,11 @@ export function pieceValue(records: readonly ItemRecord[]): number {
   }
   return n ? total / n : 0;
 }
+
+/**
+ * How an item (or a kit) is matched by name: trimmed, inner spaces collapsed, any case,
+ * as the database's equipment_match_key (#162 Q10: model + category make an item).
+ */
+export function itemMatchKey(s: string | null | undefined): string {
+  return (s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
