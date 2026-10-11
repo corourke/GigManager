@@ -921,6 +921,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
             userRole={userRole}
             isEditing={isEditing}
             gigStartDate={gig.start ? format(parseISO(gig.start), 'yyyy-MM-dd') : undefined}
+            gigEnd={gig.end}
           />
         )}
 
