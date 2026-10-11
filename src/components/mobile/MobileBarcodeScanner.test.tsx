@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MobileBarcodeScanner } from './MobileBarcodeScanner'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -115,6 +115,26 @@ describe('MobileBarcodeScanner', () => {
 
       await user.type(field, 'DSL-0042{Enter}')
       expect(onScan).toHaveBeenLastCalledWith('DSL-0042')
+    })
+    it('inside the Track a gig dialog, Escape closes the scanner, not the dialog', async () => {
+      noCamera()
+      const onClose = vi.fn()
+      const onOpenChange = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <Dialog open onOpenChange={onOpenChange}>
+          <DialogContent>
+            <DialogTitle>Track a gig</DialogTitle>
+            <DialogDescription>Scan equipment out and back in for a gig.</DialogDescription>
+            <MobileBarcodeScanner isScanning onClose={onClose} onScan={vi.fn()} />
+          </DialogContent>
+        </Dialog>
+      )
+
+      await user.click(await screen.findByPlaceholderText(/tag number/i))
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+      expect(onOpenChange).not.toHaveBeenCalled()
     })
   })
 })
