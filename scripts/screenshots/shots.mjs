@@ -724,7 +724,7 @@ export const shots = [
     id: 'mobile/adding-at-pack-out-search',
     page: 'mobile/adding-at-pack-out.md',
     user: 'staff',
-    sources: ['src/components/mobile/MobileInventoryMode.tsx', 'src/services/orgIndex.service.ts'],
+    sources: ['src/components/mobile/MobileInventoryMode.tsx', 'src/services/mobile/orgIndex.service.ts'],
     viewport: { width: 390, height: 844 },
     // Opens the search only; nothing is added.
     prepare: async (page, ctx) => {

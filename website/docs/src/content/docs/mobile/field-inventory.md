@@ -48,9 +48,11 @@ You can also tap a unit's circle to check it off by hand, and tap it again to un
 
 ## Counting pieces
 
-Gear without tags, such as cables and stands, is counted. Tap the line's circle. A
-counter opens at the number the kit calls for. Use **−** and **+**, or type the
-number, and tap **Confirm**. Scanning a lot's tag opens the same counter.
+Gear without tags, such as cables and stands, is counted. Tap the line's circle, and a
+counter opens. It starts at what the kit already holds from an earlier step (in
+**Unload**, what went out), or at the number the kit calls for if nothing's been
+counted yet. Use **−** and **+**, or type the number, and tap **Confirm**. Scanning a
+lot's tag opens the same counter.
 
 If you pack fewer than the line calls for, the line shows how many, such as
 "6 / 8", and stays unchecked until the rest are packed.
@@ -91,7 +93,8 @@ Tap the note button on a kit or a line to record its condition, such as "Cracked
 grille" or "Channel 3 crackles".
 
 The note shows the last record for that item: when, who scanned it, its **Status /
-Location**, the gig and any earlier notes. Enter your note and tap **Save**.
+Location**, the gig, and that record's notes if it has any. Enter your note and tap
+**Save**.
 
 A note is a record of its own: it never checks anything off or changes a count. A
 note on a kit is about the kit as a whole and doesn't touch what's inside it.

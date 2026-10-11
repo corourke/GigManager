@@ -364,7 +364,7 @@
     "user": "staff",
     "sources": [
       "src/components/mobile/MobileInventoryMode.tsx",
-      "src/services/orgIndex.service.ts"
+      "src/services/mobile/orgIndex.service.ts"
     ],
     "anchor": "2026-10-07",
     "taken": "2026-10-11",

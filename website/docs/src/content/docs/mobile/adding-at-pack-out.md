@@ -28,8 +28,12 @@ Scan the tag of a kit, unit or lot that isn't on the gig.
 2. Enter a kit, item or lot name. Results are grouped under **Kits** and **Items**.
 3. Tap the one you want. For a lot, enter how many.
 
-Something already on the gig is marked "on this gig". Tapping it scans it rather than
-adding it twice; for a lot, the counter opens.
+Something already on the gig is marked "on this gig":
+
+- **A kit** is greyed out. It's on the gig already, so you can't add it again.
+- **A unit** is scanned, just as if you'd scanned its tag.
+- **A lot** that's a line in one of the gig's kits opens the counter. A lot you added
+  at pack-out is scanned with the number you added.
 
 ![Add to this gig: a search for "Case" with Kits and Items results, each marked "on this gig"](../../../assets/screenshots/mobile/adding-at-pack-out-search.png)
 
@@ -55,8 +59,8 @@ On the gig's page, an added kit has an **Added at pack-out** label on the
 **Equipment** card and the packing list. Units and lots added on their own are in a
 group of the same name at the end of the packing list.
 
-Kits added at pack-out stay on the gig. To change the kit itself, such as swapping
-one unit for another for good, edit the kit afterwards.
+Kits added at pack-out stay on the gig. To change what's in a kit, edit the kit
+afterwards.
 
 ## Without a connection
 
