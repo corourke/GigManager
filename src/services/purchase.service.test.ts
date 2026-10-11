@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getPurchases,
   createPurchase,
-  createPurchaseTransaction,
+  trackPurchaseLineAsEquipment,
   createPurchaseWithUnits,
   addLineUnits,
   getLineUnits,
@@ -24,6 +24,7 @@ import {
   updateGigFinancial,
   deleteGigFinancial,
 } from './gigFinancial.service';
+import { getKitOptions, createKit, addKitAssetLines } from './kit.service';
 
 // Mock Supabase client
 vi.mock('../utils/supabase/client', () => ({
@@ -36,6 +37,13 @@ vi.mock('../utils/supabase/auth-utils', () => ({
 }));
 
 // Mock the gig-financial primitives the ledger-lifecycle helpers delegate to.
+// Kit lines written by the import (#183 D).
+vi.mock('./kit.service', () => ({
+  getKitOptions: vi.fn(async () => []),
+  createKit: vi.fn(),
+  addKitAssetLines: vi.fn(async () => undefined),
+}));
+
 vi.mock('./gigFinancial.service', () => ({
   getGigFinancialsByPurchaseId: vi.fn(),
   createGigFinancial: vi.fn(),
@@ -105,25 +113,6 @@ describe('purchase.service', () => {
     });
   });
 
-  describe('createPurchaseTransaction', () => {
-    it('should call the atomic RPC', async () => {
-      const header = { organization_id: 'org-1', vendor: 'Sweetwater' };
-      const items = [{ description: 'Cable' }];
-      const assets = [{ manufacturer_model: 'SM58' }];
-      
-      mockSupabase.rpc.mockResolvedValue({ data: { id: 'h1' }, error: null });
-
-      const result = await createPurchaseTransaction(header, items, assets);
-
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('create_purchase_transaction_v1', {
-        p_header: header,
-        p_items: items,
-        p_assets: assets
-      });
-      expect(result?.id).toBe('h1');
-    });
-  });
-
   describe('createPurchaseWithUnits (#183)', () => {
     it('saves the purchase, its lines and one record per unit through create_purchase_transaction_v2', async () => {
       const header = { organization_id: 'org-1', vendor: 'Sweetwater' };
@@ -183,41 +172,120 @@ describe('purchase.service', () => {
     });
   });
 
-  describe('importPurchases', () => {
-    it('should group rows by header and call createPurchaseTransaction', async () => {
-      const rows = [
-        {
-          data: {
-            source: '0',
-            acquisition_date: '2024-03-19',
-            vendor: 'Amazon',
-            total_inv_amount: '100.00',
-            category: 'Electronics'
-          }
-        },
-        {
-          data: {
-            source: '1',
-            acquisition_date: '2024-03-19',
-            vendor: 'Amazon',
-            manufacturer_model: 'Cable',
-            item_price: '50.00',
-            quantity: '2',
-            category: 'Electronics'
-          }
-        }
-      ];
+  describe('importPurchases (#183 D)', () => {
+    const header = { organization_id: 'org-1', purchase_date: '2025-11-03', vendor: 'Sweetwater', total_inv_amount: 905.03 };
+    const lineOf = (description: string, quantity: number) => ({ organization_id: 'org-1', row_type: 'line' as const, description, quantity, tax_treatment: 'depreciate' as const });
+    const unit = (line_index: number, serial_number: string | null, quantity = 1) => ({
+      organization_id: 'org-1', line_index, manufacturer_model: 'Shure SM58', category: 'Audio', serial_number, tag_number: null, quantity,
+    });
+    const micPurchase = {
+      label: 'Purchase on 2025-11-03 from Sweetwater',
+      header,
+      items: [lineOf('Shure SM58', 2), lineOf('Mic Clip', 10)],
+      units: [unit(0, 'A'), unit(0, 'B'), unit(1, null, 10)],
+      unitKits: ['Mic Kit 1', 'Mic Kit 1', 'Mic Kit 1'],
+      rowIndexes: [2, 3, 4],
+    };
 
-      mockSupabase.rpc.mockResolvedValue({ data: { id: 'h1' }, error: null });
+    it('saves each purchase through create_purchase_transaction_v2, never v1', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: { id: 'h1', line_ids: ['l1', 'l2'], unit_ids: ['u1', 'u2', 'u3'] }, error: null });
+      (getKitOptions as any).mockResolvedValue([{ id: 'kit-1', name: 'Mic Kit 1' }]);
 
-      const result = await importPurchases('org-1', rows);
+      const result = await importPurchases('org-1', { purchases: [micPurchase] });
 
       expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
-      // An equipment row (source 1) is a tracked, depreciated line (10-07: one line type).
-      const [, args] = mockSupabase.rpc.mock.calls[0];
-      expect(args.p_items[0]).toEqual(expect.objectContaining({ row_type: 'line', track: true, tax_treatment: 'depreciate' }));
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('create_purchase_transaction_v2', { p_header: header, p_items: micPurchase.items, p_units: micPurchase.units });
+      expect(mockSupabase.rpc).not.toHaveBeenCalledWith('create_purchase_transaction_v1', expect.anything());
+      expect(result.results).toEqual([{ rowIndexes: [2, 3, 4], status: 'success' }]);
       expect(result.successCount).toBe(3);
-      expect(result.errors).toHaveLength(0);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('adds each unit, and the lot with its quantity, to a kit found by name as its own line', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: { id: 'h1', line_ids: ['l1', 'l2'], unit_ids: ['u1', 'u2', 'u3'] }, error: null });
+      (getKitOptions as any).mockResolvedValue([{ id: 'kit-1', name: ' mic  kit 1' }]);
+
+      await importPurchases('org-1', { purchases: [micPurchase] });
+
+      expect(createKit).not.toHaveBeenCalled();
+      expect(addKitAssetLines).toHaveBeenCalledWith([
+        { kit_id: 'kit-1', asset_id: 'u1', quantity: 1 },
+        { kit_id: 'kit-1', asset_id: 'u2', quantity: 1 },
+        { kit_id: 'kit-1', asset_id: 'u3', quantity: 10 },
+      ]);
+    });
+
+    it('creates a kit it can’t find, once for the whole import', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: { id: 'h1', line_ids: ['l1', 'l2'], unit_ids: ['u1', 'u2', 'u3'] }, error: null })
+        .mockResolvedValueOnce({ data: { id: 'h2', line_ids: ['l3', 'l4'], unit_ids: ['u4', 'u5', 'u6'] }, error: null });
+      (getKitOptions as any).mockResolvedValue([]);
+      (createKit as any).mockResolvedValue({ id: 'kit-new', name: 'Mic Kit 1' });
+
+      await importPurchases('org-1', { purchases: [micPurchase, { ...micPurchase, rowIndexes: [5, 6, 7] }] });
+
+      expect(createKit).toHaveBeenCalledTimes(1);
+      expect(createKit).toHaveBeenCalledWith({ organization_id: 'org-1', name: 'Mic Kit 1', category: 'Imported', components: [] });
+      expect(addKitAssetLines).toHaveBeenLastCalledWith([
+        { kit_id: 'kit-new', asset_id: 'u4', quantity: 1 },
+        { kit_id: 'kit-new', asset_id: 'u5', quantity: 1 },
+        { kit_id: 'kit-new', asset_id: 'u6', quantity: 10 },
+      ]);
+    });
+
+    it('marks only the failed purchase’s rows failed, and goes on with the next', async () => {
+      mockSupabase.rpc
+        .mockResolvedValueOnce({ data: null, error: { message: 'The 2024 tax year is locked (filed), so no purchases can be added to it.' } })
+        .mockResolvedValueOnce({ data: { id: 'h2', line_ids: ['l1'], unit_ids: [] }, error: null });
+
+      const expense = { label: 'Purchase on 2025-11-04 from Amazon', header, items: [lineOf('Tape', 1)], units: [], unitKits: [], rowIndexes: [5, 6] };
+      const result = await importPurchases('org-1', { purchases: [micPurchase, expense] });
+
+      expect(result.results).toEqual([
+        { rowIndexes: [2, 3, 4], status: 'failed', error: 'The 2024 tax year is locked (filed), so no purchases can be added to it.' },
+        { rowIndexes: [5, 6], status: 'success' },
+      ]);
+      expect(result.successCount).toBe(2);
+      expect(result.errors).toEqual(['Purchase on 2025-11-03 from Sweetwater: The 2024 tax year is locked (filed), so no purchases can be added to it.']);
+    });
+
+    it('reports a purchase that saved but whose kit lines didn’t', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: { id: 'h1', line_ids: ['l1', 'l2'], unit_ids: ['u1', 'u2', 'u3'] }, error: null });
+      (getKitOptions as any).mockResolvedValue([{ id: 'kit-1', name: 'Mic Kit 1' }]);
+      (addKitAssetLines as any).mockRejectedValueOnce(new Error('permission denied'));
+
+      const result = await importPurchases('org-1', { purchases: [micPurchase] });
+
+      const warning = 'Purchase on 2025-11-03 from Sweetwater was saved, but its equipment wasn’t added to kit Mic Kit 1 (permission denied). Add it in the kit editor.';
+      expect(result.results).toEqual([{ rowIndexes: [2, 3, 4], status: 'success', warning }]);
+      expect(result.errors).toEqual([warning]);
+    });
+  });
+
+  describe('trackPurchaseLineAsEquipment (#183, #226 item 12)', () => {
+    it('makes one lot of the line’s quantity through add_purchase_line_units, not the old single-record function', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({
+        data: { id: 'line-1', organization_id: 'org-1', quantity: 3, description: 'XLR Cable 25 ft', category: 'Cables', asset_id: null }, error: null,
+      }));
+      mockSupabase.rpc.mockResolvedValue({ data: ['lot-1'], error: null });
+
+      expect(await trackPurchaseLineAsEquipment('line-1')).toBe('lot-1');
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('add_purchase_line_units', {
+        p_line_id: 'line-1',
+        p_units: [{
+          organization_id: 'org-1', manufacturer_model: 'XLR Cable 25 ft', category: 'Cables', description: 'XLR Cable 25 ft',
+          serial_number: null, tag_number: null, quantity: 3,
+        }],
+      });
+      expect(mockSupabase.rpc).not.toHaveBeenCalledWith('track_purchase_line_as_equipment', expect.anything());
+    });
+
+    it('refuses a line that is already tracked', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({
+        data: { id: 'line-1', organization_id: 'org-1', quantity: 1, description: 'Mixer', category: 'Audio', asset_id: 'a-1' }, error: null,
+      }));
+      await expect(trackPurchaseLineAsEquipment('line-1')).rejects.toThrow('This line is already tracked as equipment');
+      expect(mockSupabase.rpc).not.toHaveBeenCalled();
     });
   });
 

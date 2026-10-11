@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateAssetRow, applyCostAllocation, parseAndValidateCSV, type AssetRow, type ParsedRow } from './csvImport';
+import { validateAssetRow, applyCostAllocation, parseAndValidateCSV, revalidateAssetRows, type AssetRow, type ParsedRow } from './csvImport';
 
 /**
  * Helper to create a File-like Blob for testing parseAndValidateCSV
@@ -319,5 +319,173 @@ describe('generateAssetTemplate (#125)', () => {
     expect(header).not.toContain('dep_method');
     for (const r of examples) expect(r).toHaveLength(header.length);
     expect(examples[1][header.indexOf('recovery_period')]).toBe('7');
+  });
+});
+
+// #183 D: one row of N with N serials or tags makes N units; a kit names the kit
+// the row's units or lot go into; retired_on and liquidation_amt are no longer read.
+describe('validateAssetRow: units, lots and kits (#183 D)', () => {
+  const equipment = (extra: Record<string, string>) => ({
+    source: '1', acquisition_date: '2025-11-03', vendor: 'Sweetwater', category: 'Audio',
+    manufacturer_model: 'Shure SM58', item_price: '99.00', ...extra,
+  });
+
+  it('accepts 2 serials separated by ";" on a line of 2: the row that used to fail to save', () => {
+    const r = validateAssetRow(equipment({ quantity: '2', serial_number: '2NC0412; 2NC0413' }), 3);
+    expect(r.errors).toEqual([]);
+    expect(r.isValid).toBe(true);
+  });
+
+  it('refuses one serial on a line of 4, saying how to fix it', () => {
+    const r = validateAssetRow(equipment({ quantity: '4', serial_number: 'HX8M-55120' }), 6);
+    expect(r.isValid).toBe(false);
+    expect(r.errors).toContainEqual({
+      field: 'serial_number',
+      message: '1 serial number for quantity 4. Give 4 serial numbers separated by ";" (4 units), or clear the serial number (a lot of 4).',
+    });
+  });
+
+  it('refuses 3 tags on a line of 4', () => {
+    const r = validateAssetRow(equipment({ quantity: '4', tag_number: 'MIC-1;MIC-2;MIC-3' }), 2);
+    expect(r.errors).toContainEqual({
+      field: 'tag_number',
+      message: '3 tags for quantity 4. Give 4 tags separated by ";" (4 units), or clear the tags (a lot of 4).',
+    });
+  });
+
+  it('pairs serials and tags by position; the longer list sets the number of units', () => {
+    const r = validateAssetRow(equipment({ quantity: '3', serial_number: 'S1;;S3', tag_number: 'T1;T2' }), 2);
+    expect(r.isValid).toBe(true);
+  });
+
+  it('refuses a unit with neither a serial nor a tag, in the pop-up’s words', () => {
+    const r = validateAssetRow(equipment({ quantity: '3', serial_number: 'S1;;S3' }), 2);
+    expect(r.errors.map((e) => e.message)).toContain('Unit 2 needs a serial number or a tag (either will do).');
+  });
+
+  it('refuses the same tag twice in one row', () => {
+    const r = validateAssetRow(equipment({ quantity: '2', tag_number: 'DSL-0152;dsl-0152' }), 2);
+    expect(r.errors.map((e) => e.message)).toContain('Units 1 and 2 both have tag DSL-0152.');
+  });
+
+  it('takes a blank quantity from the serials, and says so', () => {
+    const r = validateAssetRow(equipment({ quantity: '', serial_number: 'A;B;C' }), 2);
+    expect(r.isValid).toBe(true);
+    expect(r.data.quantity).toBe('3');
+    expect(r.notes).toContain('Qty 3 (from serials)');
+  });
+
+  it('takes a blank quantity from the tags when there are no serials', () => {
+    const r = validateAssetRow(equipment({ quantity: '', tag_number: 'MIC-0201;MIC-0202' }), 2);
+    expect(r.data.quantity).toBe('2');
+    expect(r.notes).toContain('Qty 2 (from tags)');
+  });
+
+  it('keeps the kit on an equipment row', () => {
+    const r = validateAssetRow(equipment({ quantity: '10', kit: 'Mic Kit 1' }), 2);
+    expect(r.isValid).toBe(true);
+    expect(r.data.kit).toBe('Mic Kit 1');
+  });
+
+  it('refuses a kit on an expense row', () => {
+    const r = validateAssetRow({ source: '2', acquisition_date: '2025-11-03', vendor: 'Sweetwater', category: 'Supplies',
+      manufacturer_model: 'AA Batteries', item_price: '18.99', kit: 'Mic Kit 1' }, 6);
+    expect(r.isValid).toBe(false);
+    expect(r.errors).toContainEqual({ field: 'kit', message: 'Only an equipment row (1-Asset) can go in a kit: clear the kit, or make the row 1-Asset.' });
+  });
+
+  it('refuses status Missing, which only a write-off sets, and an unknown status', () => {
+    expect(validateAssetRow(equipment({ quantity: '1', status: 'Missing' }), 2).errors).toContainEqual({
+      field: 'status', message: 'Missing is set only by writing equipment off. Use Active, Inactive, Maintenance, Disposed or Returned.',
+    });
+    expect(validateAssetRow(equipment({ quantity: '1', status: 'Lost' }), 2).errors).toContainEqual({
+      field: 'status', message: 'Invalid status "Lost". Use Active, Inactive, Maintenance, Disposed or Returned.',
+    });
+  });
+
+  it('normalizes the case of a status', () => {
+    const r = validateAssetRow(equipment({ quantity: '1', status: 'maintenance' }), 2);
+    expect(r.isValid).toBe(true);
+    expect(r.data.status).toBe('Maintenance');
+  });
+
+  it('ignores retired_on and liquidation_amt, even when they are invalid', () => {
+    const r = validateAssetRow(equipment({ quantity: '1', retired_on: 'not a date', liquidation_amt: 'abc' }), 2);
+    expect(r.isValid).toBe(true);
+    expect(r.data).not.toHaveProperty('retired_on');
+    expect(r.data).not.toHaveProperty('liquidation_amt');
+  });
+});
+
+describe('parseAndValidateCSV: file-level checks (#183 D)', () => {
+  it('refuses a tag that is already on an earlier row of the file', async () => {
+    const csv = [
+      'source,acquisition_date,vendor,category,manufacturer_model,quantity,tag_number,item_price',
+      '1,2025-11-03,Sweetwater,Audio,Shure SM58,2,MIC-0201;MIC-0202,99',
+      '1,2025-11-03,Sweetwater,Audio,Shure Beta 52A,1,mic-0202,189',
+    ].join('\n');
+    const result = await parseAndValidateCSV<AssetRow>(createFile(csv, 'dupes.csv'), 'assets');
+    expect(result.validRows.map((r) => r.rowIndex)).toEqual([2]);
+    expect(result.invalidRows[0].errors).toContainEqual({ field: 'tag_number', message: 'Tag MIC-0202 is also on row 2.' });
+  });
+
+  it('notices an old file’s retired_on and liquidation_amt columns, without blocking it', async () => {
+    const csv = [
+      'source,acquisition_date,vendor,category,manufacturer_model,quantity,item_price,retired_on,liquidation_amt',
+      '1,2025-11-03,Sweetwater,Audio,Shure SM58,1,99,2026-01-01,40',
+    ].join('\n');
+    const result = await parseAndValidateCSV<AssetRow>(createFile(csv, 'old.csv'), 'assets');
+    expect(result.validRows).toHaveLength(1);
+    expect(result.notices).toEqual([
+      'This file has retired_on and liquidation_amt columns, which aren’t imported any more. Record sales and retirements on the equipment page.',
+    ]);
+  });
+
+  it('has no notices for a file in the current format', async () => {
+    const csv = ['source,acquisition_date,vendor,category,manufacturer_model,quantity,item_price', '1,2025-11-03,V,Audio,M,1,9'].join('\n');
+    expect((await parseAndValidateCSV<AssetRow>(createFile(csv, 'new.csv'), 'assets')).notices).toEqual([]);
+  });
+});
+
+describe('revalidateAssetRows: a fixed row joins its own invoice (#183 D)', () => {
+  it('groups a fixed row under the invoice it sits in, and allocates its cost there', async () => {
+    const csv = [
+      'source,acquisition_date,vendor,total_inv_amount,category,manufacturer_model,quantity,item_price',
+      '0,2024-01-15,Vendor A,220.00,,,,',
+      '1,,,,Audio,Item A1,1,100.00',
+      '1,,,,,Item A2,1,100.00', // no category: invalid until fixed
+      '0,2024-01-16,Vendor B,100.00,,,,',
+      '1,,,,Audio,Item B1,1,100.00',
+    ].join('\n');
+    const first = await parseAndValidateCSV<AssetRow>(createFile(csv, 'fix.csv'), 'assets');
+    expect(first.invalidRows.map((r) => r.rowIndex)).toEqual([4]);
+
+    const fixed = validateAssetRow({ ...first.invalidRows[0].raw, category: 'Audio' }, 4);
+    const next = revalidateAssetRows(first.validRows, [fixed]);
+
+    expect(next.invalidRows).toEqual([]);
+    const byRow = new Map(next.validRows.map((r) => [r.rowIndex, r.data]));
+    expect(byRow.get(4)?.vendor).toBe('Vendor A');
+    // Vendor A: 220 over two lines of 100, so 110 each.
+    expect(byRow.get(3)?.item_cost).toBe('110.00');
+    expect(byRow.get(4)?.item_cost).toBe('110.00');
+    expect(byRow.get(6)?.item_cost).toBe('100.00');
+    expect(next.validRows.map((r) => r.rowIndex)).toEqual([2, 3, 4, 5, 6]);
+  });
+});
+
+describe('generateAssetTemplate: grouped columns and a kit (#183 D)', () => {
+  it('lists the item, unit-or-lot and purchase-line columns in that order, with kit and without retired_on or liquidation_amt', async () => {
+    const { generateAssetTemplate, ASSET_TEMPLATE_COLUMNS } = await import('./csvImport');
+    const Papa = (await import('papaparse')).default;
+    const [header, ...examples] = Papa.parse<string[]>(generateAssetTemplate()).data.filter((r) => r.length > 1);
+    expect(header).toEqual([...ASSET_TEMPLATE_COLUMNS.item, ...ASSET_TEMPLATE_COLUMNS.unit, ...ASSET_TEMPLATE_COLUMNS.line]);
+    expect(ASSET_TEMPLATE_COLUMNS.item.slice(0, 2)).toEqual(['manufacturer_model', 'category']);
+    expect(ASSET_TEMPLATE_COLUMNS.unit).toContain('kit');
+    expect(header).not.toContain('retired_on');
+    expect(header).not.toContain('liquidation_amt');
+    // The units example lists one serial per unit.
+    const units = examples.find((r) => r[header.indexOf('serial_number')].includes(';'))!;
+    expect(units[header.indexOf('serial_number')].split(';')).toHaveLength(Number(units[header.indexOf('quantity')]));
   });
 });

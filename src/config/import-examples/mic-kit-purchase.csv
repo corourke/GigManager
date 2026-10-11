@@ -1,0 +1,6 @@
+manufacturer_model,category,type,description,insurance_class,quantity,serial_number,tag_number,kit,replacement_value,status,insured,recovery_period,acquisition_date,vendor,source,total_inv_amount,payment_method,line_amount,line_cost,item_price,item_cost
+,,,,,,,,,,,,,2025-11-03,Sweetwater,0-Invoice,905.03,Visa,,,,
+Shure SM58,Audio,Dynamic Microphone,Vocal mic,,4,2NC0412;2NC0413;2NC0414;2NC0415,,Mic Kit 1,99.00,Active,TRUE,,2025-11-03,Sweetwater,1-Asset,,,396.00,,99.00,
+Shure Beta 52A,Audio,Kick Drum Microphone,,,2,,MIC-0201;MIC-0202,Mic Kit 1,189.00,Active,TRUE,,2025-11-03,Sweetwater,1-Asset,,,378.00,,189.00,
+Mic Clip,Audio,Mic Clip,,,10,,,Mic Kit 1,4.50,Active,FALSE,,2025-11-03,Sweetwater,1-Asset,,,45.00,,4.50,
+Procell AA Batteries (24-pack),Supplies,,,,1,,,,,,,,2025-11-03,Sweetwater,2-Expense,,,18.99,,18.99,
