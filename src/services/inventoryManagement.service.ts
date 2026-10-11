@@ -4,7 +4,7 @@ import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
 import { getKitComponentTree, flattenToScanUnits, type KitComponentTreeNode } from './kit.service';
 import type { DbInventoryTracking } from '../utils/supabase/types';
 import { isRetired, recordKind, type ItemRecord } from '../utils/equipmentItems';
-import { bucketsAt, currentRows, type TrackingRow } from '../utils/locations';
+import { bucketsAt, currentRows, whereabouts, type TrackingRow } from '../utils/locations';
 
 const getSupabase = () => createClient();
 
@@ -936,6 +936,49 @@ export async function getMaintenanceQueueReport(organizationId: string): Promise
     });
   } catch (err) {
     return handleApiError(err, 'get maintenance queue report');
+  }
+}
+
+/** An item's pieces at one place, with the gig's title (#186). */
+export interface ItemWhereabout {
+  gig_id: string | null;
+  gig_title: string | null;
+  /** At a gig: its location there. At home: a return scan's location, else null (not checked out). */
+  location: string | null;
+  quantity: number;
+}
+
+/**
+ * Where an item's units and lots are, place by place (#186, Cameron 10-11): see `whereabouts`.
+ * Reads every tracking row of the given records, a page at a time.
+ */
+export async function getItemWhereabouts(organizationId: string, records: readonly ItemRecord[]): Promise<ItemWhereabout[]> {
+  if (records.length === 0) return [];
+  const supabase = getSupabase();
+  try {
+    const rows: TrackingRow[] = [];
+    for (let from = 0; ; from += TRACKING_PAGE) {
+      const { data, error } = await (supabase.from('inventory_tracking') as any)
+        .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at')
+        .eq('organization_id', organizationId)
+        .in('asset_id', records.map((r) => r.id))
+        .order('id', { ascending: true })
+        .range(from, from + TRACKING_PAGE - 1);
+      if (error) throw error;
+      rows.push(...((data ?? []) as TrackingRow[]));
+      if ((data ?? []).length < TRACKING_PAGE) break;
+    }
+    const places = whereabouts(rows, records);
+    const gigIds = [...new Set(places.map((p) => p.gig_id).filter((id): id is string => !!id))];
+    const titles = new Map<string, string>();
+    if (gigIds.length) {
+      const { data, error } = await (supabase.from('gigs') as any).select('id, title').in('id', gigIds);
+      if (error) throw error;
+      for (const g of (data ?? []) as { id: string; title: string }[]) titles.set(g.id, g.title);
+    }
+    return places.map((p) => ({ ...p, gig_title: p.gig_id ? titles.get(p.gig_id) ?? null : null }));
+  } catch (err) {
+    return handleApiError(err, 'get item whereabouts');
   }
 }
 
