@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #261** (Docs Lead, merged 10-11): screenshot script keeps the seeded Last Login times (restored via dev SQL) and no longer waits for a named gig on the dashboard shot.
+
 - **#181 (Equipment items: data grouping review for Cameron)** (closed by Cameron 10-08): the grouping was reviewed and fixed before the #180 migration ran on prod. Triage removed the stale §1 row 10-11.
 
 - **User guide, PR #259** (Docs Lead, merged 10-11): published Scanning equipment on your phone and Adding equipment at pack-out (#246, live 10-11).

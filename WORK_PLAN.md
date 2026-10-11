@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-11 08:45 UTC (coordinator check-in: #259 merged; prod deploy of #258/#260 pending with Cameron; Equipment Lead and triage await Cameron's next release)
+- **Last updated:** 2026-10-11 10:45 UTC (coordinator check-in: #261 merged; Docs Lead drafting the Locations page; prod deploy of #258/#260 and the Equipment Lead's next item wait on Cameron)
 
 ---
 
