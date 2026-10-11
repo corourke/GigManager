@@ -250,7 +250,7 @@ async function loadNeedsSafely(kitIds: string[], organizationId?: string, extra?
     return await loadEquipmentNeeds(kitIds.filter((id) => !isLooseKit(id)), organizationId, extra);
   } catch (err) {
     console.error('Error loading equipment needs:', err);
-    return { ctx: { kits: new Map(), lines: new Map(), assetItem: new Map() }, counts: new Map() };
+    return { ctx: { kits: new Map(), lines: new Map(), assetItem: new Map() }, counts: new Map(), lotHas: new Map() };
   }
 }
 

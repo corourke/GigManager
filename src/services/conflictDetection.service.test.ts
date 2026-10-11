@@ -11,7 +11,7 @@ vi.mock('./equipmentNeeds.service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./equipmentNeeds.service')>();
   return { ...actual, loadEquipmentNeeds: needs.load };
 });
-const noNeeds = () => ({ ctx: { kits: new Map(), lines: new Map(), assetItem: new Map() }, counts: new Map() });
+const noNeeds = () => ({ ctx: { kits: new Map(), lines: new Map(), assetItem: new Map() }, counts: new Map(), lotHas: new Map() });
 
 function createQueryBuilder(resolveWith: any) {
   const builder: any = {

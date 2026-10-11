@@ -1,5 +1,5 @@
 import { createClient } from '../utils/supabase/client';
-import { containerPiecesByItem, recordItemMaps, summarizeItem } from '../utils/equipmentItems';
+import { containerPiecesByItem, isRetired, recordItemMaps, recordKind, summarizeItem } from '../utils/equipmentItems';
 import { gigNeeds, type ItemCounts, type ItemNeed, type KitLine, type KitMeta, type NeedsContext } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
@@ -11,6 +11,8 @@ export interface EquipmentNeedsData {
   ctx: NeedsContext;
   /** Owned, available, in maintenance and in containers, per item asked for. */
   counts: Map<string, ItemCounts>;
+  /** Each lot's size, a written-off lot at 0 (#242: "asks for 6, lot has 4"). Units aren't in it. */
+  lotHas: Map<string, number>;
 }
 
 /**
@@ -35,7 +37,7 @@ export async function loadEquipmentNeeds(kitIds: readonly string[], organization
   for (const k of extra?.kits ?? []) kits.set(k.id, k);
   for (const [id, l] of extra?.lines ?? []) lines.set(id, l);
   for (const [id, item] of extra?.assetItem ?? []) assetItem.set(id, item);
-  const empty = { ctx: { kits, lines, assetItem }, counts: new Map<string, ItemCounts>() };
+  const empty = { ctx: { kits, lines, assetItem }, counts: new Map<string, ItemCounts>(), lotHas: new Map<string, number>() };
   if (kitIds.length === 0 && kits.size === 0) return empty;
 
   // The kits and their lines, level by level through nested kits.
@@ -64,7 +66,7 @@ export async function loadEquipmentNeeds(kitIds: readonly string[], organization
   // The items asked for, with their records.
   const ctx: NeedsContext = { kits, lines, assetItem };
   const itemIds = Array.from(new Set(Array.from(kits.keys()).flatMap((id) => [...gigNeeds([id], ctx).keys()])));
-  if (itemIds.length === 0) return { ctx, counts: new Map() };
+  if (itemIds.length === 0) return { ctx, counts: new Map(), lotHas: new Map() };
   const { data: items, error: itemsError } = await (supabase.from('equipment_items') as any)
     .select('id, manufacturer_model, records:assets(id, quantity, status, retired_on, serial_number, tag_number)')
     .in('id', itemIds);
@@ -84,12 +86,18 @@ export async function loadEquipmentNeeds(kitIds: readonly string[], organization
     for (const [k, n] of active) activeInContainers.set(k, (activeInContainers.get(k) ?? 0) + n);
   }
 
+  const lotHas = new Map<string, number>();
+  for (const i of items ?? []) {
+    for (const r of i.records ?? []) {
+      if (recordKind(r) === 'lot') lotHas.set(r.id, isRetired(r) ? 0 : Math.max(0, Number(r.quantity ?? 1) || 0));
+    }
+  }
   const counts = new Map<string, ItemCounts>();
   for (const i of items ?? []) {
     const s = summarizeItem(i.records ?? [], activeInContainers.get(i.id) ?? 0);
     counts.set(i.id, { name: i.manufacturer_model, owned: s.owned, available: s.available, inMaintenance: s.inMaintenance, inContainers: inContainers.get(i.id) ?? 0 });
   }
-  return { ctx, counts };
+  return { ctx, counts, lotHas };
 }
 
 /** Pieces per item inside the organization's container kits, once for each record-to-item map. */
