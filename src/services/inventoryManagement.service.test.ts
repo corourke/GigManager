@@ -64,6 +64,58 @@ describe('inventoryManagement.service', () => {
     });
   });
 
+  // #186 / #160 (Cameron, 10-11): move N of a lot's M pieces at a place, by the rules in
+  // database.md: a return closes a whole bucket, so part of a lot going home leaves the rest.
+  describe('moveLotPieces', () => {
+    const base = { organizationId: 'org-1', assetId: 'lot', kitId: 'k1', fromGigId: 'gig-a', fromStatus: 'On Site',
+      fromLocation: 'Stage', here: 6, createdBy: 'user-1', notes: null };
+    function capture(latestAtTarget: any[] = []) {
+      const chain = makeQueryChain({ data: latestAtTarget, error: null });
+      mockSupabase.from.mockReturnValue(chain);
+      return chain;
+    }
+    const inserted = (chain: any) => chain.insert.mock.calls.flatMap((c: any[]) => c[0])
+      .map((r: any) => ({ gig_id: r.gig_id, kit_id: r.kit_id, status: r.status, location: r.location, quantity: r.quantity }));
+
+    it('part of a lot back home leaves the rest out, with its status and place', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture();
+      await moveLotPieces({ ...base, n: 4, toGigId: 'gig-a', toStatus: 'In Warehouse', toLocation: 'Bay 2' });
+      expect(inserted(chain)).toEqual([{ gig_id: 'gig-a', kit_id: 'k1', status: 'On Site', location: 'Stage', quantity: 2 }]);
+    });
+
+    it('all of it back home is a return, which closes the bucket', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture();
+      await moveLotPieces({ ...base, n: 6, toGigId: 'gig-a', toStatus: 'In Warehouse', toLocation: 'Bay 2' });
+      expect(inserted(chain)).toEqual([{ gig_id: 'gig-a', kit_id: 'k1', status: 'In Warehouse', location: 'Bay 2', quantity: 6 }]);
+    });
+
+    it('to another gig: the first gig keeps the rest, the other gains N on top of what it has', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture([{ status: 'Checked Out', quantity: 1, scanned_at: '2026-10-01T10:00:00Z', created_at: null, id: 'x' }]);
+      await moveLotPieces({ ...base, n: 2, toGigId: 'gig-b', toStatus: 'Checked Out', toLocation: 'Dock' });
+      expect(inserted(chain)).toEqual([
+        { gig_id: 'gig-a', kit_id: 'k1', status: 'On Site', location: 'Stage', quantity: 4 },
+        { gig_id: 'gig-b', kit_id: 'k1', status: 'Checked Out', location: 'Dock', quantity: 3 },
+      ]);
+    });
+
+    it('from home to a gig adds N there and leaves the home pieces alone', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture([{ status: 'In Warehouse', quantity: 6, scanned_at: '2026-10-01T10:00:00Z', created_at: null, id: 'x' }]);
+      await moveLotPieces({ ...base, fromStatus: 'In Warehouse', fromLocation: 'Bay 2', n: 3, toGigId: 'gig-a', toStatus: 'Checked Out', toLocation: 'Dock' });
+      expect(inserted(chain)).toEqual([{ gig_id: 'gig-a', kit_id: 'k1', status: 'Checked Out', location: 'Dock', quantity: 3 }]);
+    });
+
+    it('a new status at the same gig applies to the whole bucket', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture();
+      await moveLotPieces({ ...base, n: 2, toGigId: 'gig-a', toStatus: 'In Transit', toLocation: 'Truck' });
+      expect(inserted(chain)).toEqual([{ gig_id: 'gig-a', kit_id: 'k1', status: 'In Transit', location: 'Truck', quantity: 6 }]);
+    });
+  });
+
   describe('getLocationSuggestions', () => {
     it('merges DB locations with SCANNING_MODES defaults and deduplicates', async () => {
       const { getLocationSuggestions } = await import('./inventoryManagement.service');
