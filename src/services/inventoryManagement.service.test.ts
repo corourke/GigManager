@@ -39,6 +39,31 @@ describe('inventoryManagement.service', () => {
     (createClient as any).mockReturnValue(mockSupabase);
   });
 
+  // #186 (Cameron, 10-11): an item's pieces place by place, with each gig's title.
+  describe('getItemWhereabouts', () => {
+    it('reads the records\' tracking rows and names each gig', async () => {
+      const { getItemWhereabouts } = await import('./inventoryManagement.service');
+      const tracking = makeQueryChain({ data: [
+        { id: 't1', asset_id: 'lot', gig_id: 'g1', kit_id: 'k1', status: 'On Site', location: 'Stage', quantity: 4, scanned_at: '2026-10-01T10:00:00Z', created_at: null },
+      ], error: null });
+      const gigs = makeQueryChain({ data: [{ id: 'g1', title: 'Harvest Gala' }], error: null });
+      mockSupabase.from.mockImplementation((t: string) => (t === 'gigs' ? gigs : tracking));
+      const result = await getItemWhereabouts('org-1', [{ id: 'lot', quantity: 10, status: 'Active' } as any]);
+      expect(result).toEqual([
+        { gig_id: 'g1', gig_title: 'Harvest Gala', location: 'Stage', quantity: 4 },
+        { gig_id: null, gig_title: null, location: null, quantity: 6 },
+      ]);
+      expect(tracking.in).toHaveBeenCalledWith('asset_id', ['lot']);
+      expect(tracking.eq).toHaveBeenCalledWith('organization_id', 'org-1');
+    });
+
+    it('reads nothing for no records', async () => {
+      const { getItemWhereabouts } = await import('./inventoryManagement.service');
+      expect(await getItemWhereabouts('org-1', [])).toEqual([]);
+      expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getLocationSuggestions', () => {
     it('merges DB locations with SCANNING_MODES defaults and deduplicates', async () => {
       const { getLocationSuggestions } = await import('./inventoryManagement.service');
