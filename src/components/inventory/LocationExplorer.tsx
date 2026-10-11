@@ -24,8 +24,11 @@ import { cn } from '../ui/utils';
 import {
   getItemsByLocation,
   getActiveGigsWithTracking,
+  getItemWhereabouts,
 } from '../../services/inventoryManagement.service';
-import type { LocationItem, GigWithTracking } from '../../services/inventoryManagement.service';
+import type { LocationItem, GigWithTracking, ItemWhereabout } from '../../services/inventoryManagement.service';
+import { getItems } from '../../services/equipmentItem.service';
+import type { EquipmentItemWithRecords } from '../../services/equipmentItem.service';
 import { ManualTrackingOverrideDialog } from './ManualTrackingOverrideDialog';
 import { SCANNING_MODES } from '../../config/inventoryWorkflow';
 import { TRACKING_STATUS_CONFIG } from '../../utils/supabase/constants';
@@ -70,6 +73,26 @@ function formatLastScanned(isoString: string): string {
   }
 }
 
+/** Pieces at a place (#186): a unit is 1, a lot line its N. */
+const piecesOf = (item: LocationItem) => Math.max(1, Number(item.quantity ?? 1) || 1);
+
+/** A line's name, with "2 of 10" for part of a lot (#186). */
+function lineName(item: LocationItem) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      {item.asset_name ?? '—'}
+      {item.lot_of != null && <span className="text-xs text-muted-foreground whitespace-nowrap">{`${piecesOf(item)} of ${item.lot_of}`}</span>}
+    </span>
+  );
+}
+
+/** The "where is it" card's text (#186): each place's pieces, home ones last. */
+function whereText(places: readonly ItemWhereabout[]) {
+  return places.map((p) => (p.gig_id
+    ? `${p.quantity} at ${p.gig_title ?? 'a gig'}${p.location ? ` (${p.location})` : ''}`
+    : p.location ? `${p.quantity} at ${p.location}` : `${p.quantity} not checked out`)).join(' · ');
+}
+
 function groupByKit(items: LocationItem[]): KitGroup[] {
   const map = new Map<string, KitGroup>();
   for (const item of items) {
@@ -91,6 +114,9 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
   const [locationFilter, setLocationFilter] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(UNIQUE_STATUSES);
   const [gigFilter, setGigFilter] = useState('all');
+  const [itemFilter, setItemFilter] = useState('all');
+  const [equipmentItems, setEquipmentItems] = useState<EquipmentItemWithRecords[]>([]);
+  const [places, setPlaces] = useState<ItemWhereabout[] | null>(null);
   const [items, setItems] = useState<LocationItem[]>([]);
   const [gigs, setGigs] = useState<GigWithTracking[]>([]);
   const [loading, setLoading] = useState(false);
@@ -105,6 +131,25 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
       .then(setGigs)
       .catch(() => setGigs([]));
   }, [organizationId]);
+
+  // The org's items, for the Item filter (#186).
+  useEffect(() => {
+    getItems(organizationId)
+      .then((list) => setEquipmentItems([...list].sort((a, b) => (a.manufacturer_model ?? '').localeCompare(b.manufacturer_model ?? ''))))
+      .catch(() => setEquipmentItems([]));
+  }, [organizationId]);
+
+  const selectedItem = useMemo(() => equipmentItems.find((i) => i.id === itemFilter) ?? null, [equipmentItems, itemFilter]);
+
+  // Where all of the chosen item is, home pieces included (#186).
+  useEffect(() => {
+    if (!selectedItem) { setPlaces(null); return; }
+    let live = true;
+    getItemWhereabouts(organizationId, selectedItem.records)
+      .then((p) => { if (live) setPlaces(p); })
+      .catch(() => { if (live) setPlaces(null); });
+    return () => { live = false; };
+  }, [organizationId, selectedItem]);
 
   const toggleStatus = (status: string) => {
     setSelectedStatuses(prev =>
@@ -123,10 +168,10 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
     });
   };
 
-  const hasFilters = !!(locationFilter || selectedStatuses.length > 0 || gigFilter !== 'all');
+  const hasFilters = !!(locationFilter || selectedStatuses.length > 0 || gigFilter !== 'all' || itemFilter !== 'all');
 
   const fetchItems = useCallback(async () => {
-    if (!locationFilter && selectedStatuses.length === 0 && gigFilter === 'all') {
+    if (!locationFilter && selectedStatuses.length === 0 && gigFilter === 'all' && itemFilter === 'all') {
       setItems([]);
       setHasSearched(false);
       return;
@@ -138,6 +183,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
         location: locationFilter || undefined,
         status: selectedStatuses.length > 0 ? selectedStatuses : undefined,
         gigId: gigFilter !== 'all' ? gigFilter : undefined,
+        itemId: itemFilter !== 'all' ? itemFilter : undefined,
       });
       setItems(results);
     } catch {
@@ -145,7 +191,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
     } finally {
       setLoading(false);
     }
-  }, [organizationId, locationFilter, selectedStatuses, gigFilter]);
+  }, [organizationId, locationFilter, selectedStatuses, gigFilter, itemFilter]);
 
   useEffect(() => {
     fetchItems();
@@ -177,7 +223,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
           Location Explorer Filters
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="flex flex-col gap-2">
             <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Location</Label>
             <LocationCombobox
@@ -199,6 +245,23 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                 {gigs.map((gig) => (
                   <SelectItem key={gig.id} value={gig.id}>
                     {gig.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Item</Label>
+            <Select value={itemFilter} onValueChange={setItemFilter}>
+              <SelectTrigger aria-label="Filter by item">
+                <SelectValue placeholder="All items" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All items</SelectItem>
+                {equipmentItems.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.manufacturer_model}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -230,6 +293,12 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
           </div>
         </div>
       </div>
+
+      {selectedItem && places && places.length > 0 && (
+        <div data-testid="where-is-it" className="bg-white p-4 rounded-lg border shadow-sm text-sm">
+          <span className="font-semibold">{selectedItem.manufacturer_model}:</span> {whereText(places)}
+        </div>
+      )}
 
       {!hasFilters && !hasSearched && (
         <div className="flex flex-col items-center justify-center py-12 gap-2 border rounded-md bg-muted/20">
@@ -266,7 +335,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                         <MapPin className="h-3.5 w-3.5" />
                         {location}
                         <span className="text-xs bg-muted px-2 py-0.5 rounded-full ml-1">
-                          {locationItems.length} items
+                          {locationItems.reduce((n, i) => n + piecesOf(i), 0)} pieces
                         </span>
                       </div>
 
@@ -341,7 +410,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                     </TableRow>
                                     {expanded && hiddenChildren.map((child) => (
                                       <TableRow key={`${group.kitId}-${child.asset_id}`}>
-                                        <TableCell className="pl-8 text-sm text-muted-foreground">{child.asset_name ?? '—'}</TableCell>
+                                        <TableCell className="pl-8 text-sm text-muted-foreground">{lineName(child)}</TableCell>
                                         <TableCell className="font-mono text-xs">{child.tag_number ?? '—'}</TableCell>
                                         <TableCell className="text-sm">{child.gig_title ?? '—'}</TableCell>
                                         <TableCell className="text-muted-foreground text-xs">{formatLastScanned(child.scanned_at)}</TableCell>
@@ -382,7 +451,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                   </TableRow>
                                   {group.assetItems.map((child) => (
                                     <TableRow key={`${group.kitId}-${child.asset_id}`}>
-                                      <TableCell className="pl-8 text-sm">{child.asset_name ?? '—'}</TableCell>
+                                      <TableCell className="pl-8 text-sm">{lineName(child)}</TableCell>
                                       <TableCell className="font-mono text-xs">{child.tag_number ?? '—'}</TableCell>
                                       <TableCell className="text-sm">{child.gig_title ?? '—'}</TableCell>
                                       <TableCell className="text-muted-foreground text-xs">{formatLastScanned(child.scanned_at)}</TableCell>
