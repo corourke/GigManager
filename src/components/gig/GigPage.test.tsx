@@ -325,6 +325,22 @@ describe('GigPage (#12)', () => {
       expect((await screen.findByTestId('packing-print')).dataset.columns).toBe('status');
     });
 
+    it('starts the packing list with the columns remembered in this browser (#245)', async () => {
+      localStorage.setItem('gigwrangler.packingList.columns', JSON.stringify(['notes', 'status']));
+      try {
+        const user = userEvent.setup();
+        render(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
+        expect((await screen.findByTestId('packing-list')).dataset.columns).toBe('notes,status');
+        await user.click(screen.getByRole('button', { name: 'Only status' }));
+        expect(JSON.parse(localStorage.getItem('gigwrangler.packingList.columns')!)).toEqual(['status']);
+        await user.click(screen.getByRole('button', { name: 'Print' }));
+        await user.click(await screen.findByRole('menuitem', { name: 'Packing list' }));
+        expect((await screen.findByTestId('packing-print')).dataset.columns).toBe('status');
+      } finally {
+        localStorage.clear();
+      }
+    });
+
     it('hides the screen page and shows only the sheet when printing', async () => {
       render(<GigPage {...baseProps} userRole="Admin" />);
       await screen.findByRole('button', { name: 'Print' });

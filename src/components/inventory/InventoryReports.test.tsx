@@ -298,7 +298,10 @@ describe('PackingList: #245 follow-ups', () => {
     await renderPackingListTab();
     await screen.findByText('DMX Cable');
     expect(screen.getByText('9 pieces · 6 packed')).toBeInTheDocument();
-    expect(screen.getByTestId('packing-print-header')).toHaveTextContent('2 kits · 9 pieces · 6 packed');
+    // Cameron, 10-11: kits and pieces only, no packed count.
+    const header = screen.getByTestId('packing-print-header');
+    expect(header).toHaveTextContent('2 kits · 9 pieces');
+    expect(header).not.toHaveTextContent('packed');
   });
 
   it('a unit since moved to another gig reads Not scanned and isn\'t packed here', async () => {
@@ -307,6 +310,22 @@ describe('PackingList: #245 follow-ups', () => {
     const row = (await screen.findByText('moved')).closest('tr')!;
     expect(within(row).getByText('Not scanned')).toBeInTheDocument();
     expect(screen.getByText('1 pieces · 0 packed')).toBeInTheDocument();
+  });
+
+  // Cameron, 10-11: the Columns choice is remembered per browser, for every packing list.
+  it('remembers its Columns choice in this browser', async () => {
+    localStorage.clear();
+    (getPackingListReport as any).mockResolvedValue([unit('amp', 1, { status: 'Checked Out' })]);
+    const user = userEvent.setup();
+    const { unmount } = render(<PackingList organizationId="org-1" organizationName="Test Org" gig={TEST_GIG as any} />);
+    await screen.findByText('amp');
+    await user.click(screen.getByRole('button', { name: /columns/i }));
+    await user.click(screen.getByLabelText('Notes'));
+    unmount();
+    await renderPackingListTab();
+    await screen.findByText('amp');
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).not.toContain('Notes');
+    localStorage.clear();
   });
 
   it('shows the columns it is given, and reports a change, so the page can print the same ones', async () => {
