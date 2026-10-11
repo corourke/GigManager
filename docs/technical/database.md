@@ -1138,6 +1138,16 @@ Tracks equipment check-in/check-out status at gigs.
   - **A return goes in the bucket the pieces went out in.** It is written under the same (gig, kit). A no-kit `In Warehouse` row doesn't close a kit's bucket. A lot out under two kits needs two return rows.
   - **A partial return** ("leave the rest at the gig") is one non-return row in the bucket: status `Not Returned`, with quantity = what is still out. It is never a return row with a smaller N, because a return closes the whole bucket. Example: 4 out under FOH and 3 back gives FOH `Not Returned` q=1, so the gig shows 1 and home shows lot − 1.
   - **Moving a lot to another gig** writes a return row in each of the first gig's buckets, then the row at the new gig. Otherwise the lot counts at both. A unit doesn't need this: it is wherever its newest row says.
+  - **Move N of the M (Manual Tracking Override, #186; fixes #160)** writes by the same rules (`moveLotPieces`):
+    - **N of M home:** the bucket's own row at M − N, with its status and place. All M home is a return row, which closes the bucket.
+    - **To another gig:** this bucket keeps M − N (or closes when it's all of it), and the target bucket becomes what it holds plus N.
+    - **From home:** only the target bucket changes.
+    - **A new status at the same gig** applies to the whole bucket.
+    - Moves between two home places (with no gig) aren't possible yet; they come with the Maintenance step.
+  - **Where an item is (#186, Cameron 10-11):** `whereabouts` sums each place's pieces across the item's units and lots (`placementOf`). This is used by the Locations "where is it" card and the Item page's "Where they are".
+    - Pieces at home are "Not checked out".
+    - When everything in a record came back on a return scan, they're at that scan's location instead.
+    - Locations headers count pieces, and a lot line reads "2 of 10".
   - **Home has no location** until every bucket of the lot is closed by a return. Home takes the newest return row's status and location.
 - **Writing off missing pieces** (`write_off_pieces` / `undo_write_off`, migration 20261018000000):
   - A whole unit or lot becomes `status = 'Missing'`, with `retired_on` = the caller's day (`p_on`, within a day of the server's date).
