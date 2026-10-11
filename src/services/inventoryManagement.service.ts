@@ -65,6 +65,11 @@ export interface LocationItem {
   gig_title?: string | null;
   scanned_at: string;
   scanned_by_name?: string | null;
+  /** Pieces at this place: 1 for a unit, N of a lot (#186). */
+  quantity?: number;
+  /** A lot's size ("2 of 10"); null for a unit or a kit row. */
+  lot_of?: number | null;
+  equipment_item_id?: string | null;
 }
 
 export interface ManifestRow {
@@ -420,11 +425,11 @@ export async function getLocationSuggestions(organizationId: string): Promise<st
 
 export async function getItemsByLocation(
   organizationId: string,
-  filters: { location?: string; status?: string | string[]; gigId?: string }
+  filters: { location?: string; status?: string | string[]; gigId?: string; itemId?: string }
 ): Promise<LocationItem[]> {
   const supabase = getSupabase();
   try {
-    if (!filters.location && !filters.status && !filters.gigId) {
+    if (!filters.location && !filters.status && !filters.gigId && !filters.itemId) {
       return [];
     }
 
@@ -440,7 +445,7 @@ export async function getItemsByLocation(
 
     const { data: assets, error: assetsError } = await supabase
       .from('assets')
-      .select('id, manufacturer_model, tag_number, serial_number, quantity')
+      .select('id, manufacturer_model, tag_number, serial_number, quantity, equipment_item_id')
       .in('id', [...new Set(records.filter((r) => r.asset_id).map((r) => r.asset_id as string))]);
 
     if (assetsError) throw assetsError;
@@ -454,7 +459,9 @@ export async function getItemsByLocation(
       lotQuantity: (id) => (assetMap.get(id)?.quantity != null ? Number(assetMap.get(id).quantity) : null),
     }).filter((r) => (!filters.location || r.location === filters.location)
       && (!statuses || statuses.includes(r.status))
-      && (!filters.gigId || r.gig_id === filters.gigId));
+      && (!filters.gigId || r.gig_id === filters.gigId)
+      // An item's units and lots only (#186): a kit's own row isn't one of them.
+      && (!filters.itemId || (!!r.asset_id && assetMap.get(r.asset_id)?.equipment_item_id === filters.itemId)));
 
     return latest.map((record): LocationItem => {
       const asset = record.asset_id ? assetMap.get(record.asset_id) : null;
@@ -472,6 +479,9 @@ export async function getItemsByLocation(
         gig_title: rawRecord?.gig?.title ?? null,
         scanned_at: record.scanned_at,
         scanned_by_name: formatUserName(rawRecord?.scanned_by_user),
+        quantity: Math.max(1, Number(record.quantity ?? 1) || 1),
+        lot_of: asset && recordKind(asset) === 'lot' ? Number(asset.quantity ?? 1) : null,
+        equipment_item_id: asset?.equipment_item_id ?? null,
       };
     });
   } catch (err) {
