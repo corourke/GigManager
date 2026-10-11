@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#181 (Equipment items: data grouping review for Cameron)** (closed by Cameron 10-08): the grouping was reviewed and fixed before the #180 migration ran on prod. Triage removed the stale §1 row 10-11.
+
 - **User guide, PR #259** (Docs Lead, merged 10-11): published Scanning equipment on your phone and Adding equipment at pack-out (#246, live 10-11).
 
 - **PRs #258 and #260** (coordinator, merged 10-11; Cameron's report after the 10-11 deploy): on Locations, an untagged item shows in no more places than it has pieces (each record's quantity now read), and an untagged item inside a container is one place per case (newest across gigs). Fixes SndEng Case and Stage Snakes showing in two places. Docs Lead tested on dev (pass @ cd98ef8).
