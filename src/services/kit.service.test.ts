@@ -441,6 +441,35 @@ describe('kit.service', () => {
     });
   });
 
+  // #266: tags are scanned (matchTag takes the first kit with that tag), so a
+  // copy must not share the original's. Every other field carries over.
+  describe('duplicateKit fields (#266)', () => {
+    it('copies every field but the Tag Number, which is left blank', async () => {
+      const originalKit = {
+        id: 'k1', name: 'Original', organization_id: 'org-1', kit_components: [],
+        category: 'Audio', description: 'Front of house', tags: ['wedding'], is_container: true, rental_value: 250, tag_number: 'KIT-07',
+      };
+      let inserted: any;
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          const chain = makeChain({ data: originalKit, error: null });
+          chain.insert = vi.fn((row: any) => { inserted = row; return makeChain({ data: { id: 'k2', ...row }, error: null }); });
+          return chain;
+        }
+        if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+
+      await duplicateKit('k1');
+
+      expect(inserted).toEqual(expect.objectContaining({
+        name: 'Original (Copy)', category: 'Audio', description: 'Front of house', tags: ['wedding'], is_container: true, rental_value: 250,
+      }));
+      expect(inserted.tag_number ?? null).toBeNull();
+    });
+  });
+
   describe('duplicateKit with an "any" line (#184)', () => {
     const originalKit = {
       id: 'k1', name: 'Main PA', organization_id: 'org-1',
