@@ -197,10 +197,10 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong / next |
 |---|---|---|---|
 | `equipment/assets.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/assigning-to-a-gig.md` | published (PR #250) | 2026-10-10 (Docs Lead; matches prod 10-10) | kit assignment, equipment table, Not returned, write-offs; Out on gigs and scanning to come with #185/#186 |
+| `equipment/assigning-to-a-gig.md` | published (PRs #250, #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | kit assignment, equipment table, Not returned, write-offs, Added at pack-out label; Out on gigs (Track a gig) to come with #186 |
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/inventory-reports.md` | published (PR #250), packing list only | 2026-10-10 (Docs Lead; matches prod 10-10) | packing-list shot held for #249; manifest and maintenance queue to come |
+| `equipment/inventory-reports.md` | published (PRs #250, #259), packing list only | 2026-10-11 (Docs Lead; matches prod 10-11) | Added at pack-out group; packing-list shot held for #249; manifest and maintenance queue to come |
 | `equipment/kits.md` | draft, written (branch `claude/docs-kits-draft`) | 2026-10-09 (Docs Lead) | held until #185/#186; N × any lines, kit editor, kit page |
 | `equipment/location-explorer.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
@@ -214,7 +214,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `financials/tax-treatment.md` | published | 2026-10-09 (Docs Lead, PR #227) | equipment records and filed-year wording updated for #221 |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
-| `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in |
+| `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in; the overview shot can be retaken again once PR #261 merges (its list uses the server's real date) |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
 | `gigs/calendar-view.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
@@ -242,7 +242,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `team/member-profiles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | #206 workaround removed |
 | `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
 | `team/people-without-logins.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
-| `team/team-and-roles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | — |
+| `team/team-and-roles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | members-table shot retaken with stable Last Login in PR #261 |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
