@@ -318,6 +318,7 @@ export const shots = [
     user: 'admin',
     sources: ['src/components/team/teamColumns.tsx', 'src/components/TeamScreen.tsx'],
     prepare: async (page, ctx) => {
+      ctx.restoreSignIns(); // Last Login: the seeded times, not this run's sign-ins
       await page.goto(`${ctx.base}/team`);
       await page.getByText('Sofia Lindqvist').first().waitFor();
     },
@@ -567,9 +568,12 @@ export const shots = [
     sources: ['src/components/Dashboard.tsx', 'supabase/functions/server/lib/pure/dashboard.ts'],
     viewport: { width: 1200, height: 1600 },
     prepare: async (page, ctx) => {
+      // The dashboard's numbers come from the server, which uses the real date, not the
+      // pinned clock: wait for the upcoming list whatever it holds, not for a named gig.
       await page.goto(`${ctx.base}/dashboard`);
-      await page.getByText('Upcoming Gigs (Next 30 Days)').waitFor();
-      await page.getByText('Harvest Gala Dinner & Dance').first().waitFor();
+      const upcoming = cardOf(page, 'Upcoming Gigs (Next 30 Days)');
+      await upcoming.waitFor();
+      await upcoming.locator('tbody tr').or(upcoming.getByText(/No upcoming gigs/)).first().waitFor();
       await page.locator('.animate-spin').first().waitFor({ state: 'hidden' }).catch(() => {});
     },
     // The summary cards and the upcoming gigs, above Recent Activity.
