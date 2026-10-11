@@ -447,8 +447,10 @@ export async function getItemsByLocation(
 
     const assetMap = new Map((assets ?? []).map((a: any) => [a.id, a]));
     const statuses = filters.status ? [filters.status].flat() : null;
+    const containers = new Set(records.filter((r) => r.kit_id && r.kit?.is_container).map((r) => r.kit_id as string));
     const latest = currentRows(records as DbInventoryTracking[], {
       isLot: (id) => assetMap.has(id) && recordKind(assetMap.get(id)) === 'lot',
+      isContainer: (id) => containers.has(id),
       lotQuantity: (id) => (assetMap.get(id)?.quantity != null ? Number(assetMap.get(id).quantity) : null),
     }).filter((r) => (!filters.location || r.location === filters.location)
       && (!statuses || statuses.includes(r.status))
