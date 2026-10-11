@@ -115,6 +115,7 @@ export default function MobileGigFinancials({
                 organizationId={organizationId}
                 onSuccess={loadData}
                 gigStartDate={gigStartDate}
+                financials={financials}
                 userRole={userRole}
               />
             </div>
