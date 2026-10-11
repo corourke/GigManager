@@ -50,7 +50,15 @@ interface OverrideTarget {
   assetIds?: string[];
   keepKitRow?: boolean;
   label: string;
+  /** Part of a lot at this place (#186): move N of its pieces. */
+  lot?: { here: number; of: number; status: string; location: string | null; place: string };
 }
+
+/** A lot line's override details (#186); none for a unit. */
+const lotOf = (item: LocationItem) => (item.lot_of != null
+  ? { here: piecesOf(item), of: item.lot_of, status: item.status, location: item.location ?? null,
+    place: [item.gig_title, item.location].filter(Boolean).length === 2 ? `${item.gig_title} (${item.location})` : item.gig_title ?? item.location ?? 'this place' }
+  : undefined);
 
 /** One kit's items within a single (status, location) bucket — the kit's own
  * whole-kit scan record (if any) kept separate from its individual assets,
@@ -425,6 +433,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                                 kitId: group.kitId,
                                                 assetId: child.asset_id ?? undefined,
                                                 label: `${group.kitName} — ${child.asset_name ?? 'Item'}`,
+                                                lot: lotOf(child),
                                               })}
                                             >
                                               <Pencil className="h-3.5 w-3.5" />
@@ -466,6 +475,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                               kitId: group.kitId,
                                               assetId: child.asset_id ?? undefined,
                                               label: `${group.kitName} — ${child.asset_name ?? 'Item'}`,
+                                              lot: lotOf(child),
                                             })}
                                           >
                                             <Pencil className="h-3.5 w-3.5" />
@@ -535,6 +545,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
           userId={userId}
           userRole={userRole}
           targetLabel={overrideTarget.label}
+          lot={overrideTarget.lot}
           onSuccess={() => { setOverrideTarget(null); fetchItems(); }}
         />
       )}
