@@ -440,7 +440,7 @@ export async function getItemsByLocation(
 
     const { data: assets, error: assetsError } = await supabase
       .from('assets')
-      .select('id, manufacturer_model, tag_number, serial_number')
+      .select('id, manufacturer_model, tag_number, serial_number, quantity')
       .in('id', [...new Set(records.filter((r) => r.asset_id).map((r) => r.asset_id as string))]);
 
     if (assetsError) throw assetsError;
@@ -449,6 +449,7 @@ export async function getItemsByLocation(
     const statuses = filters.status ? [filters.status].flat() : null;
     const latest = currentRows(records as DbInventoryTracking[], {
       isLot: (id) => assetMap.has(id) && recordKind(assetMap.get(id)) === 'lot',
+      lotQuantity: (id) => (assetMap.get(id)?.quantity != null ? Number(assetMap.get(id).quantity) : null),
     }).filter((r) => (!filters.location || r.location === filters.location)
       && (!statuses || statuses.includes(r.status))
       && (!filters.gigId || r.gig_id === filters.gigId));

@@ -141,11 +141,13 @@ export function bucketsAt(rows: readonly TrackingRow[], record: ItemRecord, gigI
  * it, so pieces still out show at each gig; but a bucket whose newest row is a return isn't a
  * place on its own: the pieces back home show once, at the lot's newest return (#255). Each
  * item reports its own newest row: a container's newer kit-only row (a note, an override)
- * doesn't move what's in it (Cameron, 10-10).
+ * doesn't move what's in it (Cameron, 10-10). And a lot is in no more places than it has
+ * pieces (`lotQuantity`): its places count newest first, and an older one the newer ones
+ * already account for is stale, so a one-piece lot shows once, at its newest row (10-11).
  */
 export function currentRows<R extends TrackingRow>(
   rows: readonly R[],
-  opts: { isLot?: (assetId: string) => boolean } = {},
+  opts: { isLot?: (assetId: string) => boolean; lotQuantity?: (assetId: string) => number | null | undefined } = {},
 ): R[] {
   const latest = new Map<string, R>();
   for (const r of rows) {
@@ -161,6 +163,19 @@ export function currentRows<R extends TrackingRow>(
   for (const [key, r] of latest) {
     if (isHome(key, r) && newer(r, lotHome.get(r.asset_id as string))) lotHome.set(r.asset_id as string, r);
   }
-  return [...latest].filter(([key, r]) => !isHome(key, r) || lotHome.get(r.asset_id as string) === r).map(([, r]) => r);
+  const kept = [...latest].filter(([key, r]) => !isHome(key, r) || lotHome.get(r.asset_id as string) === r);
+  // Newest first, keep a lot's places while their pieces fit in the lot; the first always stays.
+  const placed = new Map<string, number>();
+  const stale = new Set<R>();
+  for (const [key, r] of [...kept].sort(([, a], [, b]) => (newer(a, b) ? -1 : newer(b, a) ? 1 : 0))) {
+    if (!key.startsWith('lot:')) continue;
+    const id = r.asset_id as string;
+    const total = opts.lotQuantity?.(id);
+    const sofar = placed.get(id);
+    const pieces = Math.max(1, Number(r.quantity) || 1);
+    if (sofar !== undefined && total != null && sofar + pieces > total) stale.add(r);
+    else placed.set(id, (sofar ?? 0) + pieces);
+  }
+  return kept.filter(([, r]) => !stale.has(r)).map(([, r]) => r);
 }
 
