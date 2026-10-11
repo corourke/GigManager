@@ -5,6 +5,12 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Open-issue audit** (coordinator, 10-11, Cameron's OK): closed #184 (kit editor, overlap; #225, #230, #236, #238), #185 (packing list, phone scanning; #239, #240, #246), #226 (released items #233, #237, #248/#251, #252; parked items to WORK_PLAN §5) and #174 (#199; item 4 in §5). Filed #265 (container still out at another gig) and #266 (kit-page follow-ups).
+
+- **PR #263** (coordinator, merged 10-11 with Cameron's OK): mobile transactions name rows Booking / Expense and show the desktop stage text ("Accepted, payment due", "Paid Oct 11"); rowName/stageText shared in financials/format.ts. Failing test first.
+
+- **PR #262** (coordinator, merged 10-11; Cameron's report): Payment received on a gig with an open booking (mobile and desktop) pays that booking off via "Apply to" instead of adding a second paid row; "Separate payment (no booking)" keeps the old behaviour; a short payment asks still owed / not coming. Failing test first.
+
 - **PR #261** (Docs Lead, merged 10-11): screenshot script keeps the seeded Last Login times (restored via dev SQL) and no longer waits for a named gig on the dashboard shot.
 
 - **#181 (Equipment items: data grouping review for Cameron)** (closed by Cameron 10-08): the grouping was reviewed and fixed before the #180 migration ran on prod. Triage removed the stale §1 row 10-11.

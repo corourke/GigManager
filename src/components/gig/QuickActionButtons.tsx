@@ -20,10 +20,13 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
 import { Switch } from '../ui/switch';
-import { createGigFinancial } from '../../services/gig.service';
+import { createGigFinancial, recordGigFinancialPayment } from '../../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity } from '../../services/attachment.service';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { FinCategory, UserRole } from '../../utils/supabase/types';
-import { STAGE_LABELS, stagePickerLabel } from '../../utils/moneyFlow';
+import type { DbGigFinancial } from '../../utils/supabase/types';
+import { STAGE_LABELS, stageLabel, stagePickerLabel } from '../../utils/moneyFlow';
+import { formatMoney } from './financials/format';
 import { calculateMileageAmount, formatMileageNotes, getMileageRateForDate } from '../../utils/financials.utils';
 import { lockedYearMessage } from '../../utils/taxTreatment';
 
@@ -75,6 +78,14 @@ interface QuickActionButtonsProps {
   onOther?: () => void;
   userRole?: UserRole;
   gigStartDate?: string;
+  /** The gig's money rows; an open booking among them is what Payment received pays off. */
+  financials?: DbGigFinancial[];
+}
+
+const SEPARATE = 'separate';
+
+function bookingLabel(row: DbGigFinancial): string {
+  return `${row.description || 'Booking'} · ${stageLabel(row.direction, row.stage)} · ${formatMoney(row.amount, row.currency)}`;
 }
 
 export default function QuickActionButtons({
@@ -83,10 +94,20 @@ export default function QuickActionButtons({
   onSuccess,
   onOther,
   gigStartDate,
+  financials = [],
 }: QuickActionButtonsProps) {
   const [activeModal, setActiveModal] = useState<'agreement' | 'payment' | 'expense' | 'mileage' | 'simple_expense' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Payment received: which open booking it pays off (or SEPARATE), and, when
+  // less than the booking arrives, whether the rest is still owed or not coming.
+  const [applyTo, setApplyTo] = useState<string>(SEPARATE);
+  const [remainder, setRemainder] = useState<'split' | 'settle'>('split');
+
+  const openBookings = financials
+    .filter((r) => r.direction === 'in' && (FEE_STAGES as readonly string[]).includes(r.stage))
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+  const booking = openBookings.find((r) => r.id === applyTo) ?? null;
 
   const defaultDate = gigStartDate ?? format(new Date(), 'yyyy-MM-dd');
 
@@ -136,6 +157,19 @@ export default function QuickActionButtons({
   });
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
+  const payAmount = useWatch({ control: paymentForm.control, name: 'amount' });
+  const payValue = parseFloat(payAmount || '');
+  const shortBy = booking && Number.isFinite(payValue) && payValue > 0
+    ? Math.round((Number(booking.amount ?? 0) - payValue) * 100) / 100
+    : 0;
+
+  const chooseBooking = (id: string) => {
+    setApplyTo(id);
+    setRemainder('split');
+    const row = openBookings.find((r) => r.id === id);
+    paymentForm.setValue('amount', row?.amount != null ? String(row.amount) : '');
+  };
+
   const milDistance = useWatch({ control: mileageForm.control, name: 'distance' });
   const milStart = useWatch({ control: mileageForm.control, name: 'start_odometer' });
   const milEnd = useWatch({ control: mileageForm.control, name: 'end_odometer' });
@@ -166,6 +200,7 @@ export default function QuickActionButtons({
 
   const openModal = (modal: 'agreement' | 'payment' | 'expense' | 'mileage' | 'simple_expense') => {
     setShowAdvanced(false);
+    if (modal === 'payment') chooseBooking(openBookings[0]?.id ?? SEPARATE);
     setActiveModal(modal);
   };
 
@@ -197,6 +232,31 @@ export default function QuickActionButtons({
   };
 
   const onPaymentSubmit = async (data: z.infer<typeof paymentSchema>) => {
+    if (booking) {
+      const amount = parseFloat(data.amount);
+      if (!(amount > 0)) {
+        paymentForm.setError('amount', { message: 'Enter the amount received' });
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        const { remainder: rest } = await recordGigFinancialPayment(booking, {
+          amount,
+          paid_at: data.paid_at,
+          remainder,
+          reference_number: data.reference_number,
+        });
+        toast.success(rest ? `Payment recorded; ${formatMoney(rest.amount)} still owed` : 'Payment recorded');
+        onSuccess();
+        handleClose();
+      } catch (error) {
+        console.error('Error saving payment:', error);
+        toast.error(lockedYearMessage(error) ?? 'Failed to save payment');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
     setIsSubmitting(true);
     try {
       await createGigFinancial({
@@ -417,9 +477,29 @@ export default function QuickActionButtons({
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Payment received</DialogTitle>
-            <DialogDescription>Money that has already arrived. To pay off a booking, use its Record Payment button instead.</DialogDescription>
+            <DialogDescription>
+              {openBookings.length > 0
+                ? 'Money that has already arrived. Apply it to the booking it pays, or record it on its own.'
+                : 'Money that has already arrived.'}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={paymentForm.handleSubmit(onPaymentSubmit)} className="space-y-4 py-4">
+            {openBookings.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="pay-apply-to">Apply to</Label>
+                <Select value={applyTo} onValueChange={chooseBooking}>
+                  <SelectTrigger id="pay-apply-to">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {openBookings.map((row) => (
+                      <SelectItem key={row.id} value={row.id}>{bookingLabel(row)}</SelectItem>
+                    ))}
+                    <SelectItem value={SEPARATE}>Separate payment (no booking)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="pay-paid-date">Date received</Label>
@@ -437,6 +517,26 @@ export default function QuickActionButtons({
               <Label htmlFor="pay-ref">Reference # (Check/Trans ID)</Label>
               <Input id="pay-ref" placeholder="Optional" {...paymentForm.register('reference_number')} />
             </div>
+            {booking && shortBy > 0 && (
+              <fieldset className="space-y-2">
+                <legend className="text-sm text-sky-900 bg-sky-50 border border-sky-200 rounded-md px-3 py-2 w-full mb-2">
+                  {formatMoney(payValue, booking.currency)} is less than the {formatMoney(booking.amount, booking.currency)} booked. What is the
+                  other {formatMoney(shortBy, booking.currency)}?
+                </legend>
+                <RadioGroup value={remainder} onValueChange={(v) => setRemainder(v as 'split' | 'settle')}>
+                  <label htmlFor="pay-split" className="flex gap-3 items-start border rounded-md p-3 cursor-pointer has-[button[data-state=checked]]:border-sky-700">
+                    <RadioGroupItem value="split" id="pay-split" className="mt-0.5" />
+                    <span className="text-sm font-medium">Still owed: split it into its own row</span>
+                  </label>
+                  <label htmlFor="pay-settle" className="flex gap-3 items-start border rounded-md p-3 cursor-pointer has-[button[data-state=checked]]:border-sky-700">
+                    <RadioGroupItem value="settle" id="pay-settle" className="mt-0.5" />
+                    <span className="text-sm font-medium">Not coming: settle for {formatMoney(payValue, booking.currency)}</span>
+                  </label>
+                </RadioGroup>
+              </fieldset>
+            )}
+
+            {!booking && (<>
             <div className="space-y-2">
               <Label htmlFor="pay-description">Description</Label>
               <Input id="pay-description" placeholder="e.g. Deposit" {...paymentForm.register('description')} />
@@ -464,6 +564,7 @@ export default function QuickActionButtons({
                 </div>
               </div>
             )}
+            </>)}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
