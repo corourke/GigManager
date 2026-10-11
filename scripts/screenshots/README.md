@@ -39,6 +39,19 @@ Every shot is taken in a 1200 × 900 window at 2× scale, light theme, time zone
 `America/Los_Angeles`, with the clock frozen at 10 AM on the anchor date. Each demo
 user signs in once per run through the real login form.
 
+Two things the frozen clock doesn't reach:
+
+- **Last Login.** Signing in updates each demo user's last sign-in, which the team
+  table shows. The script notes the demo users' last sign-in before anyone signs in, and
+  puts it back before the team shot and at the end of the run. It does this through
+  the same dev-only SQL endpoint as `seed-demo.sh`. If that endpoint isn't available,
+  the run prints a note and Last Login shows the run's real times.
+- **The dashboard.** Its numbers and its "Upcoming Gigs (Next 30 Days)" list come from
+  the server, which uses the real date. The shot waits for whatever the list holds,
+  and the list shrinks as real time passes the seeded gigs. For a full refresh, reseed
+  with an anchor in the current week (`scripts/seed-demo.sh <today>`) and run with the
+  same `SHOT_ANCHOR`. The seed keeps gigs on the same weekdays relative to the anchor.
+
 ## Adding a shot
 
 1. Add an entry to `shots` in `shots.mjs`. Its `id` is `<section>/<page>-<what>` and
