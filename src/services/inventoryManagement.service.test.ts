@@ -1191,6 +1191,64 @@ describe('inventoryManagement.service', () => {
       expect(await getItemsByLocation('org-1', { gigId: 'gig-a' })).toEqual([]);
       expect(await getItemsByLocation('org-1', { location: 'Garage' })).toHaveLength(1 + units.length);
     });
+
+    describe('an untagged item (a lot) in the case (#255)', () => {
+      // Out and back on gig A, a case-only override (Shelf C), out and back on gig B, another
+      // override (Shelf D). The lot ('t58', no tag) went with the case each time.
+      const caseRows = [
+        row('a-out', 'gig-a', null, 'Checked Out', 'Staging Area', '2026-10-10T15:10:00.000Z'),
+        row('a-out-u1', 'gig-a', 'u1', 'Checked Out', 'Staging Area', '2026-10-10T15:10:00.000Z'),
+        row('a-out-t58', 'gig-a', 't58', 'Checked Out', 'Staging Area', '2026-10-10T15:10:00.000Z'),
+        row('a-back', 'gig-a', null, 'In Warehouse', 'Warehouse', '2026-10-10T15:17:00.000Z'),
+        row('a-back-u1', 'gig-a', 'u1', 'In Warehouse', 'Warehouse', '2026-10-10T15:17:00.000Z'),
+        row('a-back-t58', 'gig-a', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T15:17:00.000Z'),
+        row('a-override', 'gig-a', null, 'In Warehouse', 'Warehouse, Shelf C', '2026-10-10T15:18:00.000Z'),
+        row('b-out', 'gig-b', null, 'Checked Out', 'Staging Area', '2026-10-10T15:18:30.000Z'),
+        row('b-out-u1', 'gig-b', 'u1', 'Checked Out', 'Staging Area', '2026-10-10T15:18:30.000Z'),
+        row('b-out-t58', 'gig-b', 't58', 'Checked Out', 'Staging Area', '2026-10-10T15:18:30.000Z'),
+        row('b-back', 'gig-b', null, 'In Warehouse', 'Warehouse', '2026-10-10T15:19:00.000Z'),
+        row('b-back-u1', 'gig-b', 'u1', 'In Warehouse', 'Warehouse', '2026-10-10T15:19:00.000Z'),
+        row('b-back-t58', 'gig-b', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T15:19:00.000Z'),
+        row('b-override', 'gig-b', null, 'In Warehouse', 'Warehouse, Shelf D', '2026-10-10T15:20:00.000Z'),
+      ];
+
+      function mockWithLot(rows: any[]) {
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+          ? { data: [
+            { id: 'u1', manufacturer_model: 'DI Box', tag_number: 'DSL-0211', serial_number: null },
+            { id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null },
+          ], error: null }
+          : { data: rows, error: null }));
+      }
+      const shown = (items: { asset_id?: string | null; gig_id: string; location?: string | null }[]) =>
+        items.map((i) => [i.asset_id ?? 'case', i.gig_id, i.location]).sort();
+
+      it('the case, its unit and its lot each show once, at their newest row: no second case heading from gig A', async () => {
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        mockWithLot(caseRows);
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
+          ['case', 'gig-b', 'Warehouse, Shelf D'],
+          ['t58', 'gig-b', 'Warehouse'],
+          ['u1', 'gig-b', 'Warehouse'],
+        ]);
+        // Nothing of the case is at gig A now.
+        expect(await getItemsByLocation('org-1', { gigId: 'gig-a' })).toEqual([]);
+      });
+
+      it('a genuine split still shows at each place: 1 T58 On Site at gig C, the rest home once', async () => {
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        mockWithLot([...caseRows, row('c-t58', 'gig-c', 't58', 'On Site', 'Stage', '2026-10-10T16:00:00.000Z')]);
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
+          ['case', 'gig-b', 'Warehouse, Shelf D'],
+          ['t58', 'gig-b', 'Warehouse'],
+          ['t58', 'gig-c', 'Stage'],
+          ['u1', 'gig-b', 'Warehouse'],
+        ]);
+        expect(shown(await getItemsByLocation('org-1', { gigId: 'gig-c' }))).toEqual([['t58', 'gig-c', 'Stage']]);
+      });
+    });
   });
 
   describe('getMaintenanceQueueReport', () => {
