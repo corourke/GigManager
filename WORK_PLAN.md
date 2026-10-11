@@ -91,6 +91,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **#257 re-tested @ e659aa6 (Docs Lead, 10-11 00:45 UTC): pass.** The Mic Case has one Container heading (at Shelf D), and its contents list in full under Contents, PDI-1 included. The Cedar Hall gig filter is empty and the T58 split is right. The earlier result follows.
 - **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
