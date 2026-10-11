@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **User guide, PR #259** (Docs Lead, merged 10-11): published Scanning equipment on your phone and Adding equipment at pack-out (#246, live 10-11).
+
 - **PRs #258 and #260** (coordinator, merged 10-11; Cameron's report after the 10-11 deploy): on Locations, an untagged item shows in no more places than it has pieces (each record's quantity now read), and an untagged item inside a container is one place per case (newest across gigs). Fixes SndEng Case and Stage Snakes showing in two places. Docs Lead tested on dev (pass @ cd98ef8).
 
 - **Prod deploy, 10-11** (Cameron): #246, #250, #251, #252, #253, #254, #257 + migration 20261019000000 (pack-out additions). Coordinator verified read-only: prod at 20261019000000; `gig_kit_assignments.added_at_pack_out` boolean not null default false; `update_asset_status` and `user_is_staff_or_above_of_org` SECURITY DEFINER with search_path pinned; the pack-out INSERT/DELETE policies present; new build served (`/static/index-CzmUKkKx.js`), `/static/nope.js` → 404, `/gigs` and `/equipment/locations` → 200.
