@@ -213,7 +213,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `financials/tax-treatment.md` | published | 2026-10-09 (Docs Lead, PR #227) | equipment records and filed-year wording updated for #221 |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
-| `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in; the overview shot can be retaken again once PR #261 merges (its list uses the server's real date) |
+| `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in; overview shot retakeable again (PR #261, merged 10-11); its list uses the server's real date, so move the seed anchor at the next full refresh |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
 | `gigs/calendar-view.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
@@ -241,7 +241,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `team/member-profiles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | #206 workaround removed |
 | `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
 | `team/people-without-logins.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
-| `team/team-and-roles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | members-table shot retaken with stable Last Login in PR #261 |
+| `team/team-and-roles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | members-table shot retaken with stable Last Login (PR #261, merged 10-11) |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
