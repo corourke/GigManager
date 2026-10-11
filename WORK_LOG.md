@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #257** (coordinator, merged 10-11): fixes #255. On Locations, a lot's pieces that came home show once (its newest return), and a container's contents that sit apart from the case list in full under a "Contents" heading instead of one item becoming a second case heading. Docs Lead tested on dev (pass @ e659aa6).
+
 - **User guide, PR #250** (Docs Lead, merged 10-10): published Assigning equipment to a gig and Inventory reports (packing list), true for prod as of the 10-10 deploy.
 
 - **PR #254** (coordinator, merged 10-10): Locations reports each item at its own newest record (Cameron: a container's newer note or override doesn't move its contents); NotificationBell test waits for the Radix menu to take clicks (CI flake).
