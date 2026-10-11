@@ -29,7 +29,7 @@ import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
 import { packedPieces } from '../../utils/packingSummary';
-import { DEFAULT_PACKING_COLUMNS, type PackingColumn } from '../../utils/packingColumns';
+import { loadPackingColumns, savePackingColumns, type PackingColumn } from '../../utils/packingColumns';
 import {
   getGigsForReportPicker,
   getManifestReport,
@@ -487,7 +487,7 @@ function PackingListTab({
   const [rows, setRows] = useState<PackingListRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [ownColumns, setOwnColumns] = useState<ReadonlySet<PackingColumn>>(DEFAULT_PACKING_COLUMNS);
+  const [ownColumns, setOwnColumns] = useState<ReadonlySet<PackingColumn>>(loadPackingColumns);
   const visibleColumns = columns ?? ownColumns;
   // Lets a worker physically verify items as they pack, tap to check off
   // and tap again to undo. Not persisted: a scratchpad for one pass,
@@ -507,7 +507,10 @@ function PackingListTab({
     if (next.has(col)) next.delete(col);
     else next.add(col);
     if (onColumnsChange) onColumnsChange(next);
-    else setOwnColumns(next);
+    else {
+      setOwnColumns(next);
+      savePackingColumns(next);
+    }
   };
 
   const fetchPackingList = useCallback(async () => {
@@ -592,8 +595,8 @@ function PackingListTab({
             )}
           </div>
           <div className="text-right text-[8.5pt]">
-            {/* Kits and pieces, as the summary below counts them (#245); the pack-out group isn't a kit. */}
-            {new Set(rows.filter((r) => !r.group_is_loose).map((r) => r.group_kit_id)).size} kits · {pieces.total} pieces · {pieces.packed} packed
+            {/* Kits and pieces (#245, Cameron 10-11): the pack-out group isn't a kit. */}
+            {new Set(rows.filter((r) => !r.group_is_loose).map((r) => r.group_kit_id)).size} kits · {pieces.total} pieces
             <br />Printed {format(new Date(), 'MMM d, yyyy')}
           </div>
         </div>

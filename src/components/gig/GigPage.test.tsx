@@ -275,7 +275,7 @@ describe('GigPage (#12)', () => {
   });
 
   describe('printing', () => {
-    beforeEach(() => { window.print = vi.fn(); });
+    beforeEach(() => { window.print = vi.fn(); localStorage.clear(); });
 
     it('lets Admins print the gig sheet with or without the financials page', async () => {
       const user = userEvent.setup();
