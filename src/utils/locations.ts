@@ -187,3 +187,34 @@ export function currentRows<R extends TrackingRow>(
   return kept.filter(([, r]) => !stale.has(r)).map(([, r]) => r);
 }
 
+
+/** An item's pieces at one place: a gig (and location there), or home (gig_id null). */
+export interface Whereabout {
+  gig_id: string | null;
+  /** At a gig: its newest row's location. At home: a return scan's location, else null ("Not checked out"). */
+  location: string | null;
+  quantity: number;
+}
+
+/**
+ * Where an item's pieces are (#186, Cameron 10-11), summed per place across its units and lots
+ * (placementOf). Pieces at home have no place ("Not checked out"), unless everything in that
+ * record came back on a return scan: then they're at that scan's location. Out places come
+ * first, then home, each most pieces first.
+ */
+export function whereabouts(rows: readonly TrackingRow[], records: readonly ItemRecord[]): Whereabout[] {
+  const places = new Map<string, Whereabout>();
+  for (const record of records) {
+    const placements = placementOf(rows.filter((r) => r.asset_id === record.id), record);
+    const someOut = placements.some((p) => p.gig_id !== null);
+    for (const p of placements) {
+      if (p.quantity <= 0) continue;
+      const location = p.gig_id === null && someOut ? null : p.location;
+      const key = `${p.gig_id ?? ''}|${location ?? ''}`;
+      const at = places.get(key);
+      if (at) at.quantity += p.quantity;
+      else places.set(key, { gig_id: p.gig_id, location, quantity: p.quantity });
+    }
+  }
+  return [...places.values()].sort((a, b) => Number(a.gig_id === null) - Number(b.gig_id === null) || b.quantity - a.quantity);
+}
