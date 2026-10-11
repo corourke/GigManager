@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #263** (coordinator, merged 10-11 with Cameron's OK): mobile transactions name rows Booking / Expense and show the desktop stage text ("Accepted, payment due", "Paid Oct 11"); rowName/stageText shared in financials/format.ts. Failing test first.
+
 - **PR #262** (coordinator, merged 10-11; Cameron's report): Payment received on a gig with an open booking (mobile and desktop) pays that booking off via "Apply to" instead of adding a second paid row; "Separate payment (no booking)" keeps the old behaviour; a short payment asks still owed / not coming. Failing test first.
 
 - **PR #261** (Docs Lead, merged 10-11): screenshot script keeps the seeded Last Login times (restored via dev SQL) and no longer waits for a named gig on the dashboard shot.
