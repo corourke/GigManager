@@ -301,6 +301,46 @@ describe('GigListScreen', () => {
     });
   });
 
+  // #175: deleting a gig is Admin-only on the server, so the row menu only offers it to Admins.
+  describe('the row menu Delete action (#175)', () => {
+    const openRowMenu = async (userRole: 'Admin' | 'Manager') => {
+      const ue = userEvent.setup();
+      render(
+        <GigListScreen
+          organization={organization}
+          user={user}
+          userRole={userRole}
+          onBack={noop}
+          onCreateGig={noop}
+          onViewGig={noop}
+          onEditGig={noop}
+          onNavigateToDashboard={noop}
+          onNavigateToGigs={noop}
+          onNavigateToAssets={noop}
+          onSwitchOrganization={noop}
+          onLogout={noop}
+        />
+      );
+      await screen.findByText('Upcoming Show');
+      const trigger = screen.getAllByRole('button').find((b) => b.querySelector('.lucide-ellipsis'));
+      expect(trigger).toBeDefined();
+      await ue.click(trigger!);
+      await screen.findByRole('menuitem', { name: 'Edit' });
+    };
+
+    it('is offered to Admins', async () => {
+      await openRowMenu('Admin');
+      expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+    });
+
+    it('is not offered to Managers, who can still edit and duplicate', async () => {
+      await openRowMenu('Manager');
+      expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument();
+    });
+  });
+
   describe('the conflict banner View button (#170)', () => {
     const conflict = {
       level: 'conflict' as const, type: 'staff' as const,
