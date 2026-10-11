@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 10-11** (Cameron): #246, #250, #251, #252, #253, #254, #257 + migration 20261019000000 (pack-out additions). Coordinator verified read-only: prod at 20261019000000; `gig_kit_assignments.added_at_pack_out` boolean not null default false; `update_asset_status` and `user_is_staff_or_above_of_org` SECURITY DEFINER with search_path pinned; the pack-out INSERT/DELETE policies present; new build served (`/static/index-CzmUKkKx.js`), `/static/nope.js` → 404, `/gigs` and `/equipment/locations` → 200.
+
 - **#185 PR 2, PR #246** (Equipment Lead, merged 10-11 after Cameron's branch test on dev): phone counts lots and "any" lines; ad-hoc adds at Pack-Out and Load Truck (Staff+), no swap; notes always append one row carrying the last status (kit notes write one kit row only; lines never inherit a kit row); Send to Maintenance; note popup lines and button row; migration 20261019000000 (dev applied; prod at next deploy).
 
 - **PR #257** (coordinator, merged 10-11): fixes #255. On Locations, a lot's pieces that came home show once (its newest return), and a container's contents that sit apart from the case list in full under a "Contents" heading instead of one item becoming a second case heading. Docs Lead tested on dev (pass @ e659aa6).
