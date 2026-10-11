@@ -1264,6 +1264,29 @@ describe('inventoryManagement.service', () => {
         : { data: rows, error: null }));
     }
 
+    // #186 (Cameron, 10-11): an Item filter, and each line's pieces ("2 of 10" for a lot).
+    it('filters by item, on its own too, and gives each line its pieces and lot size', async () => {
+      const { getItemsByLocation } = await import('./inventoryManagement.service');
+      const rows = [
+        { id: 'r1', gig_id: 'g1', kit_id: 'k1', asset_id: 'lot', status: 'On Site', location: 'Stage', quantity: 2, scanned_at: '2026-10-01T10:00:00Z',
+          created_at: null, scanned_by_user: null, kit: { name: 'Lights', is_container: false }, gig: { title: 'Gala' } },
+        { id: 'r2', gig_id: 'g1', kit_id: 'k1', asset_id: 'amp', status: 'On Site', location: 'Stage', quantity: 1, scanned_at: '2026-10-01T10:00:00Z',
+          created_at: null, scanned_by_user: null, kit: { name: 'Lights', is_container: false }, gig: { title: 'Gala' } },
+      ];
+      mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+        ? { data: [
+          { id: 'lot', manufacturer_model: 'DMX Cable', tag_number: null, serial_number: null, quantity: 10, equipment_item_id: 'item-dmx' },
+          { id: 'amp', manufacturer_model: 'Amp', tag_number: 'A-1', serial_number: null, quantity: 1, equipment_item_id: 'item-amp' },
+        ], error: null }
+        : { data: rows, error: null }));
+
+      const result = await getItemsByLocation('org-1', { itemId: 'item-dmx' });
+      expect(result).toEqual([expect.objectContaining({ asset_id: 'lot', quantity: 2, lot_of: 10, equipment_item_id: 'item-dmx' })]);
+
+      const all = await getItemsByLocation('org-1', { gigId: 'g1' });
+      expect(all.find((i) => i.asset_id === 'amp')).toEqual(expect.objectContaining({ quantity: 1, lot_of: null }));
+    });
+
     it('shows a container where its newest scan puts it, not at an older gig\'s last scan', async () => {
       const { getItemsByLocation } = await import('./inventoryManagement.service');
       mockRows([...gigBRows, ...gigARows]);
