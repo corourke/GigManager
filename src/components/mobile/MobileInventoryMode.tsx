@@ -346,7 +346,21 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   // Before Pack-Out packs a unit or lot (or a whole kit's), what's worth a second look: one in
   // Maintenance or Inactive, or a unit still out at another gig (#185). Later steps don't ask.
   const getPackWarnings = useCallback((kitId: string | null, assetId?: string): string[] => {
-    if (!packingList || selectedMode.id !== SCANNING_MODES[0].id) return [];
+    if (!packingList) return [];
+    // A container still out at another gig (#265): its own newest record says where it is. Asked
+    // at Pack-Out and Load Truck; the warning only informs (Cameron, 10-10).
+    const containerWarnings = !assetId && kitId && selectedMode.allowsAdHoc
+      ? inventoryTrackingService.getCascadeTargets(packingList, kitId)
+        .filter((t: { asset_id: string | null }) => !t.asset_id)
+        .flatMap((t: { kit_id: string }) => {
+          const last = packingList.last_records?.kits?.[t.kit_id];
+          if (!last || last.gig_id === gigId || last.status === RETURNED_STATUS) return [];
+          const name = packingList.kits?.find((a: any) => (a.kit_id ?? a.kit?.id) === t.kit_id)?.kit?.name || 'A case';
+          const when = last.scanned_at ? `, ${format(new Date(last.scanned_at), 'MMM d')}` : '';
+          return [`${name} is still out at ${last.gig_title || 'another gig'} (${last.status}${when}).`];
+        })
+      : [];
+    if (selectedMode.id !== SCANNING_MODES[0].id) return containerWarnings;
     const assetsById = new Map<string, any>();
     for (const assignment of packingList.kits || []) {
       for (const a of [...(assignment.kit?.assets || []), ...(assignment.kit?.direct_assets || [])]) {
@@ -369,8 +383,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       const away = packingList.elsewhere?.[id];
       if (away) messages.push(`${name} is still out at ${away.gig_title || 'another gig'} (${away.status}).`);
     }
-    return messages;
-  }, [packingList, selectedMode]);
+    return [...containerWarnings, ...messages];
+  }, [gigId, packingList, selectedMode]);
 
   const guardPack = useCallback(async (kitId: string | null, assetId: string | undefined, proceed: () => Promise<void>) => {
     const messages = getPackWarnings(kitId, assetId);
