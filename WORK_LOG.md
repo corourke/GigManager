@@ -5,6 +5,12 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#185 PR 2, PR #246** (Equipment Lead, merged 10-11 after Cameron's branch test on dev): phone counts lots and "any" lines; ad-hoc adds at Pack-Out and Load Truck (Staff+), no swap; notes always append one row carrying the last status (kit notes write one kit row only; lines never inherit a kit row); Send to Maintenance; note popup lines and button row; migration 20261019000000 (dev applied; prod at next deploy).
+
+- **PR #257** (coordinator, merged 10-11): fixes #255. On Locations, a lot's pieces that came home show once (its newest return), and a container's contents that sit apart from the case list in full under a "Contents" heading instead of one item becoming a second case heading. Docs Lead tested on dev (pass @ e659aa6).
+
+- **User guide, PR #250** (Docs Lead, merged 10-10): published Assigning equipment to a gig and Inventory reports (packing list), true for prod as of the 10-10 deploy.
+
 - **PR #254** (coordinator, merged 10-10): Locations reports each item at its own newest record (Cameron: a container's newer note or override doesn't move its contents); NotificationBell test waits for the Radix menu to take clicks (CI flake).
 
 - **PR #253** (coordinator's sub-agent, merged 10-10): Equipment → Locations shows each case, unit and lot at its newest record across gigs (Cameron's report: a case showed an older gig's In Transit / Car). New `currentRows()` in src/utils/locations.ts; filters applied after the newest-row pick.

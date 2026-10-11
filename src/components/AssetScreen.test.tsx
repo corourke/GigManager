@@ -126,6 +126,30 @@ describe('AssetScreen', () => {
     vi.mocked(svc.getAsset).mockResolvedValue({} as any)
   })
 
+  // #185 PR 2: equipment status changes take Staff or above.
+  it('a Viewer sees the status but can\'t change it', async () => {
+    const svc = await import('../services/asset.service')
+    vi.mocked(svc.getAsset).mockResolvedValue({
+      id: 'u1', organization_id: 'org-1', equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
+      serial_number: 'S1', tag_number: 'T1', quantity: 1, status: 'Active', acquisition_date: '2026-03-01',
+    } as any)
+    render(<AssetScreen {...mockProps} userRole="Viewer" assetId="u1" />)
+    expect(await screen.findByRole('combobox', { name: 'Status' })).toBeDisabled()
+    expect(screen.getByText('Equipment status changes take Staff or above.')).toBeInTheDocument()
+    vi.mocked(svc.getAsset).mockResolvedValue({} as any)
+  })
+
+  it('Staff can change the status', async () => {
+    const svc = await import('../services/asset.service')
+    vi.mocked(svc.getAsset).mockResolvedValue({
+      id: 'u1', organization_id: 'org-1', equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',
+      serial_number: 'S1', tag_number: 'T1', quantity: 1, status: 'Active', acquisition_date: '2026-03-01',
+    } as any)
+    render(<AssetScreen {...mockProps} userRole="Staff" assetId="u1" />)
+    expect(await screen.findByRole('combobox', { name: 'Status' })).toBeEnabled()
+    vi.mocked(svc.getAsset).mockResolvedValue({} as any)
+  })
+
   describe('a written-off (Missing) record (#242)', () => {
     const missing = {
       id: 'u1', organization_id: 'org-1', equipment_item_id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio',

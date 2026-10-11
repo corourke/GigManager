@@ -10,3 +10,14 @@ describe('SCANNING_MODES', () => {
     }
   });
 });
+
+// #185 PR 2 (Cameron, 10-09): equipment not on the list can be added only while packing:
+// Pack-Out, and Load Truck (gear sometimes skips pack-out). Gated by mode, not status:
+// Load-Out also gives In Transit.
+describe('allowsAdHoc', () => {
+  it('only Pack-Out and Load Truck', () => {
+    expect(SCANNING_MODES.filter((m) => m.allowsAdHoc).map((m) => m.id)).toEqual(['pack-out', 'load-truck']);
+    expect(SCANNING_MODES.find((m) => m.id === 'load-out')?.resultingStatus)
+      .toBe(SCANNING_MODES.find((m) => m.id === 'load-truck')?.resultingStatus);
+  });
+});

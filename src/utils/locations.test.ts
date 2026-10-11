@@ -224,3 +224,45 @@ describe('currentRows (Equipment → Locations)', () => {
   });
 });
 
+// #255: a lot in a case that went out and back on gig A, then out and back on gig B, showed
+// once per gig under Warehouse. A returned bucket isn't a place the lot is on its own: the
+// pieces back home show once, at the lot's newest return.
+describe('currentRows: a lot\'s returned buckets are one home line (#255)', () => {
+  const isLot = (id: string) => id === 'lot';
+  const ids = (rows: TrackingRow[]) => currentRows(rows, { isLot }).map((r) => r.id).sort();
+  const t = (n: number) => `2026-10-0${n}T10:00:00Z`;
+  const outAndBack = (gig: string, out: number, back: number) => [
+    row({ id: `${gig}-case-out`, gig_id: gig, kit_id: 'case', asset_id: null, scanned_at: t(out) }),
+    row({ id: `${gig}-lot-out`, gig_id: gig, kit_id: 'case', asset_id: 'lot', quantity: 4, scanned_at: t(out) }),
+    row({ id: `${gig}-unit-out`, gig_id: gig, kit_id: 'case', asset_id: 'u1', scanned_at: t(out) }),
+    row({ id: `${gig}-case-back`, gig_id: gig, kit_id: 'case', asset_id: null, status: RETURNED_STATUS, location: 'Warehouse', scanned_at: t(back) }),
+    row({ id: `${gig}-lot-back`, gig_id: gig, kit_id: 'case', asset_id: 'lot', quantity: 4, status: RETURNED_STATUS, location: 'Warehouse', scanned_at: t(back) }),
+    row({ id: `${gig}-unit-back`, gig_id: gig, kit_id: 'case', asset_id: 'u1', status: RETURNED_STATUS, location: 'Warehouse', scanned_at: t(back) }),
+  ];
+  // The Locations override on the case alone: a kit-only row.
+  const override = (gig: string, n: number, where: string) =>
+    row({ id: `${gig}-case-override`, gig_id: gig, kit_id: 'case', asset_id: null, status: RETURNED_STATUS, location: where, scanned_at: t(n) });
+  const history = [
+    ...outAndBack('gig-a', 1, 2),
+    override('gig-a', 3, 'Warehouse, Shelf C'),
+    ...outAndBack('gig-b', 4, 5),
+    override('gig-b', 6, 'Warehouse, Shelf D'),
+  ];
+  const now = ['gig-b-case-override', 'gig-b-lot-back', 'gig-b-unit-back'];
+
+  it('out and back on gig A, then on gig B: the case, the unit and the lot each show once, at their newest row', () => {
+    expect(ids(history)).toEqual(now);
+    expect(ids([...history].reverse())).toEqual(now);
+  });
+
+  it('a genuine split still shows at each place: 1 piece On Site at gig C, the rest at home once', () => {
+    const onSite = row({ id: 'gig-c-lot', gig_id: 'gig-c', kit_id: null, asset_id: 'lot', quantity: 1, status: 'On Site', location: 'Stage', scanned_at: t(7) });
+    expect(ids([...history, onSite])).toEqual([...now, 'gig-c-lot']);
+  });
+
+  it("pieces still out at an older gig stay there; a newer return elsewhere doesn't bring them home", () => {
+    const left = row({ id: 'gig-a-left', gig_id: 'gig-a', kit_id: 'foh', asset_id: 'lot', quantity: 1, status: 'Not Returned', scanned_at: t(2) });
+    expect(ids([...history, left])).toEqual(['gig-a-left', ...now]);
+  });
+});
+
