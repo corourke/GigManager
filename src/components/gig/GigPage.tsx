@@ -28,6 +28,7 @@ import GigVenueCard from './view/GigVenueCard';
 import OrganizationDetailsDialog from './view/OrganizationDetailsDialog';
 import GigPrintSheet from './print/GigPrintSheet';
 import { PackingList } from '../inventory/InventoryReports';
+import { DEFAULT_PACKING_COLUMNS, type PackingColumn } from '../../utils/packingColumns';
 import { GigStatusField, GigTagsField, GigTitleField } from './basicInfo/GigBasicInfoFields';
 import { EditSaveStatus, GigEditForm, NotesCard, WhenAndScheduleCard } from './edit/GigEditParts';
 import { useEditSession } from '../../utils/hooks/editSession';
@@ -98,6 +99,8 @@ export default function GigPage({
   const startPrint = (financials: boolean, kind: 'sheet' | 'packing' = 'sheet') =>
     setPrintRequest((r) => ({ kind, financials, n: (r?.n ?? 0) + 1 }));
   const printWhenReady = useCallback(() => window.print(), []);
+  // The packing list's columns, kept here so its printout has the ones chosen on screen (#245).
+  const [packingColumns, setPackingColumns] = useState<ReadonlySet<PackingColumn>>(DEFAULT_PACKING_COLUMNS);
   const [finishing, setFinishing] = useState(false);
 
   const loadGig = useCallback(async () => {
@@ -352,6 +355,8 @@ export default function GigPage({
                     organizationName={organization.name}
                     gig={{ id: gig.id, title: gig.title, start: gig.start, timezone: gig.timezone } as any}
                     hidePrintButton
+                    columns={packingColumns}
+                    onColumnsChange={setPackingColumns}
                   />
                 </GigSection>
               </div>
@@ -394,6 +399,7 @@ export default function GigPage({
           gig={{ id: gig.id, title: gig.title, start: gig.start, timezone: gig.timezone } as any}
           hidePrintButton
           onLoaded={printWhenReady}
+          columns={packingColumns}
         />
       ) : (
         <GigPrintSheet

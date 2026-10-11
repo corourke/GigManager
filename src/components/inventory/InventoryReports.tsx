@@ -29,6 +29,7 @@ import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
 import { packedPieces } from '../../utils/packingSummary';
+import { DEFAULT_PACKING_COLUMNS, type PackingColumn } from '../../utils/packingColumns';
 import {
   getGigsForReportPicker,
   getManifestReport,
@@ -395,7 +396,7 @@ function ManifestTab({
   );
 }
 
-type PackingColumn = 'status' | 'scanned_at' | 'location' | 'scanned_by' | 'notes';
+
 const PACKING_COLUMNS: { key: PackingColumn; label: string }[] = [
   { key: 'status', label: 'Status' },
   { key: 'scanned_at', label: 'Last Scanned' },
@@ -466,9 +467,14 @@ function PackingListTab({
   conflictFlags,
   hidePrintButton,
   onLoaded,
+  columns,
+  onColumnsChange,
 }: {
   organizationId: string;
   organizationName: string;
+  /** The columns to show, when the page keeps the choice (#245: the printout matches the screen). */
+  columns?: ReadonlySet<PackingColumn>;
+  onColumnsChange?: (columns: Set<PackingColumn>) => void;
   /** The gig to list (#39: the packing list lives on the gig page). */
   gig: GigOption;
   conflictFlags: Set<string>;
@@ -481,9 +487,8 @@ function PackingListTab({
   const [rows, setRows] = useState<PackingListRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState<Set<PackingColumn>>(
-    new Set(['status', 'scanned_at', 'location', 'scanned_by', 'notes'])
-  );
+  const [ownColumns, setOwnColumns] = useState<ReadonlySet<PackingColumn>>(DEFAULT_PACKING_COLUMNS);
+  const visibleColumns = columns ?? ownColumns;
   // Lets a worker physically verify items as they pack, tap to check off
   // and tap again to undo. Not persisted: a scratchpad for one pass,
   // cleared whenever the underlying report changes.
@@ -498,12 +503,11 @@ function PackingListTab({
   };
 
   const toggleColumn = (col: PackingColumn) => {
-    setVisibleColumns((prev) => {
-      const next = new Set(prev);
-      if (next.has(col)) next.delete(col);
-      else next.add(col);
-      return next;
-    });
+    const next = new Set(visibleColumns);
+    if (next.has(col)) next.delete(col);
+    else next.add(col);
+    if (onColumnsChange) onColumnsChange(next);
+    else setOwnColumns(next);
   };
 
   const fetchPackingList = useCallback(async () => {
@@ -588,7 +592,8 @@ function PackingListTab({
             )}
           </div>
           <div className="text-right text-[8.5pt]">
-            {packingLines.filter((l) => l.depth === 0).length} kits · {packingLines.length} lines
+            {/* Kits and pieces, as the summary below counts them (#245); the pack-out group isn't a kit. */}
+            {new Set(rows.filter((r) => !r.group_is_loose).map((r) => r.group_kit_id)).size} kits · {pieces.total} pieces · {pieces.packed} packed
             <br />Printed {format(new Date(), 'MMM d, yyyy')}
           </div>
         </div>
@@ -901,7 +906,15 @@ export function PackingList({
   gig,
   hidePrintButton,
   onLoaded,
-}: InventoryReportsProps & { gig: GigOption; hidePrintButton?: boolean; onLoaded?: () => void }) {
+  columns,
+  onColumnsChange,
+}: InventoryReportsProps & {
+  gig: GigOption;
+  hidePrintButton?: boolean;
+  onLoaded?: () => void;
+  columns?: ReadonlySet<PackingColumn>;
+  onColumnsChange?: (columns: Set<PackingColumn>) => void;
+}) {
   const conflictFlags = useConflictFlags(organizationId);
   return (
     <PackingListTab
@@ -911,6 +924,8 @@ export function PackingList({
       conflictFlags={conflictFlags}
       hidePrintButton={hidePrintButton}
       onLoaded={onLoaded}
+      columns={columns}
+      onColumnsChange={onColumnsChange}
     />
   );
 }
