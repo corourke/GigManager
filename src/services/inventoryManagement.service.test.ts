@@ -1347,6 +1347,39 @@ describe('inventoryManagement.service', () => {
         expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([['evo', 'blue-valley', 'Garage']]);
         expect(await getItemsByLocation('org-1', { gigId: 'white-road' })).toEqual([]);
       });
+
+      it('a multi-piece lot counts each place\'s pieces: a stale place drops once the newer ones hold the whole lot (#258 test)', async () => {
+        // T58, a lot of 6: 4 left Checked Out at Cedar Hall (never unloaded), then 4 out and back on
+        // Paper Lanterns, 1 On Site at the festival, and 4 now out at Halloween Bash. Now: 4 at
+        // Halloween, 1 at the festival, the rest at home; the Cedar Hall place is stale.
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        const tracking = [
+          { ...row('cedar', 'cedar', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:30:00.000Z'), quantity: 4 },
+          { ...row('pl-out', 'paper-lanterns', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:40:00.000Z'), quantity: 4 },
+          { ...row('pl-back', 'paper-lanterns', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T22:50:00.000Z'), quantity: 4 },
+          { ...row('fest', 'festival', 't58', 'On Site', 'Stage', '2026-10-10T23:00:00.000Z'), quantity: 1 },
+          { ...row('hb', 'halloween', 't58', 'Checked Out', 'Staging Area', '2026-10-10T23:10:00.000Z'), quantity: 4 },
+        ];
+        mockSupabase.from.mockImplementation((table: string) => {
+          if (table === 'assets') {
+            return makeQueryChain({ data: [{ id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null, quantity: 6 }], error: null });
+          }
+          // Like PostgREST: a column comes back only if it was selected.
+          const chain = makeQueryChain({ data: tracking, error: null });
+          chain.select = vi.fn((arg: string) => {
+            const picked = /(^|[\s,])quantity([\s,]|$)/.test(arg) ? tracking : tracking.map(({ quantity: _q, ...r }) => r);
+            const inner = makeQueryChain({ data: picked, error: null });
+            return inner;
+          });
+          return chain;
+        });
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
+          ['t58', 'festival', 'Stage'],
+          ['t58', 'halloween', 'Staging Area'],
+          ['t58', 'paper-lanterns', 'Warehouse'],
+        ]);
+      });
     });
   });
 
