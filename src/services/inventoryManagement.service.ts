@@ -489,6 +489,72 @@ export async function getItemsByLocation(
   }
 }
 
+export interface MoveLotPiecesParams {
+  organizationId: string;
+  assetId: string;
+  /** The lot's bucket now: its gig, kit, status and place, and the pieces there. */
+  fromGigId: string;
+  kitId: string | null;
+  fromStatus: string;
+  fromLocation: string | null;
+  here: number;
+  /** How many to move, and where to: a gig with a status, or home (RETURNED_STATUS). */
+  n: number;
+  toGigId: string;
+  toStatus: string;
+  toLocation: string | null;
+  notes: string | null;
+  createdBy: string;
+}
+
+/**
+ * Move N of a lot's M pieces (#186; fixes #160), by the bucket rules in database.md. A return
+ * closes a whole bucket, so N < M going home leaves the bucket's own row at M − N, never a
+ * return of N. Going to another gig takes N from here (closing this bucket if it's all of it)
+ * and adds N to what that gig's bucket holds. From home, only the target bucket changes. A new
+ * status at the same gig applies to the whole bucket.
+ */
+export async function moveLotPieces(params: MoveLotPiecesParams): Promise<void> {
+  const { organizationId, assetId, kitId, fromGigId, fromStatus, fromLocation, here, toGigId, toStatus, toLocation, notes, createdBy } = params;
+  const supabase = getSupabase();
+  try {
+    const now = new Date().toISOString();
+    const fromHome = fromStatus === RETURNED_STATUS;
+    const goingHome = toStatus === RETURNED_STATUS;
+    const n = Math.max(1, Math.min(Math.floor(params.n) || 1, fromHome ? Number.MAX_SAFE_INTEGER : here));
+    const row = (gigId: string, status: string, location: string | null, quantity: number) => ({
+      organization_id: organizationId, gig_id: gigId, kit_id: kitId, asset_id: assetId, status,
+      location, notes, scanned_at: now, scanned_by: createdBy, quantity: Math.max(1, quantity),
+    });
+    const rows: ReturnType<typeof row>[] = [];
+    // This bucket keeps the rest; all of it leaving closes it with a return.
+    const leaveHere = () => rows.push(n >= here
+      ? row(fromGigId, RETURNED_STATUS, goingHome ? toLocation : fromLocation, here)
+      : row(fromGigId, fromStatus, fromLocation, here - n));
+    if (goingHome) {
+      if (fromHome) rows.push(row(fromGigId, RETURNED_STATUS, toLocation, here));
+      else leaveHere();
+    } else if (!fromHome && toGigId === fromGigId) {
+      rows.push(row(fromGigId, toStatus, toLocation, here));
+    } else {
+      if (!fromHome) leaveHere();
+      const bucket = (supabase.from('inventory_tracking') as any)
+        .select('id, status, quantity, scanned_at, created_at')
+        .eq('organization_id', organizationId).eq('gig_id', toGigId).eq('asset_id', assetId);
+      const { data, error } = await (kitId ? bucket.eq('kit_id', kitId) : bucket.is('kit_id', null))
+        .order('scanned_at', { ascending: false }).order('created_at', { ascending: false }).limit(1);
+      if (error) throw error;
+      const latest = (data ?? [])[0];
+      const there = latest && latest.status !== RETURNED_STATUS ? Math.max(0, Number(latest.quantity ?? 1) || 0) : 0;
+      rows.push(row(toGigId, toStatus, toLocation, there + n));
+    }
+    const { error } = await (supabase.from('inventory_tracking') as any).insert(rows);
+    if (error) throw error;
+  } catch (err) {
+    return handleApiError(err, 'move lot pieces');
+  }
+}
+
 export async function createManualTrackingRecord(params: CreateManualTrackingParams): Promise<DbInventoryTracking[]> {
   const supabase = getSupabase();
   try {
