@@ -703,6 +703,40 @@ export const shots = [
     target: (page) => page.getByRole('alertdialog'),
     pad: 8,
   },
+  // The phone's Scanning screen (phone layout below 768 px wide).
+  {
+    id: 'mobile/field-inventory-pack-out',
+    page: 'mobile/field-inventory.md',
+    user: 'staff',
+    sources: ['src/components/mobile/MobileInventoryMode.tsx', 'src/config/inventoryWorkflow.ts'],
+    viewport: { width: 390, height: 844 },
+    prepare: async (page, ctx) => {
+      // A gig with nothing scanned yet: the seed's Harvest Gala scans sit under the top
+      // kit, so its nested kits' counters would read 0 beside checked lines.
+      await page.goto(`${ctx.base}/inventory?gig=${SONGWRITER_SHOWCASE}`);
+      await page.getByText('Inventory Mode').waitFor();
+      await page.getByText(/pieces Checked Out/).first().waitFor();
+      await page.waitForTimeout(1000);
+    },
+    clip: { x: 0, y: 0, width: 390, height: 844 },
+  },
+  {
+    id: 'mobile/adding-at-pack-out-search',
+    page: 'mobile/adding-at-pack-out.md',
+    user: 'staff',
+    sources: ['src/components/mobile/MobileInventoryMode.tsx', 'src/services/orgIndex.service.ts'],
+    viewport: { width: 390, height: 844 },
+    // Opens the search only; nothing is added.
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/inventory?gig=${HARVEST_GALA}`);
+      await page.getByText('Inventory Mode').waitFor();
+      await page.getByRole('button', { name: '+ Add' }).click();
+      await page.getByPlaceholder('Kit, item or lot name').fill('Case');
+      await page.getByText('Items', { exact: true }).last().waitFor();
+      await page.waitForTimeout(800);
+    },
+    clip: { x: 0, y: 0, width: 390, height: 844 },
+  },
   // Held: equipment/inventory-reports-packing-list waits for #249 (the Name column
   // pushes the other columns off-screen).
   // Supplied by hand (Cameron, 10-08): these screens open only from a link in an

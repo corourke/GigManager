@@ -359,6 +359,28 @@
     "taken": "2026-10-10",
     "appCommit": "0122c92"
   },
+  "mobile/adding-at-pack-out-search": {
+    "page": "mobile/adding-at-pack-out.md",
+    "user": "staff",
+    "sources": [
+      "src/components/mobile/MobileInventoryMode.tsx",
+      "src/services/orgIndex.service.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-11",
+    "appCommit": "9a5f41f"
+  },
+  "mobile/field-inventory-pack-out": {
+    "page": "mobile/field-inventory.md",
+    "user": "staff",
+    "sources": [
+      "src/components/mobile/MobileInventoryMode.tsx",
+      "src/config/inventoryWorkflow.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-11",
+    "appCommit": "9a5f41f"
+  },
   "reference/access-requests-moderator-queue": {
     "page": "reference/access-requests-and-moderation.md",
     "user": "moderator",

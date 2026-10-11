@@ -31,7 +31,7 @@ Scan the tag of a kit, unit or lot that isn't on the gig.
 Something already on the gig is marked "on this gig". Tapping it scans it rather than
 adding it twice; for a lot, the counter opens.
 
-<!-- 📸 The Add to this gig search, with Kits and Items results. -->
+![Add to this gig: a search for "Case" with Kits and Items results, each marked "on this gig"](../../../assets/screenshots/mobile/adding-at-pack-out-search.png)
 
 ## Checking for conflicts
 
