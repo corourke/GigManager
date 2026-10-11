@@ -101,7 +101,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - Pass: one-piece lots (K91, standing in for the SndEng Case and Stage Snakes) show once, in both orders. The T58 split shows. The Mic Case has one Container heading plus Contents.
   - Fail: lots of more than one piece keep stale places (T58 in 4 places, 13 pieces from a lot of 6). `getItemsByLocation` doesn't select `quantity` (`inventoryManagement.service.ts:435`), so every place counts as 1 piece. The fix is to add `quantity` to that select.
   - Also seen: packing out a container that's still out at another gig gives no "Before you pack" warning.
-- **PR #259 (Docs Lead, 10-11 05:35 UTC): publishes the phone pages, live in prod 10-11.** Covers Scanning equipment on your phone and Adding equipment at pack-out, with 2 phone screenshots. Ready for coordinator review.
+- **PR #259 (Docs Lead, 10-11 05:35 UTC): publishes the phone pages, live in prod 10-11.** Covers Scanning equipment on your phone and Adding equipment at pack-out, with 2 phone screenshots. **Merged 10-11 08:35 after review fixes.**
   - **Post-release check:** I retook every shot. Nothing changed except rendering noise and Last Login.
   - **Known gap:** the dashboard overview shot can't be retaken now. The dashboard's upcoming-gigs list uses the server's real date, and Harvest Gala (10-10) has dropped off it. The published image is still accurate. It needs a script or seed-date fix at the next full refresh.
   - **Seed note:** Harvest Gala's seeded scans sit under the top kit, so on the phone the nested FOH Console Package reads "0 / 6" beside checked lines. I'll check whether a real phone scan records the nested kit; if it does, it's seed-only.
@@ -228,7 +228,8 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `gigs/the-gig-list.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
-| `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
+| `mobile/adding-at-pack-out.md` | published (PR #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | scan or + Add, conflict check, Added at pack-out, offline; 1 phone shot |
+| `mobile/field-inventory.md` | published (PR #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | Scanning equipment on your phone: steps, scanning, counting, any lines, Unload, notes; 1 phone shot |
 | `mobile/offline-access.md` | draft | — | held |
 | `mobile/overview.md` | draft | — | held |
 | `reference/access-requests-and-moderation.md` | published (PR #222) | 2026-10-07 (Docs Lead); screenshots PR #191 | — |
