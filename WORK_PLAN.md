@@ -95,6 +95,10 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
+- **#258 tested on dev @ 978b83a (Docs Lead, 10-11 05:45 UTC): partial.** The full result is on #258.
+  - Pass: one-piece lots (K91, standing in for the SndEng Case and Stage Snakes) show once, in both orders. The T58 split shows. The Mic Case has one Container heading plus Contents.
+  - Fail: lots of more than one piece keep stale places (T58 in 4 places, 13 pieces from a lot of 6). `getItemsByLocation` doesn't select `quantity` (`inventoryManagement.service.ts:435`), so every place counts as 1 piece. The fix is to add `quantity` to that select.
+  - Also seen: packing out a container that's still out at another gig gives no "Before you pack" warning.
 - **PR #259 (Docs Lead, 10-11 05:35 UTC): publishes the phone pages, live in prod 10-11.** Covers Scanning equipment on your phone and Adding equipment at pack-out, with 2 phone screenshots. Ready for coordinator review.
   - **Post-release check:** I retook every shot. Nothing changed except rendering noise and Last Login.
   - **Known gap:** the dashboard overview shot can't be retaken now. The dashboard's upcoming-gigs list uses the server's real date, and Harvest Gala (10-10) has dropped off it. The published image is still accurate. It needs a script or seed-date fix at the next full refresh.
