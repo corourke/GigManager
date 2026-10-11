@@ -442,7 +442,8 @@ function PackingLineDetail({ row }: { row: PackingListRow }) {
       )}
       {row.kind === 'lot' && row.lot_of != null && <div className="pl-6 text-xs text-muted-foreground">{`from a lot of ${row.lot_of}`}</div>}
       {row.kind === 'container' && (row.contents?.length ?? 0) > 0 && (
-        <div className="text-xs text-muted-foreground">{row.contents!.join(' · ')}</div>
+        // Wraps (#249): one long unbroken line would set the whole Name column's width.
+        <div className="whitespace-normal pl-6 text-xs text-muted-foreground">{row.contents!.join(' · ')}</div>
       )}
       {scanned && (
         <div className="print-only hidden pl-6">
@@ -703,7 +704,13 @@ function PackingListTab({
                           {!row ? blankCell : row.kind === 'any' ? (
                             <span className="text-xs">{anyProgress(row)}</span>
                           ) : row.status ? (
-                            <TrackingStatusBadge status={row.status} />
+                            <span className="flex items-center gap-1.5">
+                              <TrackingStatusBadge status={row.status} />
+                              {/* A partly packed lot says how many (#245), as "any" lines do. */}
+                              {row.kind === 'lot' && packedPieces(row) > 0 && packedPieces(row) < row.quantity && (
+                                <span className="text-xs whitespace-nowrap">{`${packedPieces(row)} of ${row.quantity}`}</span>
+                              )}
+                            </span>
                           ) : (
                             <span className="text-xs text-muted-foreground">Not scanned</span>
                           )}
