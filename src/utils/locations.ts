@@ -142,8 +142,9 @@ export function bucketsAt(rows: readonly TrackingRow[], record: ItemRecord, gigI
  * place on its own: the pieces back home show once, at the lot's newest return (#255). Each
  * item reports its own newest row: a container's newer kit-only row (a note, an override)
  * doesn't move what's in it (Cameron, 10-10). And a lot is in no more places than it has
- * pieces (`lotQuantity`): its places count newest first, and an older one the newer ones
- * already account for is stale, so a one-piece lot shows once, at its newest row (10-11).
+ * pieces (`lotQuantity`): its places count newest first (each row's `quantity`), and an older
+ * one is stale once the newer ones already hold the whole lot, so a one-piece lot shows once,
+ * at its newest row (10-11).
  */
 export function currentRows<R extends TrackingRow>(
   rows: readonly R[],
@@ -164,7 +165,7 @@ export function currentRows<R extends TrackingRow>(
     if (isHome(key, r) && newer(r, lotHome.get(r.asset_id as string))) lotHome.set(r.asset_id as string, r);
   }
   const kept = [...latest].filter(([key, r]) => !isHome(key, r) || lotHome.get(r.asset_id as string) === r);
-  // Newest first, keep a lot's places while their pieces fit in the lot; the first always stays.
+  // Newest first, keep a lot's places until the newer ones hold the whole lot; the first always stays.
   const placed = new Map<string, number>();
   const stale = new Set<R>();
   for (const [key, r] of [...kept].sort(([, a], [, b]) => (newer(a, b) ? -1 : newer(b, a) ? 1 : 0))) {
@@ -173,7 +174,7 @@ export function currentRows<R extends TrackingRow>(
     const total = opts.lotQuantity?.(id);
     const sofar = placed.get(id);
     const pieces = Math.max(1, Number(r.quantity) || 1);
-    if (sofar !== undefined && total != null && sofar + pieces > total) stale.add(r);
+    if (sofar !== undefined && total != null && sofar >= total) stale.add(r);
     else placed.set(id, (sofar ?? 0) + pieces);
   }
   return kept.filter(([, r]) => !stale.has(r)).map(([, r]) => r);

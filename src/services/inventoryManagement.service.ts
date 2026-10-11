@@ -432,7 +432,7 @@ export async function getItemsByLocation(
     // rows first would let an older row that matches stand in for a newer one that doesn't.
     const { data, error } = await supabase
       .from('inventory_tracking')
-      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name, is_container), gig:gig_id(title)')
+      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, quantity, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name, is_container), gig:gig_id(title)')
       .eq('organization_id', organizationId);
     if (error) throw error;
 
