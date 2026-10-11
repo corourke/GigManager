@@ -1323,7 +1323,7 @@ describe('inventoryManagement.service', () => {
 
       it('a genuine split still shows at each place: 1 T58 On Site at gig C, the rest home once', async () => {
         const { getItemsByLocation } = await import('./inventoryManagement.service');
-        mockWithLot([...caseRows, row('c-t58', 'gig-c', 't58', 'On Site', 'Stage', '2026-10-10T16:00:00.000Z')]);
+        mockWithLot([...caseRows, { ...row('c-t58', 'gig-c', 't58', 'On Site', 'Stage', '2026-10-10T16:00:00.000Z'), kit_id: 'band', kit: { name: 'Band', is_container: false } }]);
 
         expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
           ['case', 'gig-b', 'Warehouse, Shelf D'],
@@ -1346,6 +1346,62 @@ describe('inventoryManagement.service', () => {
 
         expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([['evo', 'blue-valley', 'Garage']]);
         expect(await getItemsByLocation('org-1', { gigId: 'white-road' })).toEqual([]);
+      });
+
+      it('a lot in a case is one place per case: pieces that came home and went back out aren\'t counted twice (#260 test)', async () => {
+        // T58, a lot of 6. 4 ride in the Mic Case (a container): out on Cedar Hall (never unloaded),
+        // out and back on Paper Lanterns, now out on Halloween Bash. 1 is On Site at the festival
+        // since 9-27 under Full Band (a logical kit). Now: 4 at Halloween, 1 at the festival.
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        const band = { kit_id: 'band', kit: { name: 'Full Band', is_container: false } };
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+          ? { data: [{ id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null, quantity: 6 }], error: null }
+          : { data: [
+            { ...row('fest', 'festival', 't58', 'On Site', 'Stage', '2026-09-27T20:00:00.000Z'), ...band, quantity: 1 },
+            { ...row('cedar', 'cedar', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:30:00.000Z'), quantity: 4 },
+            { ...row('pl-out', 'paper-lanterns', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:40:00.000Z'), quantity: 4 },
+            { ...row('pl-back', 'paper-lanterns', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T22:50:00.000Z'), quantity: 4 },
+            { ...row('hb', 'halloween', 't58', 'Checked Out', 'Staging Area', '2026-10-10T23:10:00.000Z'), quantity: 4 },
+          ], error: null }));
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
+          ['t58', 'festival', 'Stage'],
+          ['t58', 'halloween', 'Staging Area'],
+        ]);
+      });
+
+      it('a multi-piece lot counts each place\'s pieces: a stale place drops once the newer ones hold the whole lot (#258 test)', async () => {
+        // T58, a lot of 6: 4 left Checked Out at Cedar Hall (never unloaded), then 4 out and back on
+        // Paper Lanterns, 1 On Site at the festival, and 4 now out at Halloween Bash. Now: 4 at
+        // Halloween, 1 at the festival, the rest at home; the Cedar Hall place is stale.
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        const loose = { kit_id: 'mics', kit: { name: 'Mic bag', is_container: false } };
+        const tracking = [
+          { ...row('cedar', 'cedar', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:30:00.000Z'), ...loose, quantity: 4 },
+          { ...row('pl-out', 'paper-lanterns', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:40:00.000Z'), ...loose, quantity: 4 },
+          { ...row('pl-back', 'paper-lanterns', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T22:50:00.000Z'), ...loose, quantity: 4 },
+          { ...row('fest', 'festival', 't58', 'On Site', 'Stage', '2026-10-10T23:00:00.000Z'), ...loose, quantity: 1 },
+          { ...row('hb', 'halloween', 't58', 'Checked Out', 'Staging Area', '2026-10-10T23:10:00.000Z'), ...loose, quantity: 4 },
+        ];
+        mockSupabase.from.mockImplementation((table: string) => {
+          if (table === 'assets') {
+            return makeQueryChain({ data: [{ id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null, quantity: 6 }], error: null });
+          }
+          // Like PostgREST: a column comes back only if it was selected.
+          const chain = makeQueryChain({ data: tracking, error: null });
+          chain.select = vi.fn((arg: string) => {
+            const picked = /(^|[\s,])quantity([\s,]|$)/.test(arg) ? tracking : tracking.map(({ quantity: _q, ...r }) => r);
+            const inner = makeQueryChain({ data: picked, error: null });
+            return inner;
+          });
+          return chain;
+        });
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
+          ['t58', 'festival', 'Stage'],
+          ['t58', 'halloween', 'Staging Area'],
+          ['t58', 'paper-lanterns', 'Warehouse'],
+        ]);
       });
     });
   });

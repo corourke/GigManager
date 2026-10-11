@@ -432,7 +432,7 @@ export async function getItemsByLocation(
     // rows first would let an older row that matches stand in for a newer one that doesn't.
     const { data, error } = await supabase
       .from('inventory_tracking')
-      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name, is_container), gig:gig_id(title)')
+      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, quantity, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name, is_container), gig:gig_id(title)')
       .eq('organization_id', organizationId);
     if (error) throw error;
 
@@ -447,8 +447,10 @@ export async function getItemsByLocation(
 
     const assetMap = new Map((assets ?? []).map((a: any) => [a.id, a]));
     const statuses = filters.status ? [filters.status].flat() : null;
+    const containers = new Set(records.filter((r) => r.kit_id && r.kit?.is_container).map((r) => r.kit_id as string));
     const latest = currentRows(records as DbInventoryTracking[], {
       isLot: (id) => assetMap.has(id) && recordKind(assetMap.get(id)) === 'lot',
+      isContainer: (id) => containers.has(id),
       lotQuantity: (id) => (assetMap.get(id)?.quantity != null ? Number(assetMap.get(id).quantity) : null),
     }).filter((r) => (!filters.location || r.location === filters.location)
       && (!statuses || statuses.includes(r.status))
