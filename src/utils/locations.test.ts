@@ -266,3 +266,46 @@ describe('currentRows: a lot\'s returned buckets are one home line (#255)', () =
   });
 });
 
+
+describe('currentRows: a lot shows in no more places than it has pieces (Cameron, 10-11)', () => {
+  const isLot = (id: string) => id === 'lot';
+  const ids = (rows: TrackingRow[], total: number) =>
+    currentRows(rows, { isLot, lotQuantity: () => total }).map((r) => r.id).sort();
+  const t = (n: number) => `2026-10-${String(n).padStart(2, '0')}T10:00:00Z`;
+
+  it('a one-piece lot left "In Transit" on an old gig, then out and back on a newer gig, shows once at home', () => {
+    // SndEng Case's untagged contents: White Road's last rows say In Transit / Car (10-02);
+    // the same pieces went out and back on Blue Valley (10-10).
+    const rows = [
+      row({ id: 'wr', asset_id: 'lot', gig_id: 'white-road', kit_id: 'case', status: 'In Transit', location: 'Car', scanned_at: t(2) }),
+      row({ id: 'bv-out', asset_id: 'lot', gig_id: 'blue-valley', kit_id: 'case', status: 'In Transit', scanned_at: t(9) }),
+      row({ id: 'bv-home', asset_id: 'lot', gig_id: 'blue-valley', kit_id: 'case', status: RETURNED_STATUS, location: 'Garage', scanned_at: t(10) }),
+    ];
+    expect(ids(rows, 1)).toEqual(['bv-home']);
+  });
+
+  it('a one-piece lot whose newest row is out shows only there, not also at an older return', () => {
+    // Stage Snakes: returned on Oyster (9/29), newest row Checked Out on Blue Valley.
+    const rows = [
+      row({ id: 'oyster-home', asset_id: 'lot', gig_id: 'oyster', status: RETURNED_STATUS, location: 'Garage', scanned_at: t(1) }),
+      row({ id: 'bv-out', asset_id: 'lot', gig_id: 'blue-valley', status: 'Checked Out', scanned_at: t(10) }),
+    ];
+    expect(ids(rows, 1)).toEqual(['bv-out']);
+  });
+
+  it('a real split still shows at each place while the pieces add up to the lot', () => {
+    const rows = [
+      row({ id: 'home', asset_id: 'lot', gig_id: 'gig-a', status: RETURNED_STATUS, quantity: 9, scanned_at: t(3) }),
+      row({ id: 'out', asset_id: 'lot', gig_id: 'gig-c', status: 'On Site', quantity: 1, scanned_at: t(5) }),
+    ];
+    expect(ids(rows, 10)).toEqual(['home', 'out']);
+  });
+
+  it('an older out bucket that the newer places already account for is dropped', () => {
+    const rows = [
+      row({ id: 'stale', asset_id: 'lot', gig_id: 'gig-a', status: 'On Site', quantity: 4, scanned_at: t(2) }),
+      row({ id: 'now', asset_id: 'lot', gig_id: 'gig-b', status: 'Checked Out', quantity: 4, scanned_at: t(6) }),
+    ];
+    expect(ids(rows, 4)).toEqual(['now']);
+  });
+});
