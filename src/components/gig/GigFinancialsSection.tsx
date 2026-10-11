@@ -303,6 +303,7 @@ export default function GigFinancialsSection({
                 onSuccess={refresh}
                 onOther={() => setDialog({ row: null, defaults: { direction: 'in', stage: 'accepted', date: gigStartDate } })}
                 gigStartDate={gigStartDate}
+                financials={rows}
                 userRole={userRole}
               />
               <div className="relative overflow-hidden">
