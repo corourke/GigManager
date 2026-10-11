@@ -14,19 +14,32 @@ export interface EquipmentNeedsData {
 }
 
 /**
+ * Kits that aren't in the kits table, with their lines and records' items: what a gig had added
+ * at pack-out on its own (#185), as one kit per gig.
+ */
+export interface ExtraNeeds {
+  kits: readonly KitMeta[];
+  lines: ReadonlyMap<string, KitLine[]>;
+  assetItem: ReadonlyMap<string, string>;
+}
+
+/**
  * Everything needed to count what a set of kits asks for per item (#184): their
  * lines through nested kits, each record's item, and each item's counts.
  */
-export async function loadEquipmentNeeds(kitIds: readonly string[], organizationId?: string): Promise<EquipmentNeedsData> {
+export async function loadEquipmentNeeds(kitIds: readonly string[], organizationId?: string, extra?: ExtraNeeds): Promise<EquipmentNeedsData> {
   const supabase = getSupabase();
   const kits = new Map<string, KitMeta & { organization_id?: string }>();
   const lines = new Map<string, KitLine[]>();
   const assetItem = new Map<string, string>();
+  for (const k of extra?.kits ?? []) kits.set(k.id, k);
+  for (const [id, l] of extra?.lines ?? []) lines.set(id, l);
+  for (const [id, item] of extra?.assetItem ?? []) assetItem.set(id, item);
   const empty = { ctx: { kits, lines, assetItem }, counts: new Map<string, ItemCounts>() };
-  if (kitIds.length === 0) return empty;
+  if (kitIds.length === 0 && kits.size === 0) return empty;
 
   // The kits and their lines, level by level through nested kits.
-  let frontier = Array.from(new Set(kitIds));
+  let frontier = Array.from(new Set(kitIds)).filter((id) => !lines.has(id));
   for (let depth = 0; frontier.length && depth < MAX_DEPTH; depth++) {
     const [meta, rows] = await Promise.all([
       (supabase.from('kits') as any).select('id, name, is_container, organization_id').in('id', frontier),
@@ -41,7 +54,7 @@ export async function loadEquipmentNeeds(kitIds: readonly string[], organization
   }
 
   // Each specific unit's item.
-  const assetIds = Array.from(new Set([...lines.values()].flat().map((l) => l.asset_id).filter((id): id is string => !!id)));
+  const assetIds = Array.from(new Set([...lines.values()].flat().map((l) => l.asset_id).filter((id): id is string => !!id && !assetItem.has(id))));
   if (assetIds.length) {
     const { data, error } = await (supabase.from('assets') as any).select('id, equipment_item_id').in('id', assetIds);
     if (error) throw error;

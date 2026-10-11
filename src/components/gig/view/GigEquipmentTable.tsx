@@ -11,6 +11,8 @@ interface KitRow {
   id: string;
   kit_id?: string;
   notes?: string | null;
+  /** Added on the phone at pack-out (#185). */
+  added_at_pack_out?: boolean;
   kit?: { id?: string; name?: string; tag_number?: string | null; category?: string | null; rental_value?: number | string | null } | null;
 }
 
@@ -101,7 +103,10 @@ export default function GigEquipmentTable({ gigId, organizationId, showAmounts }
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-b border-border/40 last:border-0">
-                <td className="py-1.5 pr-3 font-semibold">{r.kit?.name}</td>
+                <td className="py-1.5 pr-3 font-semibold">
+                  {r.kit?.name}
+                  {r.added_at_pack_out && <span className="ml-2 rounded border border-amber-300 bg-amber-50 px-1.5 text-[11px] font-medium text-amber-800">Added at pack-out</span>}
+                </td>
                 {cols.isVisible('tag') && <td className="py-1.5 pr-3">{r.kit?.tag_number}</td>}
                 {cols.isVisible('category') && <td className="py-1.5 pr-3 text-muted-foreground">{r.kit?.category}</td>}
                 {cols.isVisible('holds') && (() => {

@@ -311,7 +311,8 @@ export async function updateAsset(assetId: string, assetData: Partial<DbAsset> &
     const actorOrgName = (assetRow as any).organization?.name ?? '';
     const organizationId = assetRow.organization_id;
 
-    if (assetData.status) {
+    // Only a real change: status changes take Staff or above, other edits don't (#185 PR 2).
+    if (assetData.status && assetData.status !== assetRow.status) {
       const { error: rpcError } = await supabase.rpc('update_asset_status', {
         p_asset_id: assetId,
         p_status: assetData.status
