@@ -197,7 +197,8 @@ describe('PackingList (one gig, on the gig page since #39)', () => {
     expect(header).toHaveTextContent('Packing list · Test Org');
     expect(header).toHaveTextContent('Test Gig');
     expect(header).toHaveTextContent('Sun, Jul 12, 2026');
-    expect(header).toHaveTextContent('10 kits · 23 lines');
+    // #245 item 4: kits and pieces, not kit headings counted as lines.
+    expect(header).not.toHaveTextContent('lines');
   });
 });
 
@@ -277,6 +278,51 @@ describe('PackingList: any lines, counted lines and pieces (#185)', () => {
 
 // #185 PR 2: what was added at pack-out. A kit added there says so; units and lots added on
 // their own are one group, after the kits A to Z.
+// #245 follow-ups: the print header's counts, the Columns choice from the page, and a unit
+// that has moved on.
+describe('PackingList: #245 follow-ups', () => {
+  const pa = { group_kit_id: 'kit-pa', group_kit_name: 'Main PA', group_is_container: false, group_tag_number: null };
+  const unit = (asset_id: string, packed: number, extra: Partial<PackingListRow> = {}): PackingListRow => ({ kit_id: 'kit-pa', kit_name: 'Main PA',
+    is_container: false, kind: 'unit', asset_id, asset_name: asset_id, tag_number: null, quantity: 1, packed, ...pa, ...blank, ...extra });
+  const lot: PackingListRow = { kit_id: 'kit-pa', kit_name: 'Main PA', is_container: false, kind: 'lot', lot_of: 12, asset_id: 'dmx',
+    asset_name: 'DMX Cable', tag_number: null, quantity: 6, packed: 4, ...pa, ...blank, status: 'Checked Out' };
+  const loose: PackingListRow = { kit_id: 'loose:gig-1', kit_name: 'Added at pack-out', is_container: false, kind: 'unit', asset_id: 'pd20',
+    asset_name: 'PD-20', tag_number: null, quantity: 1, packed: 1, group_kit_id: 'loose:gig-1', group_kit_name: 'Added at pack-out',
+    group_is_container: false, group_tag_number: null, group_is_loose: true, ...blank, status: 'Checked Out' };
+  const caseRow: PackingListRow = { kit_id: 'kit-case', kit_name: 'Mic Case', is_container: true, kind: 'container', asset_id: null,
+    asset_name: null, tag_number: 'MC-1', quantity: 1, packed: 0, contents: [], group_kit_id: 'kit-case', group_kit_name: 'Mic Case',
+    group_is_container: true, group_tag_number: 'MC-1', ...blank };
+
+  it('the print header counts kits and pieces, as the summary does; the pack-out group isn\'t a kit', async () => {
+    (getPackingListReport as any).mockResolvedValue([unit('amp', 1, { status: 'Checked Out' }), lot, caseRow, loose]);
+    await renderPackingListTab();
+    await screen.findByText('DMX Cable');
+    expect(screen.getByText('9 pieces · 6 packed')).toBeInTheDocument();
+    expect(screen.getByTestId('packing-print-header')).toHaveTextContent('2 kits · 9 pieces · 6 packed');
+  });
+
+  it('a unit since moved to another gig reads Not scanned and isn\'t packed here', async () => {
+    (getPackingListReport as any).mockResolvedValue([unit('moved', 0)]);
+    await renderPackingListTab();
+    const row = (await screen.findByText('moved')).closest('tr')!;
+    expect(within(row).getByText('Not scanned')).toBeInTheDocument();
+    expect(screen.getByText('1 pieces · 0 packed')).toBeInTheDocument();
+  });
+
+  it('shows the columns it is given, and reports a change, so the page can print the same ones', async () => {
+    (getPackingListReport as any).mockResolvedValue([unit('amp', 1, { status: 'Checked Out' })]);
+    const onColumnsChange = vi.fn();
+    const user = userEvent.setup();
+    await renderPackingListTab({ columns: new Set(['status', 'location']), onColumnsChange } as any);
+    await screen.findByText('amp');
+    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(headers).toEqual(['✓', 'Name', 'Tag #', 'Qty', 'Status', 'Location']);
+    await user.click(screen.getByRole('button', { name: /columns/i }));
+    await user.click(screen.getByLabelText('Location'));
+    expect(onColumnsChange).toHaveBeenCalledWith(new Set(['status']));
+  });
+});
+
 describe('PackingList: added at pack-out (#185)', () => {
   const ROWS: PackingListRow[] = [
     { kit_id: 'loose:gig-1', kit_name: 'Added at pack-out', is_container: false, kind: 'unit', asset_id: 'pd20', asset_name: 'PD-20',

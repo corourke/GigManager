@@ -35,9 +35,14 @@ vi.mock('./print/GigPrintSheet', () => ({
 vi.mock('../inventory/InventoryReports', async () => {
   const { useEffect } = await import('react');
   return {
-    PackingList: ({ gig, onLoaded, hidePrintButton }: any) => {
+    PackingList: ({ gig, onLoaded, hidePrintButton, columns, onColumnsChange }: any) => {
       useEffect(() => { onLoaded?.(); }, [onLoaded]);
-      return <div data-testid={onLoaded ? 'packing-print' : 'packing-list'} data-gig={gig.id} data-hide-print={String(!!hidePrintButton)} />;
+      return (
+        <div data-testid={onLoaded ? 'packing-print' : 'packing-list'} data-gig={gig.id} data-hide-print={String(!!hidePrintButton)}
+          data-columns={columns ? [...columns].sort().join(',') : ''}>
+          {!onLoaded && onColumnsChange && <button onClick={() => onColumnsChange(new Set(['status']))}>Only status</button>}
+        </div>
+      );
     },
   };
 });
@@ -306,6 +311,18 @@ describe('GigPage (#12)', () => {
       expect(sheet.closest('.no-print')).toBeNull();
       await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
       expect(screen.queryByTestId('print-sheet')).not.toBeInTheDocument();
+    });
+
+    // #245 item 3: the printout has the columns chosen on screen.
+    it('prints the packing list with the columns chosen on screen', async () => {
+      const user = userEvent.setup();
+      render(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
+      expect((await screen.findByTestId('packing-list')).dataset.columns).toBe('location,notes,scanned_at,scanned_by,status');
+      await user.click(screen.getByRole('button', { name: 'Only status' }));
+      expect(screen.getByTestId('packing-list').dataset.columns).toBe('status');
+      await user.click(screen.getByRole('button', { name: 'Print' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Packing list' }));
+      expect((await screen.findByTestId('packing-print')).dataset.columns).toBe('status');
     });
 
     it('hides the screen page and shows only the sheet when printing', async () => {
