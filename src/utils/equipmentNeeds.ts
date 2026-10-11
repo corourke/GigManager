@@ -153,6 +153,8 @@ export interface ItemNeedRow {
   peakGigs: NeedingGig[];
   /** Every moment this gig is short, with the gigs running then (#230 follow-up). */
   shortMoments: ShortMoment[];
+  /** This gig's lines asking a lot for more than it holds (#242). */
+  lotShortfalls?: LotShortfall[];
 }
 
 export interface NeedingGig { id: string; title: string; need: ItemNeed }
