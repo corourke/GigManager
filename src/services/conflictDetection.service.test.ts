@@ -876,6 +876,34 @@ describe('getEquipmentNeeded (#184)', () => {
   });
 });
 
+// #242 item 7: this gig's kit lines asking a lot for more than it holds, on the item's row.
+describe('getEquipmentNeeded: lots asked for more than they hold (#242)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it('puts each lot shortfall on its item\'s row', async () => {
+    needs.load.mockResolvedValue({
+      ctx: {
+        kits: new Map([['pa', { id: 'pa', name: 'PA', is_container: false }]]),
+        lines: new Map([['pa', [{ asset_id: 'xlr-lot', quantity: 6 }]]]),
+        assetItem: new Map([['xlr-lot', 'xlr']]),
+      },
+      counts: new Map([['xlr', { name: 'XLR', owned: 4, available: 4, inMaintenance: 0, inContainers: 0 }]]),
+      lotHas: new Map([['xlr-lot', 4]]),
+    });
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [{ kit_id: 'pa', organization_id: 'org-1' }], error: null },
+      gigs: { data: [], error: null },
+    };
+    (createClient as any).mockReturnValue({ from: vi.fn((t: string) => createQueryBuilder(tableResponses[t] || { data: [], error: null })) });
+    const { getEquipmentNeeded } = await import('./conflictDetection.service');
+    const result = await getEquipmentNeeded('gig-1', '2026-10-10T19:00:00Z', '2026-10-10T23:00:00Z', undefined, 'org-1');
+    expect(result.rows).toEqual([expect.objectContaining({ itemId: 'xlr', lotShortfalls: [{ asked: 6, has: 4 }] })]);
+  });
+});
+
 // #230 review: peak concurrent demand, one entry per side, the viewing organization only.
 describe('per-item conflicts: review fixes (#184)', () => {
   const ctxFor = (lines: Record<string, number>, available: number) => ({
