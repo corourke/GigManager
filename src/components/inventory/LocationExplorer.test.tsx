@@ -6,6 +6,11 @@ vi.mock('../../services/inventoryManagement.service', () => ({
   getActiveGigsWithTracking: vi.fn(),
   getLocationSuggestions: vi.fn().mockResolvedValue([]),
   createManualTrackingRecord: vi.fn(),
+  getItemWhereabouts: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../../services/equipmentItem.service', () => ({
+  getItems: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../ui/popover', () => ({
@@ -30,11 +35,17 @@ vi.mock('../ui/label', () => ({
   Label: ({ children, htmlFor }: any) => <label htmlFor={htmlFor}>{children}</label>,
 }));
 
-vi.mock('../ui/select', () => ({
+// An option can be picked (#186: the Item filter): an item's click goes to its own Select.
+vi.mock('../ui/select', async () => {
+  const { createContext, useContext } = await import('react');
+  const Ctx = createContext<(v: string) => void>(() => {});
+  return {
   Select: ({ children, value, onValueChange }: any) => (
-    <div data-testid="select" data-value={value} onClick={() => onValueChange(value)}>
-      {children}
-    </div>
+    <Ctx.Provider value={onValueChange}>
+      <div data-testid="select" data-value={value} onClick={() => onValueChange(value)}>
+        {children}
+      </div>
+    </Ctx.Provider>
   ),
   SelectTrigger: ({ children, 'aria-label': ariaLabel, id }: any) => (
     <button role="combobox" aria-label={ariaLabel} id={id}>
@@ -43,18 +54,24 @@ vi.mock('../ui/select', () => ({
   ),
   SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
   SelectContent: ({ children }: any) => <div data-testid="select-content">{children}</div>,
-  SelectItem: ({ children, value }: any) => (
-    <div data-testid={`select-item-${value}`} role="option">
-      {children}
-    </div>
-  ),
-}));
+  SelectItem: function SelectItem({ children, value }: any) {
+    const change = useContext(Ctx);
+    return (
+      <div data-testid={`select-item-${value}`} role="option" onClick={(e) => { e.stopPropagation(); change(value); }}>
+        {children}
+      </div>
+    );
+  },
+  };
+});
 
 import {
   getItemsByLocation,
   getActiveGigsWithTracking,
   createManualTrackingRecord,
+  getItemWhereabouts,
 } from '../../services/inventoryManagement.service';
+import { getItems } from '../../services/equipmentItem.service';
 import { LocationExplorer } from './LocationExplorer';
 
 const mockGigs = [
@@ -330,6 +347,36 @@ describe('LocationExplorer', () => {
     fireEvent.click(screen.getByLabelText('Expand container contents'));
     expect(screen.getByText('LED Par')).toBeInTheDocument();
     expect(screen.getByText('LED Wash')).toBeInTheDocument();
+  });
+
+  // #186 (Cameron, 10-11): an Item filter, pieces in the headers, "2 of 10", and the card.
+  describe('pieces and the Item filter (#186)', () => {
+    const dmx = { id: 'item-dmx', manufacturer_model: 'DMX Cable', records: [{ id: 'lot', quantity: 10, status: 'Active' }] };
+    const lotLine = { ...mockItems[0], asset_id: 'lot', asset_name: 'DMX Cable', tag_number: null, quantity: 2, lot_of: 10, equipment_item_id: 'item-dmx' };
+    const unitLine = { ...mockItems[0], quantity: 1, lot_of: null };
+
+    it('counts pieces in each location header, and a lot line reads "2 of 10"', async () => {
+      (getItemsByLocation as any).mockResolvedValue([lotLine, unitLine]);
+      render(<LocationExplorer organizationId="org-1" />);
+      expect(await screen.findByText('3 pieces')).toBeInTheDocument();
+      expect(screen.getByText('2 of 10')).toBeInTheDocument();
+    });
+
+    it('filters by item, and says where all of it is', async () => {
+      (getItems as any).mockResolvedValue([dmx]);
+      (getItemsByLocation as any).mockResolvedValue([lotLine]);
+      (getItemWhereabouts as any).mockResolvedValue([
+        { gig_id: 'gig-1', gig_title: 'Summer Festival', location: 'Stage Left', quantity: 2 },
+        { gig_id: null, gig_title: null, location: 'Bay 2', quantity: 3 },
+        { gig_id: null, gig_title: null, location: null, quantity: 5 },
+      ]);
+      render(<LocationExplorer organizationId="org-1" />);
+      fireEvent.click(await screen.findByTestId('select-item-item-dmx'));
+      await waitFor(() => expect(getItemsByLocation).toHaveBeenLastCalledWith('org-1', expect.objectContaining({ itemId: 'item-dmx' })));
+      await waitFor(() => expect(getItemWhereabouts).toHaveBeenCalledWith('org-1', dmx.records));
+      expect(await screen.findByTestId('where-is-it')).toHaveTextContent(
+        'DMX Cable: 2 at Summer Festival (Stage Left) · 3 at Bay 2 · 5 not checked out');
+    });
   });
 
   it('shows empty table message when filters return no results', async () => {
