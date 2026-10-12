@@ -535,6 +535,19 @@ describe('KitScreen: "any" lines and availability (#184)', () => {
     expect(within(row).getByText('Disposed: no longer owned. Remove it from the kit.')).toBeInTheDocument()
   })
 
+  // #242 item 7: a line asking a lot for more than it holds, after a partial write-off.
+  it('a lot line asking for more than the lot holds says so', async () => {
+    reset()
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1', name: 'Main PA',
+      kit_components: [{ id: 'kc-1', asset_id: 'lot-1', child_kit_id: null, equipment_item_id: null, quantity: 6,
+        asset: rec('lot-1', { quantity: 4, tag_number: null }) }],
+    } as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const row = (await screen.findByText('QSC K12.2')).closest('tr')!
+    expect(within(row).getByText('asks for 6, lot has 4')).toBeInTheDocument()
+  })
+
   it('Kit Summary counts pieces; tracking type explains how lines are checked off', async () => {
     reset()
     vi.mocked(getKit).mockResolvedValue(anyLine(4) as any)

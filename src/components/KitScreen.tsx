@@ -649,6 +649,9 @@ export default function KitScreen({
         return { text: `${status}: no longer owned. Remove it from the kit.`, tone: 'red' };
       }
       if (!isAvailable(a)) return { text: what, note: `${STATUS_LABEL[a.status ?? ''] ?? a.status}: not available now`, tone: 'amber' };
+      // A lot shrunk by a partial write-off can hold fewer than the line asks for (#242).
+      const has = Number(a.quantity ?? 1);
+      if (recordKind(a) === 'lot' && row.quantity > has) return { text: what, note: `asks for ${row.quantity}, lot has ${has}`, tone: 'amber' };
       return { text: what, tone: 'muted' };
     }
     return null;

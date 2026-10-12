@@ -6,7 +6,6 @@ import { createPurchaseWithUnits } from '../services/purchase.service';
 import { linkAttachmentToEntity, uploadAttachment } from '../services/attachment.service';
 
 vi.mock('../services/purchase.service', () => ({
-  createPurchaseTransaction: vi.fn(async () => ({ id: 'p-new' })),
   createPurchaseWithUnits: vi.fn(async () => ({ id: 'p-new', line_ids: [], unit_ids: [] })),
   addLineUnits: vi.fn(async () => ['unit-new']),
   getPurchaseWithDetails: vi.fn(),
