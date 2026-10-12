@@ -51,13 +51,16 @@ interface OverrideTarget {
   keepKitRow?: boolean;
   label: string;
   /** Part of a lot at this place (#186): move N of its pieces. */
-  lot?: { here: number; of: number; status: string; location: string | null; place: string };
+  lot?: ReturnType<typeof lotOf>;
 }
 
-/** A lot line's override details (#186); none for a unit. */
+/** A lot line's override details (#186); none for a unit. A lot in a case says where the case is. */
 const lotOf = (item: LocationItem) => (item.lot_of != null
   ? { here: piecesOf(item), of: item.lot_of, status: item.status, location: item.location ?? null,
-    place: [item.gig_title, item.location].filter(Boolean).length === 2 ? `${item.gig_title} (${item.location})` : item.gig_title ?? item.location ?? 'this place' }
+    place: [item.gig_title, item.location].filter(Boolean).length === 2 ? `${item.gig_title} (${item.location})` : item.gig_title ?? item.location ?? 'this place',
+    inCase: item.is_container && item.case_gig_id
+      ? { name: item.kit_name ?? 'the case', gigId: item.case_gig_id, gigTitle: item.case_gig_title ?? 'its gig' }
+      : null }
   : undefined);
 
 /** One kit's items within a single (status, location) bucket — the kit's own

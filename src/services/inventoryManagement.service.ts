@@ -70,6 +70,9 @@ export interface LocationItem {
   /** A lot's size ("2 of 10"); null for a unit or a kit row. */
   lot_of?: number | null;
   equipment_item_id?: string | null;
+  /** A lot line in a container: where the case itself is, by its own newest row (Cameron, 10-12). */
+  case_gig_id?: string | null;
+  case_gig_title?: string | null;
 }
 
 export interface ManifestRow {
@@ -468,6 +471,9 @@ export async function getItemsByLocation(
     for (const [id, rows] of lotRows) {
       for (const [r, n] of lotPieces(rows, Number(assetMap.get(id).quantity)).pieces) piecesOf.set(r, n);
     }
+    // Where each case is, by its own newest row, for a lot line in it.
+    const caseRow = new Map<string, DbInventoryTracking>();
+    for (const r of current) if (!r.asset_id && r.kit_id && containers.has(r.kit_id)) caseRow.set(r.kit_id, r);
     const latest = current.filter((r) => !piecesOf.has(r) || (piecesOf.get(r) ?? 0) > 0)
       .filter((r) => (!filters.location || r.location === filters.location)
       && (!statuses || statuses.includes(r.status))
@@ -494,6 +500,10 @@ export async function getItemsByLocation(
         quantity: piecesOf.get(record) ?? Math.max(1, Number(record.quantity ?? 1) || 1),
         lot_of: asset && recordKind(asset) === 'lot' ? Number(asset.quantity ?? 1) : null,
         equipment_item_id: asset?.equipment_item_id ?? null,
+        ...(asset && recordKind(asset) === 'lot' && record.kit_id && caseRow.has(record.kit_id) ? {
+          case_gig_id: caseRow.get(record.kit_id)!.gig_id,
+          case_gig_title: (records.find((r) => r.id === caseRow.get(record.kit_id!)!.id) as any)?.gig?.title ?? null,
+        } : {}),
       };
     });
   } catch (err) {
@@ -519,6 +529,8 @@ export interface MoveLotPiecesParams {
   toLocation: string | null;
   notes: string | null;
   createdBy: string;
+  /** Pieces in a case going to another gig than the case's: they leave it, written loose there (Cameron, 10-12). */
+  leaveCase?: boolean;
 }
 
 /**
@@ -532,6 +544,8 @@ export interface MoveLotPiecesParams {
  */
 export async function moveLotPieces(params: MoveLotPiecesParams): Promise<void> {
   const { organizationId, assetId, kitId, fromGigId, fromStatus, fromLocation, here, toGigId, toStatus, toLocation, notes, createdBy } = params;
+  // Pieces leaving their case go loose at the target gig; the case stays where it is.
+  const toKitId = params.leaveCase ? null : kitId;
   const lotOf = Math.max(1, Number(params.lotOf) || 1);
   const supabase = getSupabase();
   try {
@@ -553,13 +567,13 @@ export async function moveLotPieces(params: MoveLotPiecesParams): Promise<void> 
       const { pieces, home } = lotNow(rows, lotOf, (id) => containers.has(id));
       atHome = home;
       for (const [r, n] of pieces) {
-        if (r.gig_id === toGigId && (r.kit_id ?? null) === kitId && r.status !== RETURNED_STATUS) there = n;
+        if (r.gig_id === toGigId && (r.kit_id ?? null) === toKitId && r.status !== RETURNED_STATUS) there = n;
       }
     }
     if (fromHome && atHome < 1) throw new Error('None of this lot is at home to move.');
     const n = Math.max(1, Math.min(Math.floor(params.n) || 1, fromHome ? atHome : here));
-    const row = (gigId: string, status: string, location: string | null, quantity: number, at = now) => ({
-      organization_id: organizationId, gig_id: gigId, kit_id: kitId, asset_id: assetId, status,
+    const row = (gigId: string, status: string, location: string | null, quantity: number, at = now, kit = kitId) => ({
+      organization_id: organizationId, gig_id: gigId, kit_id: kit, asset_id: assetId, status,
       location, notes, scanned_at: at, scanned_by: createdBy, quantity: Math.max(1, quantity),
     });
     // The target row is written just after this bucket's, so it reads as the newer of the two.
@@ -576,7 +590,7 @@ export async function moveLotPieces(params: MoveLotPiecesParams): Promise<void> 
       rows.push(row(fromGigId, toStatus, toLocation, here));
     } else {
       if (!fromHome) leaveHere();
-      rows.push(row(toGigId, toStatus, toLocation, Math.min(lotOf, there + n), later));
+      rows.push(row(toGigId, toStatus, toLocation, Math.min(lotOf, there + n), later, toKitId));
     }
     const { error } = await (supabase.from('inventory_tracking') as any).insert(rows);
     if (error) throw error;

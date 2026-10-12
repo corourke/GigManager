@@ -1145,6 +1145,7 @@ Tracks equipment check-in/check-out status at gigs.
       - The result is never more than the lot.
       - A bucket closed this way gets a return row with no location: the pieces didn't go home. The target row is written 1 ms later, so it reads as the newer of the two.
     - **From home:** only the target bucket changes, and no more than the pieces at home go. With none at home, nothing is written ("None of this lot is at home to move.").
+    - **Part of a lot in a case (container kit) to another gig than the case's own newest row** is allowed, with a warning before the Move button: "These N leave <case>. The case stays at <case's gig>." (Cameron, 10-12). Those pieces are written loose (no kit) at the new gig; the rest stay in the case's bucket. Moving them home, or to the case's own gig, keeps them in the case.
     - **A new status at the same gig** applies to the whole bucket. "Mark for Maintenance" is one of these: the pieces stay at the gig, in Maintenance.
     - Moves between two home places (with no gig) aren't possible yet; they come with the Maintenance step.
   - **Where an item is (#186, Cameron 10-11):** `whereabouts` sums each place's pieces across the item's units and lots. This is used by the Locations "where is it" card and the Item page's "Where they are".

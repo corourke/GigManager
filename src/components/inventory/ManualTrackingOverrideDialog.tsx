@@ -46,7 +46,11 @@ interface ManualTrackingOverrideDialogProps {
   /** When provided, the gig becomes editable via a selector (defaulting to `gigId`) instead of being fixed. */
   gigs?: { id: string; title: string }[];
   /** Part of a lot at one place (#186): move N of its pieces there, by the lot rules. */
-  lot?: { here: number; of: number; status: string; location: string | null; place: string };
+  lot?: {
+    here: number; of: number; status: string; location: string | null; place: string;
+    /** The lot's pieces are in a case: its name and where the case itself is. */
+    inCase?: { name: string; gigId: string; gigTitle: string } | null;
+  };
 }
 
 export function ManualTrackingOverrideDialog({
@@ -83,6 +87,8 @@ export function ManualTrackingOverrideDialog({
   const choosesCount = !!lot && !!assetId && !wholeBucket;
   const n = Math.max(1, Math.min(Math.floor(moveCount) || 1, lot?.here ?? 1));
   const destination = goingHome ? 'back home' : `to ${gigs?.find((g) => g.id === selectedGigId)?.title ?? 'the gig'}`;
+  // Part of a lot in a case may go to another gig (Cameron, 10-12): those pieces leave the case.
+  const leaveCase = !!lot?.inCase && !!status && choosesCount && !goingHome && selectedGigId !== lot.inCase.gigId;
   const after = lot && status && choosesCount
     ? `After: ${[!fromHome && lot.here - n > 0 ? `${lot.here - n} stay at ${lot.place}` : null, `${n} ${destination}`].filter(Boolean).join(' · ')}`
     : null;
@@ -112,6 +118,7 @@ export function ManualTrackingOverrideDialog({
           fromLocation: lot.location,
           here: lot.here,
           lotOf: lot.of,
+          leaveCase,
           n: wholeBucket ? lot.here : n,
           toGigId: selectedGigId,
           // Unchanged in this step (Cameron, 10-11): the row's status, as for a unit.
@@ -240,6 +247,11 @@ export function ManualTrackingOverrideDialog({
                 <span>{`of the ${lot.here} at ${lot.place}`}</span>
               </div>
               {after && <p className="text-xs text-muted-foreground">{after}</p>}
+              {leaveCase && lot?.inCase && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {`These ${n} leave ${lot.inCase.name}. The case stays at ${lot.inCase.gigTitle}.`}
+                </p>
+              )}
             </div>
           )}
           {assetId && (
