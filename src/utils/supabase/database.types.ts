@@ -634,6 +634,7 @@ export type Database = {
           gig_id: string
           id: string
           is_client: boolean
+          inactive: boolean
           notes: string | null
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
@@ -642,6 +643,7 @@ export type Database = {
           gig_id: string
           id?: string
           is_client?: boolean
+          inactive?: boolean
           notes?: string | null
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
@@ -650,6 +652,7 @@ export type Database = {
           gig_id?: string
           id?: string
           is_client?: boolean
+          inactive?: boolean
           notes?: string | null
           organization_id?: string
           role?: Database["public"]["Enums"]["organization_role"]
@@ -912,6 +915,7 @@ export type Database = {
           hierarchy_depth: number
           id: string
           notes: string | null
+          owner_organization_id: string
           parent_gig_id: string | null
           start: string
           status: Database["public"]["Enums"]["gig_status"]
@@ -928,6 +932,7 @@ export type Database = {
           hierarchy_depth?: number
           id?: string
           notes?: string | null
+          owner_organization_id: string
           parent_gig_id?: string | null
           start: string
           status: Database["public"]["Enums"]["gig_status"]
@@ -944,6 +949,7 @@ export type Database = {
           hierarchy_depth?: number
           id?: string
           notes?: string | null
+          owner_organization_id?: string
           parent_gig_id?: string | null
           start?: string
           status?: Database["public"]["Enums"]["gig_status"]
