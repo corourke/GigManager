@@ -143,9 +143,11 @@ export function bucketsAt(rows: readonly TrackingRow[], record: ItemRecord, gigI
  * item reports its own newest row: a container's newer kit-only row (a note, an override)
  * doesn't move what's in it (Cameron, 10-10). A lot's pieces in a container (`isContainer`)
  * are one place per container, its newest row across gigs: the case holds the same pieces
- * wherever it goes. And a lot is in no more places than it has pieces (`lotQuantity`): its
- * places count newest first (each row's `quantity`), and an older one is stale once the newer
- * ones already hold the whole lot, so a one-piece lot shows once, at its newest row (10-11).
+ * wherever it goes. And a lot is in no more places than it has pieces (`lotQuantity`): an out
+ * place is stale once, after it, the lot's other places held so many at once that with it they'd
+ * be more than the lot, so a one-piece lot shows once, at its newest row (10-11). Returns hold no
+ * pieces for this (a bucket closed by Move N doesn't make an older place stale, 10-12); home is
+ * the lot less what's out, on its returns, and a return holding none of it isn't a place.
  */
 export function currentRows<R extends TrackingRow>(
   rows: readonly R[],
@@ -155,15 +157,16 @@ export function currentRows<R extends TrackingRow>(
     lotQuantity?: (assetId: string) => number | null | undefined;
   } = {},
 ): R[] {
+  const keyOf = (r: R) => (r.asset_id == null
+    ? `kit:${r.kit_id ?? ''}`
+    : opts.isLot?.(r.asset_id)
+      ? r.kit_id && opts.isContainer?.(r.kit_id)
+        ? `clot:${r.asset_id}:${r.kit_id}`
+        : `lot:${r.asset_id}:${r.gig_id}:${r.kit_id ?? ''}`
+      : `unit:${r.asset_id}`);
   const latest = new Map<string, R>();
   for (const r of rows) {
-    const key = r.asset_id == null
-      ? `kit:${r.kit_id ?? ''}`
-      : opts.isLot?.(r.asset_id)
-        ? r.kit_id && opts.isContainer?.(r.kit_id)
-          ? `clot:${r.asset_id}:${r.kit_id}`
-          : `lot:${r.asset_id}:${r.gig_id}:${r.kit_id ?? ''}`
-        : `unit:${r.asset_id}`;
+    const key = keyOf(r);
     if (newer(r, latest.get(key))) latest.set(key, r);
   }
   const isHome = (key: string, r: R) => key.startsWith('lot:') && r.status === RETURNED_STATUS;
@@ -172,44 +175,83 @@ export function currentRows<R extends TrackingRow>(
     if (isHome(key, r) && newer(r, lotHome.get(r.asset_id as string))) lotHome.set(r.asset_id as string, r);
   }
   const kept = [...latest].filter(([key, r]) => !isHome(key, r) || lotHome.get(r.asset_id as string) === r);
-  // Newest first, keep a lot's places until the newer ones hold the whole lot; the first always stays.
-  const placed = new Map<string, number>();
-  const stale = new Set<R>();
-  for (const [key, r] of [...kept].sort(([, a], [, b]) => (newer(a, b) ? -1 : newer(b, a) ? 1 : 0))) {
-    if (!key.startsWith('lot:') && !key.startsWith('clot:')) continue;
+
+  // A lot of known size is in no more places than it has pieces. An out place is stale when,
+  // after it, the lot's other places held so many at once that with it they'd be more than the
+  // lot (10-11). Only places that hold pieces count: a return holds none, as the pieces it
+  // closed out may be counted again where they went (Move N, 10-12).
+  const totalOf = (r: R) => (r.asset_id != null && opts.isLot?.(r.asset_id) ? opts.lotQuantity?.(r.asset_id) ?? null : null);
+  const history = new Map<string, R[]>();
+  for (const r of rows) {
+    if (totalOf(r) == null) continue;
     const id = r.asset_id as string;
-    const total = opts.lotQuantity?.(id);
-    const sofar = placed.get(id);
-    const pieces = Math.max(1, Number(r.quantity) || 1);
-    if (sofar !== undefined && total != null && sofar >= total) stale.add(r);
-    else placed.set(id, (sofar ?? 0) + pieces);
+    history.set(id, [...(history.get(id) ?? []), r]);
   }
-  return kept.filter(([, r]) => !stale.has(r)).map(([, r]) => r);
+  for (const list of history.values()) list.sort((a, b) => compareNewestFirst(b, a));
+  const stale = new Set<R>();
+  for (const [key, r] of kept) {
+    const total = totalOf(r);
+    if (total == null || r.status === RETURNED_STATUS) continue;
+    const held = new Map<string, number>();
+    let atOnce = 0;
+    let most = 0;
+    for (const x of history.get(r.asset_id as string) ?? []) {
+      const k = keyOf(x);
+      if (k === key || !newer(x, r)) continue;
+      const n = x.status === RETURNED_STATUS ? 0 : piecesIn(x);
+      atOnce += n - (held.get(k) ?? 0);
+      held.set(k, n);
+      most = Math.max(most, atOnce);
+    }
+    if (piecesIn(r) + most > total) stale.add(r);
+  }
+  const live = kept.filter(([, r]) => !stale.has(r)).map(([, r]) => r);
+
+  // What's home is the lot less what's out (lotPieces); a return that holds none of it isn't a place.
+  const byLot = new Map<string, R[]>();
+  for (const r of live) {
+    if (totalOf(r) != null) byLot.set(r.asset_id as string, [...(byLot.get(r.asset_id as string) ?? []), r]);
+  }
+  const empty = new Set<R>();
+  for (const [id, list] of byLot) {
+    const { pieces } = lotPieces(list, Number(opts.lotQuantity?.(id)));
+    for (const r of list) if (r.status === RETURNED_STATUS && !pieces.get(r)) empty.add(r);
+  }
+  return live.filter((r) => !empty.has(r));
 }
 
+const piecesIn = (r: TrackingRow) => Math.max(1, Number(r.quantity) || 1);
 
 /**
  * A lot's pieces at each of its current rows (from `currentRows`), so every view of a lot adds up
  * to it: out rows newest first, each holding no more than the lot has left; the rest are home, on
- * its newest current return row (if any). Only a return brings pieces home.
+ * its current return rows. Only a return brings pieces home.
  */
 export function lotPieces<R extends TrackingRow>(current: readonly R[], lotSize: number): {
   pieces: Map<R, number>; home: number; homeRow: R | null;
 } {
   const pieces = new Map<R, number>();
   let left = Math.max(0, lotSize);
-  let homeRow: R | null = null;
+  const returns: R[] = [];
   for (const r of [...current].sort(compareNewestFirst)) {
     if (r.status === RETURNED_STATUS) {
-      if (!homeRow) homeRow = r;
+      returns.push(r);
       continue;
     }
-    const n = Math.min(left, Math.max(1, Number(r.quantity) || 1));
+    const n = Math.min(left, piecesIn(r));
     pieces.set(r, n);
     left -= n;
   }
-  if (homeRow) pieces.set(homeRow, left);
-  return { pieces, home: left, homeRow };
+  // Home pieces go to the returns, newest first, each up to what it brought back (a lot home in
+  // two cases is in both); any more are at the newest.
+  const home = left;
+  for (const r of returns) {
+    const n = Math.min(left, piecesIn(r));
+    pieces.set(r, n);
+    left -= n;
+  }
+  if (returns.length && left > 0) pieces.set(returns[0], (pieces.get(returns[0]) ?? 0) + left);
+  return { pieces, home, homeRow: returns[0] ?? null };
 }
 
 /** One lot's current rows and pieces (`currentRows`, then `lotPieces`). */
@@ -260,7 +302,7 @@ export function whereabouts(
     const { pieces, home, homeRow } = lotNow(mine, Number(record.quantity ?? 1), isContainer);
     let someOut = false;
     for (const [r, n] of pieces) {
-      if (r === homeRow) continue;
+      if (r.status === RETURNED_STATUS) continue;
       if (n > 0) someOut = true;
       add(r.gig_id, r.location ?? null, n);
     }

@@ -1143,13 +1143,15 @@ Tracks equipment check-in/check-out status at gigs.
     - **To another gig:** this bucket keeps M − N (or closes when it's all of it), and the target bucket becomes what it holds plus N.
       - "What it holds" counts only if that bucket is one of the lot's current places (`currentRows`). A stale older row there counts 0; for a lot in a container, an older row at another gig is always stale.
       - The result is never more than the lot.
-      - A bucket closed this way gets a return row with no location: the pieces didn't go home.
-    - **From home:** only the target bucket changes, and no more than the pieces at home go.
+      - A bucket closed this way gets a return row with no location: the pieces didn't go home. The target row is written 1 ms later, so it reads as the newer of the two.
+    - **From home:** only the target bucket changes, and no more than the pieces at home go. With none at home, nothing is written ("None of this lot is at home to move.").
     - **A new status at the same gig** applies to the whole bucket. "Mark for Maintenance" is one of these: the pieces stay at the gig, in Maintenance.
     - Moves between two home places (with no gig) aren't possible yet; they come with the Maintenance step.
   - **Where an item is (#186, Cameron 10-11):** `whereabouts` sums each place's pieces across the item's units and lots. This is used by the Locations "where is it" card and the Item page's "Where they are".
     - It follows the Locations rule (`currentRows`), so it agrees with the Locations lines. A lot in a container is one place per container.
     - A lot's pieces at its current places come from `lotPieces`: newest place first, each holding no more than the lot has left; the rest are home. The Locations lot lines use the same counts, so a home line reads the lot less what's out.
+    - Home pieces go to the lot's current return rows newest first, each up to what it brought back, so a lot home in two cases reads each case's pieces. A return holding none isn't shown.
+    - **Stale places (`currentRows`, 10-11; reworked 10-12):** an out place is stale when, after it, the lot's other places held so many pieces at once that with it they'd be more than the lot. Returns hold no pieces for this check, so a bucket closed by Move N doesn't make an older place elsewhere stale (1 at the festival, 4 moved from A to B: festival 1, B 4, home 1), while a one-piece lot that went out again on a newer gig still drops its older place.
     - Pieces at home are "Not checked out".
     - When everything in a record came back on a return scan, they're at that scan's location instead.
     - Locations headers count pieces, and a lot line reads "2 of 10".

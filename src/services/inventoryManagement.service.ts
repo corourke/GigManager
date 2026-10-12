@@ -556,11 +556,14 @@ export async function moveLotPieces(params: MoveLotPiecesParams): Promise<void> 
         if (r.gig_id === toGigId && (r.kit_id ?? null) === kitId && r.status !== RETURNED_STATUS) there = n;
       }
     }
-    const n = Math.max(1, Math.min(Math.floor(params.n) || 1, fromHome ? Math.max(1, atHome) : here));
-    const row = (gigId: string, status: string, location: string | null, quantity: number) => ({
+    if (fromHome && atHome < 1) throw new Error('None of this lot is at home to move.');
+    const n = Math.max(1, Math.min(Math.floor(params.n) || 1, fromHome ? atHome : here));
+    const row = (gigId: string, status: string, location: string | null, quantity: number, at = now) => ({
       organization_id: organizationId, gig_id: gigId, kit_id: kitId, asset_id: assetId, status,
-      location, notes, scanned_at: now, scanned_by: createdBy, quantity: Math.max(1, quantity),
+      location, notes, scanned_at: at, scanned_by: createdBy, quantity: Math.max(1, quantity),
     });
+    // The target row is written just after this bucket's, so it reads as the newer of the two.
+    const later = new Date(Date.parse(now) + 1).toISOString();
     const rows: ReturnType<typeof row>[] = [];
     // This bucket keeps the rest; all of it leaving closes it with a return.
     const leaveHere = () => rows.push(n >= here
@@ -573,7 +576,7 @@ export async function moveLotPieces(params: MoveLotPiecesParams): Promise<void> 
       rows.push(row(fromGigId, toStatus, toLocation, here));
     } else {
       if (!fromHome) leaveHere();
-      rows.push(row(toGigId, toStatus, toLocation, Math.min(lotOf, there + n)));
+      rows.push(row(toGigId, toStatus, toLocation, Math.min(lotOf, there + n), later));
     }
     const { error } = await (supabase.from('inventory_tracking') as any).insert(rows);
     if (error) throw error;
