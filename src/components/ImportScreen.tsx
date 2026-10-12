@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Upload, Download, FileText, CheckCircle, XCircle, AlertCircle, Loader2, Save } from 'lucide-react';
+import { Upload, Download, FileText, CheckCircle, XCircle, AlertCircle, Loader2, Save, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -38,7 +38,7 @@ import { createGig } from '../services/gig.service';
 import { importPurchases } from '../services/purchase.service';
 import { getItems } from '../services/equipmentItem.service';
 import { getKitOptions } from '../services/kit.service';
-import { buildAssetImportPlan, type ExistingItem } from '../utils/csvAssetImportPlan';
+import { buildAssetImportPlan, type AssetImportPlan, type ExistingItem, type PurchaseState } from '../utils/csvAssetImportPlan';
 import { searchOrganizations, createOrganization } from '../services/organization.service';
 import { createClient } from '../utils/supabase/client';
 import { 
@@ -157,13 +157,29 @@ export default function ImportScreen({
     downloadTemplate(importType);
   };
 
-  // What an assets file will make, row by row: items matched or new, units or a lot, kits (#183 D).
-  const assetPlan = useMemo(
-    () => (importType === 'assets' && validRows.length
-      ? buildAssetImportPlan(organization.id, validRows as ParsedRow<AssetRow>[], catalog)
-      : null),
-    [importType, validRows, organization.id, catalog],
+  // Every row of an assets file, for its plan. A row still listed as invalid holds its
+  // purchase back until the file is re-validated, even once it's fixed on screen (#183 D).
+  const allAssetRows = useCallback(
+    (): ParsedRow<AssetRow>[] => [
+      ...(validRows as ParsedRow<AssetRow>[]),
+      ...(invalidRows as ParsedRow<AssetRow>[]).map((r) => ({ ...r, isValid: false })),
+    ],
+    [validRows, invalidRows],
   );
+
+  // What an assets file will make, purchase by purchase and row by row: items matched or
+  // new, units or a lot, kits, and which purchases are held (#183 D). A planning error is
+  // shown on the screen rather than breaking it.
+  const { assetPlan, assetPlanError } = useMemo((): { assetPlan: AssetImportPlan | null; assetPlanError: string | null } => {
+    if (importType !== 'assets' || (!validRows.length && !invalidRows.length)) return { assetPlan: null, assetPlanError: null };
+    try {
+      return { assetPlan: buildAssetImportPlan(organization.id, allAssetRows(), catalog), assetPlanError: null };
+    } catch (error) {
+      console.error('Error planning the import:', error);
+      return { assetPlan: null, assetPlanError: error instanceof Error ? error.message : String(error) };
+    }
+  }, [importType, validRows, invalidRows, allAssetRows, organization.id, catalog]);
+  const purchasesIn = (state: PurchaseState) => assetPlan?.purchases.filter((p) => p.state === state) ?? [];
 
   const handleEditInvalidRow = (rowIndex: number, field: string, value: string) => {
     setInvalidRows(prev => prev.map(row => {
@@ -175,8 +191,9 @@ export default function ImportScreen({
           return validated as ParsedRow<GigRow | AssetRow>;
         } else {
           // From the row as read, so a later re-check re-runs the file's grouping and costs.
+          // It stays in its purchase until then.
           const validated = validateAssetRow({ ...(row.raw ?? row.data), [field]: value }, rowIndex);
-          return validated as ParsedRow<GigRow | AssetRow>;
+          return { ...validated, purchase: (row as ParsedRow<AssetRow>).purchase } as ParsedRow<GigRow | AssetRow>;
         }
       }
       return row;
@@ -201,12 +218,81 @@ export default function ImportScreen({
     };
   };
 
-  // Helper function to get rows ready for import
+  // Helper function to get rows ready for import. Assets: the rows of complete purchases.
   const getReadyToImportRows = () => {
+    if (importType === 'assets') {
+      const ready = new Set(purchasesIn('ready').flatMap((p) => p.rowIndexes));
+      return validRows.filter(row => ready.has(row.rowIndex));
+    }
     return validRows.filter(row => !row.importStatus || row.importStatus === 'pending');
   };
 
+  /**
+   * Import an assets file's complete purchases ('ready'), or retry those that failed to save
+   * ('failed'): one purchase at a time, each saved whole or not at all (#183 D). A purchase
+   * with a row already imported is never sent again.
+   */
+  const handleImportAssets = async (which: 'ready' | 'failed') => {
+    let plan: AssetImportPlan;
+    try {
+      plan = buildAssetImportPlan(organization.id, allAssetRows(), catalog);
+    } catch (error: any) {
+      toast.error(`Couldn’t plan the import: ${error?.message ?? error}`);
+      return;
+    }
+    const purchases = plan.purchases.filter((p) => p.state === which);
+    if (!purchases.length) {
+      toast.error(which === 'ready' ? 'No complete purchases to import' : 'No failed purchases to retry');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportResults(null);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const sending = new Set(purchases.flatMap((p) => p.rowIndexes));
+      setValidRows(prev => prev.map(r => sending.has(r.rowIndex) ? { ...r, importStatus: 'importing', importError: undefined } : r));
+
+      const result = await importPurchases(organization.id, { purchases }, (count) => {
+        setImportResults({ success: count, errors: [] }); // Partial update
+      });
+      // Rows in purchases that didn't save (a kit warning alone isn't a failure).
+      const failedRows = result.results.filter(r => r.status === 'failed').reduce((n, r) => n + r.rowIndexes.length, 0);
+
+      const outcome = new Map<number, { status: 'success' | 'failed'; error?: string }>();
+      for (const r of result.results) {
+        for (const rowIndex of r.rowIndexes) outcome.set(rowIndex, { status: r.status, error: r.error ?? r.warning });
+      }
+      setValidRows(prev => prev.map(r => {
+        const o = outcome.get(r.rowIndex);
+        if (o) return { ...r, importStatus: o.status, importError: o.error };
+        // Sent but not reported back: it didn't save.
+        return sending.has(r.rowIndex) ? { ...r, importStatus: 'failed', importError: 'Not saved' } : r;
+      }));
+      // Items and kits made by this import are matched by the next one.
+      void loadCatalog();
+
+      setImportResults({ success: result.successCount, errors: result.errors });
+      if (result.successCount > 0) toast.success(`Successfully imported ${result.successCount} row(s)`);
+      if (failedRows > 0) toast.error(`Failed to import ${failedRows} row(s). Check errors below.`);
+      else if (result.errors.length > 0) toast.warning('Imported, with problems adding equipment to kits. Check errors below.');
+    } catch (error: any) {
+      console.error('Error importing rows:', error);
+      toast.error(error.message || 'Failed to import rows');
+      // Nothing came back: whatever was being sent is retried from here.
+      setValidRows(prev => prev.map(r => r.importStatus === 'importing' ? { ...r, importStatus: 'failed', importError: error.message || 'Failed to import' } : r));
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleImportValidRows = async () => {
+    if (importType === 'assets') return handleImportAssets('ready');
     const readyRows = getReadyToImportRows();
     if (readyRows.length === 0) {
       toast.error('No rows ready to import');
@@ -217,8 +303,6 @@ export default function ImportScreen({
     setImportResults(null);
     const errors: string[] = [];
     let successCount = 0;
-    // Assets: rows in purchases that didn't save (a kit warning alone isn't a failure).
-    let failedAssetRows = 0;
 
     // Only process rows that are ready for import
     const updatedValidRows = [...validRows];
@@ -344,43 +428,16 @@ export default function ImportScreen({
             errors.push(`Row ${row.rowIndex}: ${errorMessage}`);
           }
         }
-      } else {
-        // Import assets: one purchase at a time, each saved whole or not at all (#183 D).
-        const readySet = new Set(readyRows.map(r => r.rowIndex));
-        setValidRows(prev => prev.map(r => readySet.has(r.rowIndex) ? { ...r, importStatus: 'importing' } : r));
-
-        const plan = buildAssetImportPlan(organization.id, readyRows as ParsedRow<AssetRow>[], catalog);
-        const result = await importPurchases(organization.id, plan, (count) => {
-          successCount = count;
-          setImportResults({ success: count, errors: [] }); // Partial update
-        });
-        successCount = result.successCount;
-        errors.push(...result.errors);
-        failedAssetRows = result.results.filter(r => r.status === 'failed').reduce((n, r) => n + r.rowIndexes.length, 0);
-
-        const outcome = new Map<number, { status: 'success' | 'failed'; error?: string }>();
-        for (const r of result.results) {
-          for (const rowIndex of r.rowIndexes) outcome.set(rowIndex, { status: r.status, error: r.error ?? r.warning });
-        }
-        setValidRows(prev => prev.map(r => {
-          const o = outcome.get(r.rowIndex);
-          return o ? { ...r, importStatus: o.status, importError: o.error } : r;
-        }));
-        // Items and kits made by this import are matched by the next one.
-        void loadCatalog();
       }
 
       setImportResults({ success: successCount, errors });
       
       if (successCount > 0) {
-        toast.success(`Successfully imported ${successCount} ${importType === 'gigs' ? 'gig(s)' : 'row(s)'}`);
+        toast.success(`Successfully imported ${successCount} gig(s)`);
         // Keep all rows visible to show import status - don't remove or navigate
       }
       
-      if (importType === 'assets') {
-        if (failedAssetRows > 0) toast.error(`Failed to import ${failedAssetRows} row(s). Check errors below.`);
-        else if (errors.length > 0) toast.warning('Imported, with problems adding equipment to kits. Check errors below.');
-      } else if (errors.length > 0) {
+      if (errors.length > 0) {
         toast.error(`Failed to import ${errors.length} row(s). Check errors below.`);
       }
     } catch (error: any) {
@@ -556,28 +613,38 @@ export default function ImportScreen({
           <Card className="p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Import Summary</h2>
-              {(() => {
-                const readyCount = getReadyToImportRows().length;
-                return readyCount > 0 && (
-                  <Button
-                    onClick={handleImportValidRows}
-                    disabled={isImporting}
-                    className="bg-sky-500 hover:bg-sky-600 text-white"
-                  >
-                    {isImporting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Importing...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4 mr-2" />
-                        Import {readyCount} Ready Row(s)
-                      </>
-                    )}
+              <div className="flex items-center gap-2">
+                {/* Assets: a purchase that failed to save is retried alone (#183 D). */}
+                {importType === 'assets' && !isImporting && purchasesIn('failed').length > 0 && (
+                  <Button variant="outline" onClick={() => handleImportAssets('failed')}>
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Retry {purchasesIn('failed').length} Failed Purchase(s)
                   </Button>
-                );
-              })()}
+                )}
+                {(() => {
+                  const readyCount = importType === 'assets' ? purchasesIn('ready').length : getReadyToImportRows().length;
+                  return readyCount > 0 && (
+                    <Button
+                      onClick={handleImportValidRows}
+                      disabled={isImporting}
+                      className="bg-sky-500 hover:bg-sky-600 text-white"
+                    >
+                      {isImporting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Importing...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          {/* Assets import whole purchases: only those with every row valid. */}
+                          {importType === 'assets' ? `Import ${readyCount} Complete Purchase(s)` : `Import ${readyCount} Ready Row(s)`}
+                        </>
+                      )}
+                    </Button>
+                  );
+                })()}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
@@ -595,6 +662,24 @@ export default function ImportScreen({
                 </div>
               </div>
             </div>
+            {importType === 'assets' && purchasesIn('held').length > 0 && (
+              <p className="text-sm text-amber-800 mt-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+                {purchasesIn('held').length === 1
+                  ? '1 purchase held back until its invalid rows are fixed.'
+                  : `${purchasesIn('held').length} purchases held back until their invalid rows are fixed.`}
+              </p>
+            )}
+          </Card>
+        )}
+
+        {/* The preview couldn't be planned: say so, rather than break the screen (#183 D). */}
+        {assetPlanError && (
+          <Card className="p-4 mb-6 border-red-200 bg-red-50">
+            <p className="text-sm text-red-800 flex items-start gap-2">
+              <XCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-600" />
+              {`Couldn’t build the import preview: ${assetPlanError}`}
+            </p>
           </Card>
         )}
 
@@ -709,7 +794,10 @@ export default function ImportScreen({
                 {invalidRows.length > 0 && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                     <p className="text-sm text-yellow-800">
-                      <strong>Next steps:</strong> Fix the invalid rows below and use "Re-validate & Import Fixed Rows" to continue.
+                      <strong>Next steps:</strong>{' '}
+                      {importType === 'assets'
+                        ? 'Purchases with an invalid row are held back and aren’t imported. Fix the invalid rows below, use "Re-validate Fixed Rows", then import the complete purchases.'
+                        : 'Fix the invalid rows below and use "Re-validate & Import Fixed Rows" to continue.'}
                     </p>
                   </div>
                 )}
@@ -741,7 +829,7 @@ export default function ImportScreen({
               <Button
                 variant="outline"
                 onClick={handleRevalidateInvalidRows}
-                disabled={invalidRows.length === 0}
+                disabled={invalidRows.length === 0 || isImporting}
               >
                 Re-validate Fixed Rows
               </Button>
@@ -1146,12 +1234,24 @@ export default function ImportScreen({
                               )}
                             </div>
                           )}
-                          {!row.importStatus && (
-                            <div className="flex items-center gap-1">
-                              <AlertCircle className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-500">Ready</span>
-                            </div>
-                          )}
+                          {!row.importStatus && (() => {
+                            // Assets: a purchase with an invalid row isn't imported (#183 D).
+                            const plan = importType === 'assets' ? assetPlan?.rows[row.rowIndex] : undefined;
+                            const held = plan ? assetPlan?.purchases[plan.purchaseIndex].heldBy ?? [] : [];
+                            return held.length > 0 ? (
+                              <div className="flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4 text-amber-600" />
+                                <span className="text-sm text-amber-700">
+                                  {`Held: fix ${held.length === 1 ? 'row' : 'rows'} ${held.join(', ')}`}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4 text-gray-400" />
+                                <span className="text-sm text-gray-500">Ready</span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </TableCell>
                     </TableRow>

@@ -4,8 +4,11 @@
 //
 // An import only ever adds: a row whose model + category match a stored item reuses it and
 // leaves its details alone (Cameron, 10-11); the preview notes where the file differs.
+//
+// Every row of the file is in a purchase (processAssetRows groups them all, valid or not),
+// and a purchase is saved only when all its rows are valid: one with an invalid row is held.
 import type { DbPurchase } from './supabase/types';
-import { assetRowUnits, groupAssetRows, parseBoolean, type AssetRow, type ParsedRow } from './csvImport';
+import { assetQuantity, assetRowUnits, parseBoolean, type AssetRow, type ParsedRow } from './csvImport';
 import { buildLineUnits, type ItemChoice, type LineUnitInput } from './lineUnits';
 import { itemMatchKey } from './equipmentItems';
 
@@ -19,6 +22,13 @@ export interface ExistingItem {
   insurance_class?: string | null;
 }
 
+/**
+ * Where a purchase of the file stands: `ready` to import; `held` by an invalid row;
+ * `importing`; `failed` to save (nothing of it was saved, so it can be retried);
+ * `imported` (never sent again).
+ */
+export type PurchaseState = 'ready' | 'held' | 'importing' | 'failed' | 'imported';
+
 /** One purchase to save with createPurchaseWithUnits, and the kit each unit or lot goes into. */
 export interface PlannedPurchase {
   /** "Purchase on <date> from <vendor>", for messages. */
@@ -30,20 +40,28 @@ export interface PlannedPurchase {
   unitKits: (string | null)[];
   /** The file rows this purchase is made from (its invoice rows and lines). */
   rowIndexes: number[];
+  state: PurchaseState;
+  /** The invalid rows that hold it back (held only). */
+  heldBy: number[];
 }
+
+/** What importPurchases sends for each purchase. */
+export type PurchaseToSave = Pick<PlannedPurchase, 'label' | 'header' | 'items' | 'units' | 'unitKits' | 'rowIndexes'>;
 
 export interface RowPlan {
   rowIndex: number;
   purchaseIndex: number;
-  /** The row's line within its purchase; null for an invoice row. */
+  /** The row's line within its purchase; null for an invoice row, or a purchase not to be saved. */
   lineIndex: number | null;
   item: { status: 'new' | 'matched'; id?: string } | null;
-  creates: { kind: 'header' | 'units' | 'lot' | 'expense'; count: number };
+  /** Null for a purchase not to be saved (held or imported). */
+  creates: { kind: 'header' | 'units' | 'lot' | 'expense'; count: number } | null;
   kit: { name: string; isNew: boolean } | null;
   /** Non-blocking notes for the preview. */
   notes: string[];
 }
 
+/** What the purchases still to save (ready, importing or failed) will make. */
 export interface AssetImportSummary {
   purchases: number;
   lines: number;
@@ -80,6 +98,20 @@ function differingDetails(row: AssetRow, base: { type?: string | null; descripti
     .map(([, label]) => label);
 }
 
+/** A purchase's state from its rows' import statuses and validity. */
+function purchaseState(members: ParsedRow<AssetRow>[]): { state: PurchaseState; heldBy: number[] } {
+  const has = (status: ParsedRow<AssetRow>['importStatus']) => members.some((r) => r.importStatus === status);
+  if (has('success')) return { state: 'imported', heldBy: [] };
+  const heldBy = members.filter((r) => !r.isValid).map((r) => r.rowIndex);
+  if (heldBy.length) return { state: 'held', heldBy };
+  return { state: has('importing') ? 'importing' : has('failed') ? 'failed' : 'ready', heldBy: [] };
+}
+
+/**
+ * Plan the file: `rows` are all its rows (valid, invalid and already imported), as
+ * processAssetRows grouped them. A row the screen still lists as invalid should be passed
+ * with isValid false, so its purchase is held until the file is re-checked.
+ */
 export function buildAssetImportPlan(
   organizationId: string,
   rows: ParsedRow<AssetRow>[],
@@ -95,10 +127,21 @@ export function buildAssetImportPlan(
   const plans: Record<number, RowPlan> = {};
   const summary: AssetImportSummary = { purchases: 0, lines: 0, units: 0, lots: 0, pieces: 0, itemsNew: 0, itemsMatched: 0, kitsNew: [] };
 
-  for (const group of groupAssetRows(rows)) {
-    const h = group.header;
+  // The purchases, in file order, as processAssetRows grouped the rows.
+  const groups = new Map<number, ParsedRow<AssetRow>[]>();
+  for (const row of [...rows].sort((a, b) => a.rowIndex - b.rowIndex)) {
+    if (!row.purchase) throw new Error(`Row ${row.rowIndex} isn’t in a purchase yet. Re-validate the file.`);
+    const members = groups.get(row.purchase.id) ?? [];
+    members.push(row);
+    groups.set(row.purchase.id, members);
+  }
+
+  for (const [, members] of [...groups].sort(([a], [b]) => a - b)) {
+    const ref = members[0].purchase!;
+    const h = ref.header;
     const purchaseIndex = purchases.length;
-    const header: Partial<DbPurchase> = group.synthesized
+    const { state, heldBy } = purchaseState(members);
+    const header: Partial<DbPurchase> = ref.synthesized
       ? { organization_id: organizationId, purchase_date: h.acquisition_date, vendor: h.vendor, total_inv_amount: 0, description: 'Synthesized Purchase Header' }
       : {
           organization_id: organizationId,
@@ -115,17 +158,35 @@ export function buildAssetImportPlan(
       items: [],
       units: [],
       unitKits: [],
-      rowIndexes: [...group.headerRowIndexes, ...group.items.map((r) => r.rowIndex)],
+      rowIndexes: members.map((r) => r.rowIndex),
+      state,
+      heldBy,
+    };
+    purchases.push(purchase);
+
+    // The kit a row's units or lot go into, and whether the import makes it.
+    const kitOf = (d: AssetRow) => {
+      const name = d.source === '1' ? d.kit?.trim() || null : null;
+      return name ? { name, isNew: !storedKits.has(itemMatchKey(name)) } : null;
     };
 
-    for (const rowIndex of group.headerRowIndexes) {
-      plans[rowIndex] = { rowIndex, purchaseIndex, lineIndex: null, item: null, creates: { kind: 'header', count: 0 }, kit: null, notes: [] };
+    // Held or imported: nothing of it is saved now.
+    if (state === 'held' || state === 'imported') {
+      for (const row of members) {
+        plans[row.rowIndex] = { rowIndex: row.rowIndex, purchaseIndex, lineIndex: null, item: null, creates: null, kit: kitOf(row.data), notes: [...(row.notes ?? [])] };
+      }
+      continue;
     }
+    summary.purchases++;
 
-    for (const row of group.items) {
+    for (const row of members) {
+      if (ref.headerRowIndexes.includes(row.rowIndex)) {
+        plans[row.rowIndex] = { rowIndex: row.rowIndex, purchaseIndex, lineIndex: null, item: null, creates: { kind: 'header', count: 0 }, kit: null, notes: [] };
+        continue;
+      }
       const d = row.data;
       const lineIndex = purchase.items.length;
-      const quantity = Math.max(1, parseInt(d.quantity || '1') || 1);
+      const quantity = assetQuantity(d.quantity);
       const equipment = d.source === '1';
       purchase.items.push({
         organization_id: organizationId,
@@ -176,7 +237,8 @@ export function buildAssetImportPlan(
         plan.item = { status: 'new' };
       }
 
-      // What we own: one unit per serial or tag, or a lot of the quantity.
+      // What we own: one unit per serial or tag, or a lot of the quantity. Every one is
+      // Active: an import seeds a new account (Cameron, 10-12).
       const unitRows = assetRowUnits(d);
       const kind = unitRows.length ? 'units' : 'lot';
       const built = buildLineUnits(organizationId, lineIndex, quantity, {
@@ -186,26 +248,19 @@ export function buildAssetImportPlan(
         replacement_value: num(d.replacement_value) ?? null,
         ...(blank(d.insured) ? {} : { insured: parseBoolean(d.insured) }),
         recovery_period: ['5', '7', '15'].includes((d.recovery_period ?? '').trim()) ? Number(d.recovery_period) : null,
-      }).map((u) => (d.status ? { ...u, status: d.status } : u));
+      });
       plan.creates = { kind, count: kind === 'units' ? built.length : quantity };
       if (kind === 'units') summary.units += built.length; else summary.lots++;
       summary.pieces += kind === 'units' ? built.length : quantity;
 
       // The kit each unit, or the lot, goes into as its own line.
-      const kitName = d.kit?.trim() || null;
-      if (kitName) {
-        const isNew = !storedKits.has(itemMatchKey(kitName));
-        plan.kit = { name: kitName, isNew };
-        if (isNew && !newKits.has(itemMatchKey(kitName))) newKits.set(itemMatchKey(kitName), kitName);
-      }
+      plan.kit = kitOf(d);
+      if (plan.kit?.isNew && !newKits.has(itemMatchKey(plan.kit.name))) newKits.set(itemMatchKey(plan.kit.name), plan.kit.name);
       purchase.units.push(...built);
-      purchase.unitKits.push(...built.map(() => kitName));
+      purchase.unitKits.push(...built.map(() => plan.kit?.name ?? null));
     }
-
-    purchases.push(purchase);
   }
 
-  summary.purchases = purchases.length;
   summary.itemsNew = newItems.size;
   summary.itemsMatched = matchedItems.size;
   summary.kitsNew = [...newKits.values()];

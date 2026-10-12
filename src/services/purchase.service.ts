@@ -3,7 +3,7 @@ import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import type { DbPurchase, PurchaseWithItems, DbGigFinancial, DbAsset } from '../utils/supabase/types';
 import type { LineUnitInput } from '../utils/lineUnits';
-import type { PlannedPurchase } from '../utils/csvAssetImportPlan';
+import type { PurchaseToSave } from '../utils/csvAssetImportPlan';
 import { itemMatchKey } from '../utils/equipmentItems';
 import { toFinCategory } from '../utils/supabase/constants';
 import { toDateInTimeZone } from '../utils/dateUtils';
@@ -183,7 +183,7 @@ export interface ImportPurchaseResult {
  */
 export async function importPurchases(
   organizationId: string,
-  plan: { purchases: PlannedPurchase[] },
+  plan: { purchases: PurchaseToSave[] },
   onProgress?: (successCount: number, errorCount: number) => void
 ): Promise<{ successCount: number; errors: string[]; results: ImportPurchaseResult[] }> {
   const errors: string[] = [];
