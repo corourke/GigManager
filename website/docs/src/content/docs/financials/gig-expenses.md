@@ -91,4 +91,4 @@ The paperclip on a row opens **Receipts & documents**. Upload as many files as y
 
 The gig's Financials card shows **Revenue**, **Costs** and **Profit**. In edit mode, the same buttons appear, except **Other** and **Upload Receipt**.
 
-**View N Transactions** lists every row. Tap one for its details and its **Receipts & Documents**.
+**View N Transactions** lists every row, named as on a computer: its description, or **Booking** or **Expense** if it has none. Under the name are the stage and the date, such as "Accepted, payment due · Oct 10, 2026". Tap a row for its details and its **Receipts & Documents**.

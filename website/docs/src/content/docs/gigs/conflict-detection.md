@@ -39,6 +39,10 @@ A gig's **Equipment** tab shows **Equipment needed on {day}**: one row for each 
 - **Owned**, **In maintenance** and **Free:** what you have. Free leaves out units in maintenance, retired ones, and any packed in a container kit.
 - A status: **Enough**, **none spare** (needed equals free), or **{n} short** in red. **none spare · {n} are in container kits** means some of the item is packed in a container kit, so it isn't counted as free.
 
+If a kit asks a specific lot for more pieces than the lot holds, the status says so in
+amber, such as "asks for 6, lot has 4", or "asks for 6, lot is missing" when the whole
+lot has been written off.
+
 Items that are short come first. For a gig over several days, the table is titled with its first day and covers the whole gig.
 
 ![Equipment needed on Oct 17, 2026 for the Cedar Hall Fall Songwriter Showcase, which one other gig overlaps: HS-18 subwoofers, HX-12P speakers, tripod stands and Speakon cables are short, wedges, the console, stage box and power distro have none spare, and the rest have enough](../../../assets/screenshots/gigs/conflict-detection-equipment-needed.png)
