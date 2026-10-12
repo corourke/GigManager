@@ -30,6 +30,8 @@ function makeQueryChain(result: { data: any; error: any }) {
   return chain;
 }
 
+import { whereabouts } from '../utils/locations';
+
 describe('inventoryManagement.service', () => {
   let mockSupabase: any;
 
@@ -183,6 +185,48 @@ describe('inventoryManagement.service', () => {
         { gig_id: 'gig-a', kit_id: null, status: 'In Warehouse', location: null, quantity: 1 },
         { gig_id: 'gig-b', kit_id: null, status: 'Checked Out', location: 'Dock', quantity: 1 },
       ]);
+    });
+
+    // Coordinator re-review (10-12): what Move N writes, read back. Both rows are written at once,
+    // so their order mustn't rest on their ids: here the closing return gets the higher id.
+    describe('read back', () => {
+      const written = (chain: any) => chain.insert.mock.calls.flatMap((c: any[]) => c[0])
+        .map((r: any, i: number) => ({ ...r, id: i === 0 ? 'zz-first-written' : 'aa-second-written', created_at: null }));
+
+      it('a one-piece lot moved from gig A to B is at B', async () => {
+        const { moveLotPieces } = await import('./inventoryManagement.service');
+        const before = [lotRow('a', 'gig-a', null, 'On Site', 1, '2026-10-05T10:00:00Z')];
+        const chain = capture(before);
+        await moveLotPieces({ ...base, kitId: null, here: 1, lotOf: 1, n: 1, toGigId: 'gig-b', toStatus: 'Checked Out', toLocation: 'Dock' });
+        expect(whereabouts([...before, ...written(chain)], [{ id: 'lot', quantity: 1, status: 'Active' }]))
+          .toEqual([{ gig_id: 'gig-b', location: 'Dock', quantity: 1 }]);
+      });
+
+      it('T58\'s 4 in the case moved from Halloween to Cedar Hall are at Cedar Hall', async () => {
+        const { moveLotPieces } = await import('./inventoryManagement.service');
+        const before = [
+          lotRow('fest', 'festival', 'band', 'On Site', 1, '2026-09-27T20:00:00Z'),
+          lotRow('cedar', 'cedar', 'case', 'Checked Out', 4, '2026-10-10T22:30:00Z', true),
+          lotRow('hb', 'halloween', 'case', 'Checked Out', 4, '2026-10-10T23:10:00Z', true),
+        ];
+        const chain = capture(before);
+        await moveLotPieces({ ...base, kitId: 'case', fromGigId: 'halloween', fromStatus: 'Checked Out', fromLocation: null,
+          here: 4, lotOf: 6, n: 4, toGigId: 'cedar', toStatus: 'Checked Out', toLocation: 'Staging Area' });
+        const places = whereabouts([...before, ...written(chain)], [{ id: 'lot', quantity: 6, status: 'Active' }], (k) => k === 'case');
+        expect(places).toEqual([
+          { gig_id: 'cedar', location: 'Staging Area', quantity: 4 },
+          { gig_id: 'festival', location: null, quantity: 1 },
+          { gig_id: null, location: null, quantity: 1 },
+        ]);
+      });
+    });
+
+    it('from home with none home, nothing goes: it says so', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture([lotRow('out', 'gig-b', 'k2', 'On Site', 6, '2026-10-02T10:00:00Z')]);
+      await expect(moveLotPieces({ ...base, fromStatus: 'In Warehouse', fromLocation: 'Bay 2', here: 0, lotOf: 6, n: 1,
+        toGigId: 'gig-a', toStatus: 'Checked Out', toLocation: 'Dock' })).rejects.toThrow('None of this lot is at home to move.');
+      expect(chain.insert).not.toHaveBeenCalled();
     });
 
     it('from home, no more than the pieces at home go', async () => {

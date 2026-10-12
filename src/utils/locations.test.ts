@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bucketsAt, currentRows, placementOf, whereabouts, type TrackingRow } from './locations';
+import { bucketsAt, currentRows, lotPieces, placementOf, whereabouts, type TrackingRow } from './locations';
 import { RETURNED_STATUS } from '../config/inventoryWorkflow';
 
 // #186 / #185: where a unit or lot is, from the append-only tracking history.
@@ -372,6 +372,35 @@ describe('whereabouts (#186)', () => {
       { gig_id: 'festival', location: 'Stage', quantity: 1 },
       { gig_id: null, location: null, quantity: 1 },
     ]);
+  });
+
+  // Coordinator re-review (10-12): what Move N writes, read back. A return that closed a bucket
+  // because its pieces went to another gig doesn't make an older place elsewhere stale.
+  it('after moving 4 from gig A to B, the 1 still at the festival stays there (festival 1, B 4, home 1)', () => {
+    const six = { id: 'lot6', quantity: 6, status: 'Active' };
+    const rows = [
+      row({ id: 'fest', asset_id: 'lot6', gig_id: 'festival', kit_id: 'band', status: 'On Site', location: 'Stage', quantity: 1, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ id: 'a-out', asset_id: 'lot6', gig_id: 'gig-a', kit_id: 'k1', status: 'Checked Out', location: 'Dock', quantity: 4, scanned_at: '2026-10-02T10:00:00Z' }),
+      row({ id: 'a-closed', asset_id: 'lot6', gig_id: 'gig-a', kit_id: 'k1', status: RETURNED_STATUS, location: null, quantity: 4, scanned_at: '2026-10-03T10:00:00.000Z' }),
+      row({ id: 'b-in', asset_id: 'lot6', gig_id: 'gig-b', kit_id: 'k1', status: 'Checked Out', location: 'Ramp', quantity: 4, scanned_at: '2026-10-03T10:00:00.001Z' }),
+    ];
+    expect(whereabouts(rows, [six])).toEqual([
+      { gig_id: 'gig-b', location: 'Ramp', quantity: 4 },
+      { gig_id: 'festival', location: 'Stage', quantity: 1 },
+      { gig_id: null, location: null, quantity: 1 },
+    ]);
+  });
+
+  it('a lot home in two cases reads each case\'s pieces, not 9 of 6', () => {
+    const rows = [
+      row({ id: 'c1-out', asset_id: 'lot', gig_id: 'gig-a', kit_id: 'case1', status: 'Checked Out', quantity: 3, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ id: 'c2-out', asset_id: 'lot', gig_id: 'gig-a', kit_id: 'case2', status: 'Checked Out', quantity: 3, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ id: 'c1-back', asset_id: 'lot', gig_id: 'gig-a', kit_id: 'case1', status: RETURNED_STATUS, location: 'Shelf C', quantity: 3, scanned_at: '2026-10-02T10:00:00Z' }),
+      row({ id: 'c2-back', asset_id: 'lot', gig_id: 'gig-a', kit_id: 'case2', status: RETURNED_STATUS, location: 'Shelf D', quantity: 3, scanned_at: '2026-10-02T11:00:00Z' }),
+    ];
+    const current = currentRows(rows, { isLot: () => true, isContainer: () => true, lotQuantity: () => 6 });
+    const { pieces } = lotPieces(current, 6);
+    expect(current.map((r) => [r.id, pieces.get(r)]).sort()).toEqual([['c1-back', 3], ['c2-back', 3]]);
   });
 
   it('a one-piece lot is at its newest row only, not also at an older gig\'s stale row', () => {
