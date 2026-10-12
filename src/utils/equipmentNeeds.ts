@@ -44,6 +44,40 @@ export function kitNeeds(kitId: string, ctx: NeedsContext, seen: ReadonlySet<str
   return out;
 }
 
+/** Pieces a kit asks of each specific record, through nested kits, stopping at containers. */
+function recordAsks(kitId: string, ctx: NeedsContext, seen: ReadonlySet<string> = new Set()): Map<string, number> {
+  const out = new Map<string, number>();
+  if (seen.has(kitId) || ctx.kits.get(kitId)?.is_container) return out;
+  const path = new Set(seen).add(kitId);
+  for (const line of ctx.lines.get(kitId) ?? []) {
+    const n = Number(line.quantity) || 0;
+    if (line.asset_id) add(out, line.asset_id, n);
+    else if (line.child_kit_id) for (const [id, m] of recordAsks(line.child_kit_id, ctx, path)) add(out, id, m * n);
+  }
+  return out;
+}
+
+/** A lot asked for more than it holds: how many the kits ask for, and how many it has. */
+export interface LotShortfall { asked: number; has: number }
+
+/**
+ * Lots the kits ask for more of than they hold (#242 item 7), per item: a lot shrunk by a
+ * partial write-off, or written off whole (`has` 0). `lotHas` gives each lot's size; records
+ * without one (units) aren't checked.
+ */
+export function lotShortfalls(kitIds: readonly string[], ctx: NeedsContext, lotHas: ReadonlyMap<string, number>): Map<string, LotShortfall[]> {
+  const asked = new Map<string, number>();
+  for (const kitId of kitIds) for (const [id, n] of recordAsks(kitId, ctx)) add(asked, id, n);
+  const out = new Map<string, LotShortfall[]>();
+  for (const [id, n] of asked) {
+    const has = lotHas.get(id);
+    const item = ctx.assetItem.get(id);
+    if (has === undefined || !item || n <= has) continue;
+    out.set(item, [...(out.get(item) ?? []), { asked: n, has }]);
+  }
+  return out;
+}
+
 /**
  * Every container kit a kit reaches, itself included when it is one, through nested kits and
  * containers alike. A container is one physical case, so two gigs reaching it share it.
@@ -119,6 +153,8 @@ export interface ItemNeedRow {
   peakGigs: NeedingGig[];
   /** Every moment this gig is short, with the gigs running then (#230 follow-up). */
   shortMoments: ShortMoment[];
+  /** This gig's lines asking a lot for more than it holds (#242). */
+  lotShortfalls?: LotShortfall[];
 }
 
 export interface NeedingGig { id: string; title: string; need: ItemNeed }
