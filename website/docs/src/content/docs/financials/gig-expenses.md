@@ -41,7 +41,7 @@ Click **Edit Financials** to show the buttons.
 | Button | Records |
 |---|---|
 | **Booking** | Income you've agreed: the stage, date, amount and description (e.g. "Performance fee"). An **Invoiced** booking also takes a due date. |
-| **Payment received** | Money that has already arrived, not tied to a booking. To pay off a booking, use its **Record Payment** button instead. |
+| **Payment received** | Money that has already arrived. If the gig has an open booking, you can apply the payment to it (see [Getting paid](#getting-paid)). |
 | **Expense / Mileage** | Choose **Simple Expense** or **Mileage** (below). |
 | **Other** | Any row, with every field: direction, stage, amounts, dates, category, reference, the other party, notes. Desktop only. |
 | **Upload Receipt** | Scans a receipt and records it as a purchase and as this gig's cost. See [Receipts and invoices](/financials/receipts-and-invoices/). |
@@ -58,6 +58,8 @@ Click **Edit Financials** to show the buttons.
 ## Getting paid
 
 **Record Payment** on a booking asks for the amount, the date and a reference (check number, transaction id).
+
+**Payment received** does the same when the gig has an open booking (from **Quoted** to **Invoiced**). It shows **Apply to**, with the earliest open booking chosen and its amount filled in, so the booking is paid off rather than counted twice. To record money that isn't for a booking, choose **Separate payment (no booking)**.
 
 If less than the agreed amount arrived, you choose what the rest is:
 - **Still owed:** it becomes its own row, still due.
