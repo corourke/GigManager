@@ -47,9 +47,6 @@ export interface KitTrackingSummary {
   gigTitle?: string | null;
   gigId?: string | null;
   lastScannedAt?: string | null;
-  totalAssets: number;
-  scannedAssets: number;
-  statusCounts: Record<string, number>;
 }
 
 export interface LocationItem {
@@ -1151,7 +1148,7 @@ export async function getKitTrackingSummary(
   try {
     const { data: kits, error: kitsError } = await supabase
       .from('kits')
-      .select('id, is_container, kit_components!kit_assets_kit_id_fkey(asset_id)')
+      .select('id, is_container')
       .eq('organization_id', organizationId);
 
     if (kitsError) throw kitsError;
@@ -1181,7 +1178,6 @@ export async function getKitTrackingSummary(
     for (const kit of kits ?? []) {
       const kitId = (kit as any).id;
       const isContainer = (kit as any).is_container;
-      const assetIds: string[] = ((kit as any).kit_components ?? []).map((kc: any) => kc.asset_id).filter(Boolean);
 
       const kitRecords = trackingByKit.get(kitId) ?? [];
       const kitRecord = kitRecords.find((r) => !r.asset_id);
@@ -1199,11 +1195,8 @@ export async function getKitTrackingSummary(
       // that gig (rows are always gig-scoped).
       const isReturned = status === RETURNED_STATUS;
 
-      const statusCounts: Record<string, number> = {};
-      for (const ar of assetRecords) {
-        statusCounts[ar.status] = (statusCounts[ar.status] ?? 0) + 1;
-      }
-
+      // How many of its pieces are where (#278) is the gig's packing list's count, not these
+      // rows: they're every gig's, and the kit's own lines leave out nested kits and "any" lines.
       map.set(kitId, {
         kitId,
         isContainer,
@@ -1212,9 +1205,6 @@ export async function getKitTrackingSummary(
         gigTitle: isReturned ? null : (rawRecord?.gig?.title ?? null),
         gigId: isReturned ? null : (representativeRecord?.gig_id ?? null),
         lastScannedAt: representativeRecord?.scanned_at ?? null,
-        totalAssets: assetIds.length,
-        scannedAssets: assetRecords.length,
-        statusCounts,
       });
     }
 

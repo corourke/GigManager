@@ -90,6 +90,16 @@ export function kitStatusSummary(summary: KitPackingSummary | undefined): Requir
   return { text: [`${lead} ${n} of ${summary.total}`, ...rest.map(([s, m]) => `${s} ${m}`)].join(' · '), title, muted: false };
 }
 
+/**
+ * The most common status of a kit's packed pieces, by the Status cell's order (the kit list's
+ * Tracking Status, #278): "Checked Out" and 9 of 15. Null when none are packed.
+ */
+export function kitStatusLead(summary: KitPackingSummary | undefined): { status: string; count: number; total: number } | null {
+  if (!summary || summary.packed === 0) return null;
+  const [[status, count]] = byCount(summary.byStatus, (a, b) => step(b) - step(a));
+  return { status, count, total: summary.total };
+}
+
 /** The Location cell: the place every packed piece shares, else "Mixed"; empty when none are out. */
 export function kitLocationSummary(summary: KitPackingSummary | undefined): CellSummary {
   const places = byCount(summary?.byLocation ?? new Map<string | null, number>());
