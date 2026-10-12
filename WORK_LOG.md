@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **10-12 merges, round 2** (Cameron's OK, after coordinator review): **#276** (#183 D, CSV import onto units, lots and kit lines; independent review found the row-grouping, retired-status, retry and preview-crash problems, all fixed with failing tests first), **#269** (Equipment Lead; #265 container still out at another gig; the review's repeat-warning finding fixed), **#275** (Docs Lead; Payment received → Apply to).
+
 - **10-12 merges** (with Cameron's OK, after coordinator review): **#267** (Equipment Lead; fixes #245, #249: contents wrap and indent, partly packed lot "N of M", Columns remembered per browser and used for print, header "N kits · M pieces"); **#270** (Equipment Lead; #242 items 5, 7: Undo write-off on the equipment page, "asks for 6, lot has 4"); **#271** (helper; #175 stopgap, Delete gig for Admins only); **#272** (helper; fixes #256, scanner manual entry inside the desktop dialog); **#273** (helper; #266 items 1–4, kit page). Each had a failing test first; no migrations.
 
 - **PR #264** (coordinator, merged 10-11 with Cameron's OK): the open app checks for a new version on returning to the foreground and every 30 min, and shows "A new version of GigWrangler is ready." with Reload (never reloads by itself). Failing test first.

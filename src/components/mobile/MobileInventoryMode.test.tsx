@@ -784,6 +784,55 @@ describe('MobileInventoryMode', () => {
     })
   })
 
+  // #265 (10-11): a container still out at another gig asks first at Pack-Out and Load Truck.
+  // The warning only informs (Cameron, 10-10): Pack anyway records it here.
+  describe('a container still out at another gig (#265)', () => {
+    const list = (last: any) => ({
+      gig_id: 'gig-1', gig_title: 'Warehouse Check-In', top_level_kit_ids: ['case-1'], hierarchy_edges: [],
+      kits: [{ kit_id: 'case-1', kit: { id: 'case-1', name: 'Mic Case', tag_number: 'CASE-1', is_container: true, assets: [], direct_assets: [] } }],
+      tracking: [], last_records: { assets: {}, kits: { 'case-1': last } },
+    })
+    const away = { gig_id: 'gig-2', gig_title: 'Friday Show', status: 'On Site', scanned_at: '2026-10-10T12:00:00.000Z' }
+
+    it.each([0, 1])('mode %i asks before recording it here, and Pack anyway records it', async (mode) => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list(away))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await screen.findByText('Mic Case')
+      if (mode) await user.click(screen.getByText(SCANNING_MODES[mode].label))
+      await act(async () => { await scannerProps.onScan('CASE-1') })
+      expect(screen.getByText('Mic Case is still out at Friday Show (On Site, Oct 10).')).toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Pack anyway' }))
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'case-1', status: SCANNING_MODES[mode].resultingStatus }))
+    })
+
+    it.each([
+      ['home', { ...away, status: 'In Warehouse' }],
+      ['already at this gig', { ...away, gig_id: 'gig-1' }],
+    ])('doesn\'t ask when it\'s %s', async (_label, last) => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list(last))
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await screen.findByText('Mic Case')
+      await act(async () => { await scannerProps.onScan('CASE-1') })
+      expect(screen.queryByText(/still out at/)).not.toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'case-1' }))
+    })
+
+    it('doesn\'t ask again once it\'s been packed here (a newer row at this gig)', async () => {
+      const packedHere = { id: 'local-1', gig_id: 'gig-1', kit_id: 'case-1', asset_id: null, status: SCANNING_MODES[0].resultingStatus,
+        quantity: 1, scanned_at: '2026-10-11T09:00:00.000Z', scanned_by: 'user-1' }
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => ({ ...list(away), tracking: [packedHere] }))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await screen.findByText('Mic Case')
+      await user.click(screen.getByText(SCANNING_MODES[1].label))
+      await act(async () => { await scannerProps.onScan('CASE-1') })
+      expect(screen.queryByText(/still out at/)).not.toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'case-1', status: SCANNING_MODES[1].resultingStatus }))
+    })
+  })
+
   // #185 (Cameron, 10-10): a unit that isn't on the list is only ever added to the gig. There is no
   // swap: nothing is written for a listed unit the operator didn't act on.
   describe('a unit not on the list', () => {

@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 01:40 UTC (coordinator: merged #267, #270, #271, #272, #273 with Cameron's OK; #268 and #269 back to the Equipment Lead for review fixes; #183 D1 review fixes in progress)
+- **Last updated:** 2026-10-12 03:00 UTC (coordinator: merged #269, #275, #276 with Cameron's OK; #268 fixes being re-verified; #274 needs two sentences fixed)
 
 ---
 
@@ -65,6 +65,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
 
+**Status 10-12 03:00 UTC:**
+- **Merged since (not yet in prod):** #276 (#183 D: CSV import makes units, lots and kit lines through the v2 save; kit column kept; no status / retired_on / liquidation_amt; template regrouped; Download Example mic-kit file; held purchases; Retry failed; the app no longer calls v1), #269 (#265: container still out at another gig), #275 (docs: Payment received → Apply to). No migrations.
+- **In review:** #268 (#186 Locations step): Equipment Lead pushed fixes for every finding; an independent re-check is running. #274 (docs: Locations page): two sentences contradict the 10-10 rule (contents keep their own records); the Docs Lead is fixing them.
+- **#183 D2 (not started, not released):** mockup 11's summary cards and the grouped column guide on the import screen. The v1 purchase RPCs can be dropped in the next migration.
+
 **Status 10-12 01:40 UTC:**
 - **Merged (not yet in prod):** #263, #264, #267 (#245/#249), #270 (#242 items 5, 7; #242 closed), #271 (#175 stopgap: Delete gig Admin-only), #272 (#256), #273 (#266 items 1–4; #266 closed). No migrations.
 - **Back to the Equipment Lead for fixes (coordinator review 10-12):** #268 (#186 Locations step): the where-is-it card and Item page don't use the `currentRows` rule (T58 regression), Move N can exceed the lot via a stale bucket, the Maintenance + In Warehouse mismatch, home lot count/cap, and the closing row's location. #269 (#265): the warning repeats after the case is packed here (reads only server `last_records`).
@@ -109,6 +114,21 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
+- **Docs Lead status, 10-12 01:40 UTC.**
+  - **Published (PRs, ready for review):**
+    - **PR #274:** Equipment → Locations (prod since 10-11), with a screenshot.
+    - **PR #275:** Payment received → Apply to an open booking (#262, prod).
+  - **Held for the next deploy:**
+    - **Branch `claude/docs-held-10-12` (0a5931e):**
+      - #267 packing list: Columns remembered per browser and used in print; "N kits · M pieces"; partly packed lots "4 of 6"; contents indented and wrapped; the packing-list screenshot is no longer held.
+      - #270: Undo write-off on the equipment's page, and the "asks for 6, lot has 4" note in Equipment needed.
+      - #271: removed the Managers-see-Delete TODOs.
+      - #272: desktop Track a gig scanning.
+      - #263: mobile transaction rows.
+      - #264: the "new version is ready" notice (in Onboarding).
+    - **Branch `claude/docs-kits-draft` (2c3e6b0):** #273 kit page labels, Duplicate opening the copy, lots counting pieces, the #270 kit-editor note, and "4 × any + a specific unit = 5".
+  - **For the coordinator:** #267 doesn't change tick printing; the agent found no such change in the code. The printout's ✓ column has always printed empty boxes, as the published page says, so I didn't document a change.
+  - **Waiting:** #183 D (CSV import).
 - **Locations guide draft (Docs Lead, 10-11 10:40 UTC):** on branch `claude/docs-locations-draft` (402905d), not a PR. Held until #258/#260 are in prod.
   - **What it covers:** reading the page, cases and Contents, untagged items (in a case vs loose), the three filters, and Override for Admins and Managers. The Equipment overview links to it.
   - **App notes, not filed:**
@@ -225,7 +245,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
-| `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #220) | projected staff estimate documented |
+| `financials/gig-expenses.md` | published | 2026-10-12 (Docs Lead, PR #275; matches prod) | projected staff estimate; Payment received → Apply to an open booking (#262) |
 | `financials/overview.md` | published | 2026-10-09 (Docs Lead, PR #227) | Upload Invoice is on the Items tab |
 | `financials/purchases.md` | published | 2026-10-09 (Docs Lead, PR #227) | Track as equipment makes a lot |
 | `financials/reporting.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | Schedule C and Needs attention documented |

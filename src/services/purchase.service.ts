@@ -3,7 +3,8 @@ import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import type { DbPurchase, PurchaseWithItems, DbGigFinancial, DbAsset } from '../utils/supabase/types';
 import type { LineUnitInput } from '../utils/lineUnits';
-import type { AssetRow } from '../utils/csvImport';
+import type { PurchaseToSave } from '../utils/csvAssetImportPlan';
+import { itemMatchKey } from '../utils/equipmentItems';
 import { toFinCategory } from '../utils/supabase/constants';
 import { toDateInTimeZone } from '../utils/dateUtils';
 import { lineTaxTreatment } from '../utils/taxTreatment';
@@ -13,6 +14,7 @@ import {
   deleteGigFinancial,
   getGigFinancialsByPurchaseId,
 } from './gigFinancial.service';
+import { getKitOptions, createKit, addKitAssetLines } from './kit.service';
 
 const getSupabase = () => createClient();
 
@@ -163,291 +165,119 @@ export async function deletePurchase(purchaseId: string) {
   }
 }
 
+/** How one planned purchase went: saved (perhaps with a kit warning) or not saved at all. */
+export interface ImportPurchaseResult {
+  rowIndexes: number[];
+  status: 'success' | 'failed';
+  error?: string;
+  /** Saved, but something after the save (its kit lines) didn't happen. */
+  warning?: string;
+}
+
 /**
- * Import a list of purchase rows (headers, items, assets)
- * Groups rows by header and creates transactions
+ * Save a CSV import's purchases (#183 D), one at a time, each atomically through
+ * create_purchase_transaction_v2: the header, its lines, and each tracked line's units or
+ * lot. Then each unit, or lot, that names a kit goes into it as its own line; a kit is
+ * found by name or created, once per import. A purchase that fails doesn't stop the rest.
+ * `successCount` counts the file rows saved.
  */
 export async function importPurchases(
   organizationId: string,
-  rows: any[], // ParsedRow<AssetRow>[]
+  plan: { purchases: PurchaseToSave[] },
   onProgress?: (successCount: number, errorCount: number) => void
-) {
+): Promise<{ successCount: number; errors: string[]; results: ImportPurchaseResult[] }> {
   const errors: string[] = [];
+  const results: ImportPurchaseResult[] = [];
   let successCount = 0;
   let errorCount = 0;
 
   try {
-    const { user: _user } = await requireAuth();
+    await requireAuth();
 
-    // 1. Group rows by Header (Source 0) or Date + Vendor (if no Header)
-    interface PurchaseGroup {
-      header: any;
-      items: any[];
-      assets: any[];
-    }
-    const allGroups: PurchaseGroup[] = [];
-    const latestGroupMap = new Map<string, number>(); // dateKey|vendorKey -> index in allGroups
-    let lastHeaderIdx: number | undefined = undefined;
-
-    rows.forEach((row, rowIndex) => {
-      const data = row.data as AssetRow;
-      const dateKey = data.acquisition_date || 'no-date';
-      const vendorKey = (data.vendor || 'no-vendor').toLowerCase().trim();
-      const lookupKey = `${dateKey}|${vendorKey}`;
-
-      const isHeader = data.source === '0';
-      const hasTotal = !!(data.total_inv_amount && parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')) > 0);
-      const isStandalone = (data.source === '1' || data.source === '2') && hasTotal;
-
-      if (isHeader) {
-        // Check if we already have an "open" header group for this key that we can merge into
-        // We only merge if the existing group hasn't received any items/assets yet
-        const existingIdx = latestGroupMap.get(lookupKey);
-        const invAmt = hasTotal ? parseFloat(data.total_inv_amount!.toString().replace(/[^0-9.-]/g, '')) : 0;
-
-        if (existingIdx !== undefined && allGroups[existingIdx].items.length === 0 && allGroups[existingIdx].assets.length === 0) {
-          const group = allGroups[existingIdx];
-          group.header.total_inv_amount += invAmt;
-          if (data.description || data.manufacturer_model) {
-            group.header.description = group.header.description 
-              ? `${group.header.description}; ${data.manufacturer_model || data.description}`
-              : (data.manufacturer_model || data.description);
-          }
-          lastHeaderIdx = existingIdx;
-        } else {
-          // Start a NEW group
-          const newGroup: PurchaseGroup = {
-            header: mapRowToPurchaseHeader(organizationId, data, invAmt),
-            items: [],
-            assets: [],
-          };
-          allGroups.push(newGroup);
-          lastHeaderIdx = allGroups.length - 1;
-          latestGroupMap.set(lookupKey, lastHeaderIdx);
-        }
-      } else if (isStandalone) {
-        // Start a NEW group
-        const invAmt = hasTotal ? parseFloat(data.total_inv_amount!.toString().replace(/[^0-9.-]/g, '')) : 0;
-        const newGroup: PurchaseGroup = {
-          header: mapRowToPurchaseHeader(organizationId, data, invAmt),
-          items: [],
-          assets: [],
-        };
-        allGroups.push(newGroup);
-        // Standalone items NEVER receive further children from the map
-        // so we DON'T update latestGroupMap or lastHeaderIdx with the standalone row
-        
-        const currentGroup = allGroups[allGroups.length - 1];
-        currentGroup.items.push(mapRowToPurchaseItem(organizationId, data));
-
-        if (data.source === '1') {
-          currentGroup.assets.push(mapRowToAsset(organizationId, data));
-        }
-      } else {
-        // It's an item/asset that belongs to a group
-        let groupIdx = latestGroupMap.get(lookupKey);
-        
-        // If no explicit match via lookupKey, try the last seen header (positional grouping)
-        if (groupIdx === undefined && lastHeaderIdx !== undefined) {
-          groupIdx = lastHeaderIdx;
-        }
-
-        if (groupIdx === undefined) {
-          // No header found yet, create synthesized group
-          const synthesizedGroup: PurchaseGroup = {
-            header: {
-              organization_id: organizationId,
-              purchase_date: data.acquisition_date,
-              vendor: data.vendor,
-              total_inv_amount: 0,
-              description: 'Synthesized Purchase Header',
-            },
-            items: [],
-            assets: [],
-          };
-          allGroups.push(synthesizedGroup);
-          groupIdx = allGroups.length - 1;
-          latestGroupMap.set(lookupKey, groupIdx);
-        }
-
-        const currentGroup = allGroups[groupIdx];
-        
-        // Ensure child items have vendor/date if they were missing (inherited from header)
-        if (!data.vendor && currentGroup.header.vendor) {
-          data.vendor = currentGroup.header.vendor;
-        }
-        if (!data.acquisition_date && currentGroup.header.purchase_date) {
-          data.acquisition_date = currentGroup.header.purchase_date;
-        }
-
-        if (data.source === '1' || data.source === '2') {
-          currentGroup.items.push(mapRowToPurchaseItem(organizationId, data));
-        }
-
-        if (data.source === '1') {
-          currentGroup.assets.push(mapRowToAsset(organizationId, data));
-        }
+    // Kits by name (matched like items), loaded once and filled in as kits are created.
+    let kitIds: Map<string, string> | null = null;
+    const kitIdFor = async (name: string): Promise<string> => {
+      if (!kitIds) {
+        const kits = await getKitOptions(organizationId);
+        kitIds = new Map(kits.map((k) => [itemMatchKey(k.name), k.id]));
       }
-    });
+      const key = itemMatchKey(name);
+      const found = kitIds.get(key);
+      if (found) return found;
+      const kit = await createKit({ organization_id: organizationId, name: name.trim(), category: 'Imported', components: [] });
+      kitIds.set(key, kit.id);
+      return kit.id;
+    };
 
-    // 2. Process groups using RPC for atomicity
-    const kitCache = new Map<string, string>(); // Cache kit IDs by name (lowercase)
-    
-    for (const group of allGroups) {
-      if (group.header) {
+    for (const purchase of plan.purchases) {
+      let saved: { unit_ids: string[] };
+      try {
+        saved = await createPurchaseWithUnits(purchase.header, purchase.items, purchase.units);
+      } catch (err: any) {
+        const message = err?.message || String(err);
+        errorCount += purchase.rowIndexes.length;
+        errors.push(`${purchase.label}: ${message}`);
+        results.push({ rowIndexes: purchase.rowIndexes, status: 'failed', error: message });
+        onProgress?.(successCount, errorCount);
+        continue;
+      }
+      successCount += purchase.rowIndexes.length;
+      const result: ImportPurchaseResult = { rowIndexes: purchase.rowIndexes, status: 'success' };
+
+      // Kit lines: unit_ids come back in the order the units were sent.
+      const kitNames = [...new Set(purchase.unitKits.filter((k): k is string => !!k))];
+      if (kitNames.length) {
         try {
-          // Use RPC for atomic transaction across multiple tables
-          await createPurchaseTransaction(group.header, group.items, group.assets, kitCache);
-          successCount += 1 + group.items.length + group.assets.length;
+          const lines: { kit_id: string; asset_id: string; quantity: number }[] = [];
+          for (let i = 0; i < purchase.units.length; i++) {
+            const name = purchase.unitKits[i];
+            const assetId = saved.unit_ids?.[i];
+            if (!name || !assetId) continue;
+            lines.push({ kit_id: await kitIdFor(name), asset_id: assetId, quantity: purchase.units[i].quantity });
+          }
+          await addKitAssetLines(lines);
         } catch (err: any) {
-          errorCount += 1 + group.items.length + group.assets.length;
-          const headerInfo = `Purchase on ${group.header.purchase_date} from ${group.header.vendor}`;
-          errors.push(`Failed to import ${headerInfo}: ${err.message}`);
-        }
-        
-        // Notify progress after each group
-        if (onProgress) {
-          onProgress(successCount, errorCount);
+          const warning = `${purchase.label} was saved, but its equipment wasn’t added to kit ${kitNames.join(', ')} (${err?.message || String(err)}). Add it in the kit editor.`;
+          result.warning = warning;
+          errors.push(warning);
         }
       }
+      results.push(result);
+      onProgress?.(successCount, errorCount);
     }
 
-    return { successCount, errors };
+    return { successCount, errors, results };
   } catch (err) {
     return handleApiError(err, 'import purchases');
   }
 }
-/**
- * Create a purchase header with its items and assets atomically via RPC
- * Also handles kit creation and membership for assets
- */
-export async function createPurchaseTransaction(
-  header: Partial<DbPurchase>,
-  /** `track: true` gives the line an equipment record: the next entry of `assets`. */
-  items: (Partial<DbPurchase> & { track?: boolean })[] = [],
-  assets: any[] = [],
-  kitCache?: Map<string, string>
-) {
-  try {
-    const { supabase, user } = await requireAuth();
-
-    // 1. Process Kits if any assets have a kit name
-    const assetsWithKits = assets.filter(a => a.kit && a.kit.trim());
-    const localKitIdsByName = new Map<string, string>();
-
-    if (assetsWithKits.length > 0) {
-      const uniqueKitNames = Array.from(new Set(assetsWithKits.map(a => a.kit.trim())));
-      const orgId = header.organization_id;
-      if (!orgId) throw new Error('organization_id is required to create a purchase');
-
-      for (const kitName of uniqueKitNames) {
-        const cacheKey = kitName.toLowerCase();
-        
-        // 1a. Check provided cache first (for cross-group consistency)
-        if (kitCache?.has(cacheKey)) {
-          localKitIdsByName.set(cacheKey, kitCache.get(cacheKey)!);
-          continue;
-        }
-
-        // 1b. Try to find existing kit in database
-        const { data: existingKit } = await supabase
-          .from('kits')
-          .select('id')
-          .eq('organization_id', orgId)
-          .ilike('name', kitName)
-          .limit(1)
-          .maybeSingle();
-
-        if (existingKit) {
-          localKitIdsByName.set(cacheKey, existingKit.id);
-          kitCache?.set(cacheKey, existingKit.id);
-        } else {
-          // 1c. Create new kit
-          const { data: newKit, error: createError } = await supabase
-            .from('kits')
-            .insert({
-              organization_id: orgId,
-              name: kitName,
-              category: 'Imported',
-              created_by: user.id,
-              updated_by: user.id,
-            })
-            .select('id')
-            .single();
-
-          if (createError) throw createError;
-          localKitIdsByName.set(cacheKey, newKit.id);
-          kitCache?.set(cacheKey, newKit.id);
-        }
-      }
-    }
-
-    // 2. Call the PostgreSQL RPC for atomic execution of purchase + items + assets
-    const { data, error } = await supabase.rpc('create_purchase_transaction_v1', {
-      p_header: header,
-      p_items: items,
-      p_assets: assets
-    });
-
-    if (error) throw error;
-    // The RPC returns Json; it resolves to the created purchase header
-    const result = data as { id: string } | null;
-    if (!result?.id) throw new Error('Purchase transaction returned no result');
-    
-    // 3. Handle Kit Membership (Post-RPC)
-    if (assetsWithKits.length > 0) {
-      const { data: createdAssets, error: fetchError } = await supabase
-        .from('assets')
-        .select('id, manufacturer_model, serial_number')
-        .eq('purchase_id', result.id);
-
-      if (!fetchError && createdAssets) {
-        const kitMemberships = [];
-        
-        for (const asset of assets) {
-          if (asset.kit && asset.kit.trim()) {
-            const kitId = localKitIdsByName.get(asset.kit.trim().toLowerCase());
-            if (kitId) {
-              // Match the created asset by model and serial if available
-              const createdAsset = createdAssets.find(ca => 
-                ca.manufacturer_model === asset.manufacturer_model && 
-                (asset.serial_number ? ca.serial_number === asset.serial_number : true)
-              );
-
-              if (createdAsset) {
-                kitMemberships.push({
-                  kit_id: kitId,
-                  asset_id: createdAsset.id,
-                  quantity: asset.quantity || 1,
-                });
-              }
-            }
-          }
-        }
-
-        if (kitMemberships.length > 0) {
-          await supabase.from('kit_components').insert(kitMemberships);
-        }
-      }
-    }
-
-    return result;
-  } catch (err) {
-    return handleApiError(err, 'create purchase transaction');
-  }
-}
 
 /**
- * Track a purchase line as equipment (#133): creates its `assets` record from the
- * line and links it, without changing the line's tax treatment. Works for lines in
- * a filed (locked) year, since only `asset_id` changes. Returns the new asset id.
+ * Track a purchase line as equipment (#133): one lot of the line's quantity, linked to the
+ * line, without changing its tax treatment. Works for lines in a filed (locked) year.
+ * Uses add_purchase_line_units, like the purchase screens (#183); the record is named
+ * after the line. Returns the new record's id.
  */
 export async function trackPurchaseLineAsEquipment(lineId: string): Promise<string> {
   try {
     const { supabase } = await requireAuth();
-    const { data, error } = await supabase.rpc('track_purchase_line_as_equipment', { p_line_id: lineId });
+    const { data: line, error } = await (supabase.from('purchases') as any)
+      .select('id, organization_id, quantity, description, category, asset_id')
+      .eq('id', lineId)
+      .single();
     if (error) throw error;
-    return data as string;
+    if (!line) throw new Error('Purchase line not found');
+    if (line.asset_id) throw new Error('This line is already tracked as equipment');
+    const [id] = await addLineUnits(lineId, [{
+      organization_id: line.organization_id,
+      manufacturer_model: line.description ?? '',
+      category: line.category ?? '',
+      description: line.description ?? null,
+      serial_number: null,
+      tag_number: null,
+      quantity: Math.max(1, Number(line.quantity) || 1),
+    }]);
+    return id;
   } catch (err) {
     return handleApiError(err, 'track purchase line as equipment');
   }
@@ -757,82 +587,4 @@ export async function scanInvoice(file: File, organizationId: string) {
   } catch (err) {
     return handleFunctionsError(err, 'scan invoice');
   }
-}
-
-/**
- * Maps a CSV row to a Purchase Header object
- */
-function mapRowToPurchaseHeader(organizationId: string, data: any, invAmt: number) {
-  return {
-    organization_id: organizationId,
-    purchase_date: data.acquisition_date,
-    vendor: data.vendor,
-    total_inv_amount: invAmt,
-    payment_method: data.payment_method,
-    description: data.manufacturer_model || data.description || '',
-    category: data.category,
-  };
-}
-
-/**
- * Maps a CSV row to a Purchase Item object
- */
-function mapRowToPurchaseItem(organizationId: string, data: any) {
-  const parsedQty = data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1;
-  const parsedItemPrice = data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined;
-  const parsedItemCost = data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
-  const parsedLineAmount = data.line_amount ? parseFloat(data.line_amount.toString().replace(/[^0-9.-]/g, '')) : undefined;
-  const parsedLineCost = data.line_cost ? parseFloat(data.line_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
-  const desc = data.manufacturer_model || data.description || undefined;
-
-  return {
-    organization_id: organizationId,
-    purchase_date: data.acquisition_date,
-    vendor: data.vendor,
-    category: data.category,
-    description: desc,
-    line_amount: parsedLineAmount,
-    line_cost: parsedLineCost,
-    quantity: parsedQty,
-    item_price: parsedItemPrice,
-    item_cost: parsedItemCost,
-    // One line type (10-07): an equipment row is a tracked, depreciated line.
-    row_type: 'line' as const,
-    track: data.source === '1',
-    tax_treatment: (data.source === '1' ? 'depreciate' : 'expense') as 'depreciate' | 'expense',
-  };
-}
-
-/**
- * Maps a CSV row to an Asset object
- */
-function mapRowToAsset(organizationId: string, data: any) {
-  const parsedQty = data.quantity ? parseInt(data.quantity.toString().replace(/[^0-9.-]/g, '')) : 1;
-  const parsedItemPrice = data.item_price ? parseFloat(data.item_price.toString().replace(/[^0-9.-]/g, '')) : undefined;
-  const parsedItemCost = data.item_cost ? parseFloat(data.item_cost.toString().replace(/[^0-9.-]/g, '')) : undefined;
-  const desc = data.manufacturer_model || data.description || undefined;
-
-  return {
-    organization_id: organizationId,
-    category: data.category,
-    manufacturer_model: data.manufacturer_model,
-    type: data.type || undefined,
-    serial_number: data.serial_number || undefined,
-    tag_number: data.tag_number || undefined,
-    acquisition_date: data.acquisition_date,
-    vendor: data.vendor,
-    item_price: parsedItemPrice,
-    item_cost: parsedItemCost,
-    quantity: parsedQty,
-    description: desc,
-    insurance_policy_added: data.insured ? (data.insured.toLowerCase() === 'yes' || data.insured === 'true') : false,
-    insurance_class: data.insurance_class || undefined,
-    replacement_value: data.replacement_value ? parseFloat(data.replacement_value.toString().replace(/[^0-9.-]/g, '')) : undefined,
-    retired_on: data.retired_on || undefined,
-    liquidation_amt: data.liquidation_amt ? parseFloat(data.liquidation_amt.toString().replace(/[^0-9.-]/g, '')) : undefined,
-    // Kept only if the line is depreciated (the purchase RPC checks, #125).
-    recovery_period: ['5', '7', '15'].includes(String(data.recovery_period ?? '').trim()) ? Number(data.recovery_period) : undefined,
-    status: data.status || 'Active',
-    kit: data.kit || undefined,
-  };
 }

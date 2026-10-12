@@ -2,6 +2,8 @@ import Papa from 'papaparse';
 import { Organization, OrganizationRole } from './supabase/types';
 import { isValidTimezone, getDefaultTimezone } from './timezones';
 import { GIG_STATUS_CONFIG } from './supabase/constants';
+import { unitRowProblems, type UnitRow } from './lineUnits';
+import micKitExampleCsv from '../config/import-examples/mic-kit-purchase.csv?raw';
 import { isNoonUTC } from './dateUtils';
 
 export type ImportType = 'gigs' | 'assets';
@@ -21,6 +23,25 @@ export interface ParsedRow<T> {
   importStatus?: ImportStatus;
   importError?: string;
   originalValues?: Record<string, string>;
+  /** Notes that don't block the row, e.g. "Qty 3 (from serials)" (#183 D). */
+  notes?: string[];
+  /** The row as read from the file (assets), so fixing a row re-runs the whole file's grouping and cost allocation. */
+  raw?: Record<string, string>;
+  /** The purchase (assets) this row was grouped into when the file was last checked. */
+  purchase?: AssetPurchaseRef;
+}
+
+/**
+ * The purchase a row of an assets file belongs to, set by processAssetRows. Every row of
+ * the file has one, valid or not, so each line keeps its own invoice (#183 D).
+ */
+export interface AssetPurchaseRef {
+  /** The purchase's first row: its invoice row, or its first line when it has none. */
+  id: number;
+  header: AssetRow;
+  /** The invoice rows merged into the header (none for a standalone or made-up header). */
+  headerRowIndexes: number[];
+  synthesized: boolean;
 }
 
 export interface GigRow {
@@ -54,18 +75,18 @@ export interface AssetRow {
   manufacturer_model: string;
   category: string;
   type?: string;
+  /** The kit this row's units, or its lot, go into: found by name or created (#183 D). */
   kit?: string;
+  /** One serial per unit, separated by ";" (#183 D). */
   serial_number?: string;
+  /** One tag per unit, separated by ";" (#183 D). */
   tag_number?: string;
   description?: string;
   insured?: string;
   insurance_class?: string;
   replacement_value?: string;
-  retired_on?: string;
-  liquidation_amt?: string;
   /** Depreciated equipment's tax recovery period: 5, 7 or 15 (#125). */
   recovery_period?: string;
-  status?: string;
   // Legacy aliases for backward compatibility during transition
   cost_per_item?: string;
   replacement_value_per_item?: string;
@@ -340,8 +361,7 @@ export function applyCostAllocation(
     const data = row.data;
     
     // 1. Resolve Quantity
-    const qtyStr = data.quantity?.toString().replace(/[^0-9.-]/g, '') || '';
-    const q = qtyStr ? Math.max(1, parseFloat(qtyStr)) : 1;
+    const q = assetQuantity(data.quantity);
     data.quantity = q.toString();
 
     // 2. Identify Path
@@ -462,11 +482,8 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
     insured: row.insured || '',
     insurance_class: row.insurance_class || row.insurance_category || '',
     replacement_value: row.replacement_value || row.replacement_value_per_item || '',
-    retired_on: row.retired_on || '',
-    liquidation_amt: row.liquidation_amt || '',
     // An old sheet's service_life column is the recovery period (#125).
     recovery_period: row.recovery_period || row.service_life || '',
-    status: row.status || '',
     // Legacy aliases
     cost_per_item: row.cost_per_item || '',
     replacement_value_per_item: row.replacement_value_per_item || '',
@@ -564,7 +581,6 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
   };
 
   validateAndNormalizeDate('acquisition_date', 'acquisition date');
-  validateAndNormalizeDate('retired_on', 'retired date');
 
   // 4. Numeric validation
   const validateNumeric = (field: string, value: string, label: string, allowNegative = false) => {
@@ -584,18 +600,52 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
   validateNumeric('line_cost', data.line_cost, 'line cost');
   validateNumeric('item_cost', data.item_cost, 'item cost');
   validateNumeric('replacement_value', data.replacement_value, 'replacement value');
-  validateNumeric('liquidation_amt', data.liquidation_amt, 'liquidation amount');
   if (data.recovery_period && data.recovery_period.trim() && !['5', '7', '15'].includes(data.recovery_period.trim())) {
     errors.push({ field: 'recovery_period', message: `Invalid recovery period "${data.recovery_period}". Must be 5, 7 or 15.` });
   }
 
-  if (data.quantity && data.quantity.trim()) {
-    const qty = parseInt(data.quantity);
-    if (isNaN(qty)) {
-      errors.push({ field: 'quantity', message: `Invalid quantity "${data.quantity}". Must be a whole number.` });
-    } else if (qty < 1) {
-      errors.push({ field: 'quantity', message: 'Quantity must be at least 1' });
+  const notes: string[] = [];
+
+  // 5. Units and lots (#183 D): ";"-separated serials or tags make one unit each, and their
+  // count is the quantity (a blank quantity is taken from them). Neither makes a lot.
+  const unitRows = data.source === '1' ? assetRowUnits(data) : [];
+  const fromSerials = splitIdList(data.serial_number).length >= splitIdList(data.tag_number).length;
+  if (unitRows.length && !data.quantity.trim()) {
+    data.quantity = String(unitRows.length);
+    notes.push(`Qty ${unitRows.length} (from ${fromSerials ? 'serials' : 'tags'})`);
+  }
+
+  // One reading of the quantity, here and in the cost allocation and the plan.
+  const qty = parseAssetQuantity(data.quantity);
+  if (qty !== null && isNaN(qty)) {
+    errors.push({ field: 'quantity', message: `Invalid quantity "${data.quantity}". Must be a whole number.` });
+  } else if (qty !== null) {
+    data.quantity = String(qty);
+    if (qty < 1) errors.push({ field: 'quantity', message: 'Quantity must be at least 1' });
+  }
+
+  if (unitRows.length && !(qty !== null && isNaN(qty))) {
+    const q = qty ?? 1;
+    const n = unitRows.length;
+    if (n !== q) {
+      const [field, one, many] = fromSerials
+        ? ['serial_number', 'serial number', 'serial numbers'] as const
+        : ['tag_number', 'tag', 'tags'] as const;
+      errors.push({
+        field,
+        message: `${n} ${n === 1 ? one : many} for quantity ${q}. Give ${q} ${many} separated by ";" (${q} units), or clear the ${n === 1 ? one : many} (a lot of ${q}).`,
+      });
+    } else {
+      // The same checks, and words, as the Equipment details pop-up.
+      for (const message of unitRowProblems(unitRows)) {
+        errors.push({ field: / tag /.test(message) && !/serial/.test(message) ? 'tag_number' : 'serial_number', message });
+      }
     }
+  }
+
+  // 6. Kits take equipment only: a unit line per unit, or the lot with its quantity (#183 D).
+  if (data.kit.trim() && data.source !== '1') {
+    errors.push({ field: 'kit', message: 'Only an equipment row (1-Asset) can go in a kit: clear the kit, or make the row 1-Asset.' });
   }
 
   return {
@@ -603,156 +653,282 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
     data,
     errors,
     isValid: errors.length === 0,
+    ...(notes.length ? { notes } : {}),
+    raw: { ...row },
   };
+}
+
+/**
+ * A quantity as the assets import reads it, everywhere: blank is null, a whole number is
+ * that number (spaces around it are fine), anything else (3.5, 1e1, 1,000) is NaN.
+ */
+export function parseAssetQuantity(value: string | undefined | null): number | null {
+  const t = (value ?? '').trim();
+  if (!t) return null;
+  return /^\d+$/.test(t) ? Number(t) : NaN;
+}
+
+/** The quantity a valid row saves: its quantity, or 1 when blank. */
+export function assetQuantity(value: string | undefined | null): number {
+  const q = parseAssetQuantity(value);
+  return q !== null && q >= 1 ? q : 1;
+}
+
+/**
+ * A ";"-separated list of serials or tags, one per unit (#183 D). Places are kept, so
+ * "A;;C" pairs with a tag list by position; a trailing ";" adds nothing.
+ */
+export function splitIdList(value: string | undefined | null): string[] {
+  if (!value || !value.trim()) return [];
+  const parts = value.split(';').map((p) => p.trim());
+  while (parts.length && !parts[parts.length - 1]) parts.pop();
+  return parts;
+}
+
+/** A row's units: serials and tags paired by position; the longer list sets how many. None: a lot. */
+export function assetRowUnits(data: Pick<AssetRow, 'serial_number' | 'tag_number'>): UnitRow[] {
+  const serials = splitIdList(data.serial_number);
+  const tags = splitIdList(data.tag_number);
+  const n = Math.max(serials.length, tags.length);
+  return Array.from({ length: n }, (_, i) => ({ serial_number: serials[i] ?? '', tag_number: tags[i] ?? '' }));
+}
+
+/**
+ * Columns the import doesn't read. Imports seed a new account, so every unit and lot is
+ * Active (Cameron, 10-12: status); sales and retirements are recorded on the equipment
+ * page (Cameron, 10-11: retired_on, liquidation_amt).
+ */
+export const DROPPED_ASSET_COLUMNS = ['status', 'retired_on', 'liquidation_amt'] as const;
+
+/** The notice for an old file's columns that aren't imported, or none. */
+function droppedColumnsNotice(fields: string[]): string | null {
+  const dropped = DROPPED_ASSET_COLUMNS.filter((c) => fields.includes(c));
+  if (!dropped.length) return null;
+  const why = [
+    ...(dropped.includes('status') ? ['Imported equipment is Active.'] : []),
+    ...(dropped.some((c) => c !== 'status') ? ['Record sales and retirements on the equipment page.'] : []),
+  ];
+  return `These columns aren’t imported: ${dropped.join(', ')}. ${why.join(' ')}`;
 }
 
 export function parseAndValidateCSV<T extends GigRow | AssetRow>(
   file: File,
   importType: ImportType,
   userTimezone?: string | null
-): Promise<{ validRows: ParsedRow<T>[]; invalidRows: ParsedRow<T>[] }> {
+): Promise<{ validRows: ParsedRow<T>[]; invalidRows: ParsedRow<T>[]; notices: string[] }> {
   return new Promise(async (resolve, reject) => {
     try {
       const result = await parseCSV<any>(file);
-      const rows: ParsedRow<T>[] = [];
 
-      result.data.forEach((row, index) => {
-        let parsedRow: ParsedRow<T>;
-        if (importType === 'gigs') {
-          parsedRow = validateGigRow(row, index + 2, userTimezone) as ParsedRow<T>;
-        } else {
-          parsedRow = validateAssetRow(row, index + 2) as ParsedRow<T>;
-        }
-        rows.push(parsedRow);
-      });
-
-      // For assets, handle hierarchical grouping and cost allocation
-      if (importType === 'assets') {
-        const assetRows = rows as ParsedRow<AssetRow>[];
-        
-        // Group rows using Transaction Context
-        const allGroups: {
-          header: AssetRow | null;
-          items: ParsedRow<AssetRow>[];
-        }[] = [];
-        const latestGroupMap = new Map<string, number>(); // dateKey|vendorKey -> index in allGroups
-        let lastHeaderIdx: number | undefined = undefined;
-
-        assetRows.forEach((row) => {
-          if (!row.isValid) return;
-          
-          const data = row.data;
-          const dateKey = data.acquisition_date || '';
-          const vendorKey = (data.vendor || '').toLowerCase().trim();
-          const lookupKey = dateKey && vendorKey ? `${dateKey}|${vendorKey}` : null;
-          
-          const isHeader = data.source === '0';
-          const hasTotal = !!(data.total_inv_amount && parseFloat(data.total_inv_amount.toString().replace(/[^0-9.-]/g, '')) > 0);
-          const isStandalone = (data.source === '1' || data.source === '2') && hasTotal;
-
-          if (isHeader) {
-            const existingIdx = lookupKey ? latestGroupMap.get(lookupKey) : undefined;
-            const invAmt = hasTotal ? parseFloat(data.total_inv_amount!.toString().replace(/[^0-9.-]/g, '')) : 0;
-
-            if (existingIdx !== undefined && allGroups[existingIdx].items.length === 0) {
-              const group = allGroups[existingIdx];
-              const currentTotal = parseFloat(group.header!.total_inv_amount?.toString().replace(/[^0-9.-]/g, '') || '0');
-              group.header!.total_inv_amount = (currentTotal + invAmt).toFixed(2);
-              if (data.description || data.manufacturer_model) {
-                group.header!.description = group.header!.description 
-                  ? `${group.header!.description}; ${data.manufacturer_model || data.description}`
-                  : (data.manufacturer_model || data.description);
-              }
-              lastHeaderIdx = existingIdx;
-            } else {
-              const newGroup = {
-                header: data,
-                items: [],
-              };
-              allGroups.push(newGroup);
-              lastHeaderIdx = allGroups.length - 1;
-              if (lookupKey) {
-                latestGroupMap.set(lookupKey, lastHeaderIdx);
-              }
-            }
-          } else if (isStandalone) {
-            const newGroup = {
-              header: data,
-              items: [row],
-            };
-            allGroups.push(newGroup);
-            // Don't update lastHeaderIdx or latestGroupMap for standalone
-          } else {
-            // It's a child row (Asset or Expense)
-            let groupIdx = lookupKey ? latestGroupMap.get(lookupKey) : undefined;
-            
-            // If no explicit match via lookupKey, try the last seen header
-            if (groupIdx === undefined && lastHeaderIdx !== undefined) {
-              groupIdx = lastHeaderIdx;
-            }
-
-            if (groupIdx === undefined) {
-              const synthesizedGroup = {
-                header: {
-                  ...data,
-                  source: '0',
-                  total_inv_amount: '0',
-                  description: 'Synthesized Purchase Header',
-                },
-                items: [row],
-              };
-              allGroups.push(synthesizedGroup);
-              groupIdx = allGroups.length - 1;
-              if (lookupKey) {
-                latestGroupMap.set(lookupKey, groupIdx);
-              }
-            } else {
-              allGroups[groupIdx].items.push(row);
-            }
-          }
-        });
-
-        // Apply allocation to each group and track overall totals
-        let totalImportInvAmount = 0;
-        let totalImportLineCost = 0;
-
-        allGroups.forEach((group) => {
-          if (group.header && group.items.length > 0) {
-            // Before allocation, ensure all items in the group have the header's date/vendor
-            // if they were missing them
-            group.items.forEach(item => {
-              if (!item.data.vendor && group.header!.vendor) {
-                item.data.vendor = group.header!.vendor;
-              }
-              if (!item.data.acquisition_date && group.header!.acquisition_date) {
-                item.data.acquisition_date = group.header!.acquisition_date;
-              }
-            });
-
-            applyCostAllocation(group.header, group.items);
-            
-            // Add to overall totals for verification
-            totalImportInvAmount += parseFloat(group.header.total_inv_amount?.toString().replace(/[^0-9.-]/g, '') || '0');
-            totalImportLineCost += group.items.reduce((sum, item) => sum + parseFloat(item.data.line_cost || '0'), 0);
-          }
-        });
-
-        // Final verification: total_inv_amount = sum(line_cost) for the whole import
-        // (Rounding to 2 decimal places to handle floating point issues)
-        const diff = Math.abs(Math.round((totalImportInvAmount - totalImportLineCost) * 100) / 100);
-        if (diff > 0.01 && totalImportInvAmount > 0) {
-          console.warn(`Import total mismatch: Total Inv AMT (${totalImportInvAmount.toFixed(2)}) != Total Line Cost (${totalImportLineCost.toFixed(2)}). Diff: ${diff}`);
-        }
+      if (importType === 'gigs') {
+        const rows = result.data.map((row, index) => validateGigRow(row, index + 2, userTimezone) as ParsedRow<T>);
+        resolve({ validRows: rows.filter(r => r.isValid), invalidRows: rows.filter(r => !r.isValid), notices: [] });
+        return;
       }
 
-      const validRows = rows.filter(r => r.isValid);
-      const invalidRows = rows.filter(r => !r.isValid);
-
-      resolve({ validRows, invalidRows });
+      const processed = processAssetRows(result.data.map((raw, index) => ({ rowIndex: index + 2, raw })));
+      const notice = droppedColumnsNotice(result.meta?.fields ?? []);
+      const notices = notice ? [notice] : [];
+      resolve({
+        validRows: processed.validRows as ParsedRow<T>[],
+        invalidRows: processed.invalidRows as ParsedRow<T>[],
+        notices,
+      });
     } catch (error) {
       reject(error);
     }
   });
+}
+
+/** Rows that share a purchase: its header (an invoice row, a standalone row, or one made up) and its lines. */
+export interface AssetRowGroup {
+  header: AssetRow;
+  /** The invoice rows merged into this header (none for a standalone or made-up header). */
+  headerRowIndexes: number[];
+  items: ParsedRow<AssetRow>[];
+  /** No invoice row or total: the header was made up from the first line. */
+  synthesized: boolean;
+}
+
+const money = (v: string | undefined) => parseFloat((v ?? '').toString().replace(/[^0-9.-]/g, '')) || 0;
+
+/**
+ * Group every row of the file into purchases, in file order (by rowIndex), valid or not,
+ * so each line keeps its own invoice whatever else in the file is invalid (#183 D): an
+ * invoice row (source 0) starts one, and the rows after it join it, matched by date +
+ * vendor or else the last invoice seen. A line with a total of its own is a purchase by
+ * itself. Lines with no invoice get a made-up header. Valid lines missing a date or vendor
+ * take the header's.
+ */
+export function groupAssetRows(rows: ParsedRow<AssetRow>[]): AssetRowGroup[] {
+  const groups: AssetRowGroup[] = [];
+  const byKey = new Map<string, number>(); // date|vendor -> group
+  let lastHeaderIdx: number | undefined;
+
+  [...rows].sort((a, b) => a.rowIndex - b.rowIndex).forEach((row) => {
+    const data = row.data;
+    const vendorKey = (data.vendor || '').toLowerCase().trim();
+    const lookupKey = data.acquisition_date && vendorKey ? `${data.acquisition_date}|${vendorKey}` : null;
+    const hasTotal = money(data.total_inv_amount) > 0;
+
+    if (data.source === '0') {
+      const existingIdx = lookupKey ? byKey.get(lookupKey) : undefined;
+      if (existingIdx !== undefined && groups[existingIdx].items.length === 0) {
+        // A second invoice row for the same date and vendor, before any lines: one purchase.
+        const group = groups[existingIdx];
+        group.header.total_inv_amount = (money(group.header.total_inv_amount) + (hasTotal ? money(data.total_inv_amount) : 0)).toFixed(2);
+        const more = data.manufacturer_model || data.description;
+        if (more) group.header.description = group.header.description ? `${group.header.description}; ${more}` : more;
+        group.headerRowIndexes.push(row.rowIndex);
+        lastHeaderIdx = existingIdx;
+      } else {
+        groups.push({ header: { ...data }, headerRowIndexes: [row.rowIndex], items: [], synthesized: false });
+        lastHeaderIdx = groups.length - 1;
+        if (lookupKey) byKey.set(lookupKey, lastHeaderIdx);
+      }
+    } else if (hasTotal) {
+      // A line with its own total is a purchase by itself; later lines don't join it.
+      groups.push({ header: { ...data }, headerRowIndexes: [], items: [row], synthesized: false });
+    } else {
+      let idx = lookupKey ? byKey.get(lookupKey) : undefined;
+      if (idx === undefined) idx = lastHeaderIdx;
+      if (idx === undefined) {
+        groups.push({
+          header: { ...data, source: '0', total_inv_amount: '0', description: 'Synthesized Purchase Header' },
+          headerRowIndexes: [],
+          items: [row],
+          synthesized: true,
+        });
+        if (lookupKey) byKey.set(lookupKey, groups.length - 1);
+      } else {
+        groups[idx].items.push(row);
+      }
+    }
+  });
+
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (!item.isValid) continue; // an invalid row shows what the file says, to be fixed
+      if (!item.data.vendor && group.header.vendor) item.data.vendor = group.header.vendor;
+      if (!item.data.acquisition_date && group.header.acquisition_date) item.data.acquisition_date = group.header.acquisition_date;
+    }
+  }
+  return groups;
+}
+
+/**
+ * A tag or serial on more than one row of the file: the later rows are refused (#183 D).
+ * Rows already imported keep theirs, wherever they are in the file.
+ */
+function refuseRepeatedIds(rows: ParsedRow<AssetRow>[], imported: Set<number>): void {
+  // The first row with each id, and how it was written there (as the pop-up names it).
+  const seen = { tag_number: new Map<string, [number, string]>(), serial_number: new Map<string, [number, string]>() };
+  const order = [...rows].sort((a, b) => Number(imported.has(b.rowIndex)) - Number(imported.has(a.rowIndex)) || a.rowIndex - b.rowIndex);
+  for (const row of order) {
+    if (!row.isValid || row.data.source !== '1') continue;
+    for (const field of ['tag_number', 'serial_number'] as const) {
+      for (const id of splitIdList(row.data[field])) {
+        if (!id) continue;
+        const key = id.toUpperCase();
+        const first = seen[field].get(key);
+        if (first === undefined) {
+          seen[field].set(key, [row.rowIndex, id]);
+        } else if (first[0] !== row.rowIndex && !imported.has(row.rowIndex)) {
+          const where = imported.has(first[0]) ? `row ${first[0]}, which was already imported` : `row ${first[0]}`;
+          row.errors.push({ field, message: `${field === 'tag_number' ? 'Tag' : 'Serial number'} ${first[1]} is also on ${where}.` });
+          row.isValid = false;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Validate an assets file's rows, refuse tags or serials used twice, group every row into
+ * purchases and allocate each complete invoice's total over its lines. Always from the rows
+ * as read, so running it again (after fixing a row) allocates from scratch.
+ *
+ * A purchase with an invalid row is held: not allocated, and not imported until it's
+ * fixed (#183 D). An invoice row with no lines is refused. `imported` rows were saved
+ * already: they come back as they were, and any other row of their purchase is refused,
+ * since an import never adds lines to a saved invoice.
+ */
+export function processAssetRows(inputs: { rowIndex: number; raw: Record<string, string>; imported?: ParsedRow<AssetRow> }[]): {
+  validRows: ParsedRow<AssetRow>[];
+  invalidRows: ParsedRow<AssetRow>[];
+} {
+  const rows = inputs.map(({ rowIndex, raw }) => validateAssetRow(raw, rowIndex));
+  const imported = new Map(inputs.filter((i) => i.imported).map((i) => [i.rowIndex, i.imported!]));
+  refuseRepeatedIds(rows, new Set(imported.keys()));
+  const byIndex = new Map(rows.map((r) => [r.rowIndex, r]));
+
+  let totalInv = 0;
+  let totalLineCost = 0;
+  for (const group of groupAssetRows(rows)) {
+    const members = [...group.headerRowIndexes.map((i) => byIndex.get(i)!), ...group.items].sort((a, b) => a.rowIndex - b.rowIndex);
+    const ref: AssetPurchaseRef = {
+      id: members[0].rowIndex,
+      header: group.header,
+      headerRowIndexes: group.headerRowIndexes,
+      synthesized: group.synthesized,
+    };
+    for (const r of members) r.purchase = ref;
+
+    if (members.some((r) => imported.has(r.rowIndex))) {
+      for (const r of members) {
+        if (imported.has(r.rowIndex)) continue;
+        r.errors.push({
+          field: 'purchase',
+          message: `Row ${r.rowIndex} belongs to the invoice on row ${ref.id}, which was already imported. Imports never add lines to a saved invoice: add it on the purchase screen.`,
+        });
+        r.isValid = false;
+      }
+      continue;
+    }
+    if (!group.items.length) {
+      for (const r of members) {
+        r.errors.push({ field: 'source', message: `The invoice on row ${ref.id} has no lines. Put its lines on the rows after it, or delete the row.` });
+        r.isValid = false;
+      }
+      continue;
+    }
+    if (members.some((r) => !r.isValid)) continue; // held until it's fixed
+
+    applyCostAllocation(group.header, group.items);
+    totalInv += money(group.header.total_inv_amount);
+    totalLineCost += group.items.reduce((sum, item) => sum + money(item.data.line_cost), 0);
+  }
+  // Every invoice's lines add up to its total; a mismatch here is a bug, not bad data.
+  const diff = Math.abs(Math.round((totalInv - totalLineCost) * 100) / 100);
+  if (diff > 0.01 && totalInv > 0) {
+    console.warn(`Import total mismatch: Total Inv AMT (${totalInv.toFixed(2)}) != Total Line Cost (${totalLineCost.toFixed(2)}). Diff: ${diff}`);
+  }
+
+  // Rows already imported stay as they were saved, in their (unchanged) purchase.
+  const out = rows
+    .map((r) => {
+      const saved = imported.get(r.rowIndex);
+      return saved ? { ...saved, purchase: r.purchase } : r;
+    })
+    .sort((a, b) => a.rowIndex - b.rowIndex);
+  return { validRows: out.filter((r) => r.isValid), invalidRows: out.filter((r) => !r.isValid) };
+}
+
+/**
+ * Re-check an assets file after rows were fixed on screen: the whole file is validated,
+ * grouped and allocated again from the file's values plus the fixes, so a fixed row joins
+ * its own invoice (#183 D). Rows already imported are kept as they are; a row of their
+ * purchase is refused. Rows whose purchase failed to save are ready to import again.
+ */
+export function revalidateAssetRows(validRows: ParsedRow<AssetRow>[], invalidRows: ParsedRow<AssetRow>[]): {
+  validRows: ParsedRow<AssetRow>[];
+  invalidRows: ParsedRow<AssetRow>[];
+} {
+  return processAssetRows([...validRows, ...invalidRows].map((r) => ({
+    rowIndex: r.rowIndex,
+    raw: r.raw ?? (r.data as unknown as Record<string, string>),
+    ...(r.importStatus === 'success' ? { imported: r } : {}),
+  })));
 }
 
 export function generateGigTemplate(): string {
@@ -773,126 +949,66 @@ export function generateGigTemplate(): string {
   return Papa.unparse([headers, example], { header: false });
 }
 
-export function generateAssetTemplate(): string {
-  const headers = [
-    'acquisition_date',
-    'source',
-    'vendor',
-    'total_inv_amount',
-    'payment_method',
-    'line_amount',
-    'line_cost',
-    'quantity',
-    'item_price',
-    'item_cost',
-    'manufacturer_model',
-    'category',
-    'type',
-    'kit',
-    'serial_number',
-    'tag_number',
-    'description',
-    'insured',
-    'insurance_class',
-    'replacement_value',
-    'retired_on',
-    'liquidation_amt',
-    'recovery_period',
-    'status'
-  ];
-  const exampleInvoice = [
-    '2025-10-10',
-    '0-Invoice',
-    'Amazon',
-    '106.05',
-    'Visa',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    ''
-  ];
-  const exampleAsset = [
-    '2025-10-10',
-    '1-Asset',
-    'Amazon',
-    '',
-    '',
-    '87.98',
-    '95.24',
-    '2',
-    '43.99',
-    '47.62',
-    'PowerCon Power Cable 1M',
-    'Lighting',
-    'PowerCon Cable',
-    'LightBox',
-    '',
-    '',
-    '',
-    'FALSE',
-    '',
-    '50',
-    '',
-    '',
-    '7',
-    'Active'
-  ];
-  const exampleExpense = [
-    '2025-10-10',
-    '2-Expense',
-    'Amazon',
-    '',
-    '',
-    '9.99',
-    '10.81',
-    '1',
-    '9.99',
-    '10.81',
-    'Gaffer Power Black Gaffers Tape 2"x30yd',
-    'Supplies',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    ''
-  ];
+/**
+ * The assets template's columns, in three groups (mockup 11, #183 D): what the item is,
+ * the unit or lot we own (and the kit it goes into), and the purchase line. Files are
+ * read by header name, so older files in another order still import.
+ */
+export const ASSET_TEMPLATE_COLUMNS = {
+  item: ['manufacturer_model', 'category', 'type', 'description', 'insurance_class'],
+  unit: ['quantity', 'serial_number', 'tag_number', 'kit', 'replacement_value', 'insured', 'recovery_period'],
+  line: ['acquisition_date', 'vendor', 'source', 'total_inv_amount', 'payment_method', 'line_amount', 'line_cost', 'item_price', 'item_cost'],
+} as const;
 
-  return Papa.unparse([headers, exampleInvoice, exampleAsset, exampleExpense], { header: false });
+type TemplateColumn = (typeof ASSET_TEMPLATE_COLUMNS)[keyof typeof ASSET_TEMPLATE_COLUMNS][number];
+
+export function generateAssetTemplate(): string {
+  const headers: TemplateColumn[] = [...ASSET_TEMPLATE_COLUMNS.item, ...ASSET_TEMPLATE_COLUMNS.unit, ...ASSET_TEMPLATE_COLUMNS.line];
+  const row = (values: Partial<Record<TemplateColumn, string>>) => headers.map((h) => values[h] ?? '');
+  const line = { acquisition_date: '2025-10-10', vendor: 'Amazon' };
+  // One invoice: 2 serial-numbered mics (2 units) into a kit, a lot of 2 cables, and tape expensed.
+  const exampleInvoice = row({ ...line, source: '0-Invoice', total_inv_amount: '320.39', payment_method: 'Visa' });
+  const exampleUnits = row({
+    manufacturer_model: 'Shure SM58', category: 'Audio', type: 'Dynamic Microphone',
+    quantity: '2', serial_number: '2NC0101;2NC0102', kit: 'Mic Kit 1', replacement_value: '99', insured: 'TRUE', recovery_period: '7',
+    ...line, source: '1-Asset', line_amount: '198.00', item_price: '99.00',
+  });
+  const exampleLot = row({
+    manufacturer_model: 'PowerCon Power Cable 1M', category: 'Lighting', type: 'PowerCon Cable',
+    quantity: '2', replacement_value: '50', insured: 'FALSE',
+    ...line, source: '1-Asset', line_amount: '87.98', item_price: '43.99',
+  });
+  const exampleExpense = row({
+    manufacturer_model: 'Gaffer Power Black Gaffers Tape 2"x30yd', category: 'Supplies',
+    quantity: '1', ...line, source: '2-Expense', line_amount: '9.99', item_price: '9.99',
+  });
+
+  return Papa.unparse([headers, exampleInvoice, exampleUnits, exampleLot, exampleExpense], { header: false });
 }
 
-export function downloadTemplate(importType: ImportType): void {
-  const csv = importType === 'gigs' ? generateGigTemplate() : generateAssetTemplate();
+function downloadCsv(csv: string, fileName: string): void {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.setAttribute('href', url);
-  link.setAttribute('download', `${importType}-template.csv`);
+  link.setAttribute('download', fileName);
   link.style.visibility = 'hidden';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+export function downloadTemplate(importType: ImportType): void {
+  downloadCsv(importType === 'gigs' ? generateGigTemplate() : generateAssetTemplate(), `${importType}-template.csv`);
+}
+
+/**
+ * A worked example for the assets import (#183 D): one invoice of microphones that go
+ * into a kit (4 serial-numbered units, 2 tagged units, a lot of 10 clips) and an
+ * expensed line. The same file is imported by the tests.
+ */
+export function downloadAssetExample(): void {
+  downloadCsv(micKitExampleCsv, 'assets-example-mic-kit.csv');
 }
 
 // Helper to parse boolean from various text formats
