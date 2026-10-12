@@ -818,6 +818,19 @@ describe('MobileInventoryMode', () => {
       expect(screen.queryByText(/still out at/)).not.toBeInTheDocument()
       expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'case-1' }))
     })
+
+    it('doesn\'t ask again once it\'s been packed here (a newer row at this gig)', async () => {
+      const packedHere = { id: 'local-1', gig_id: 'gig-1', kit_id: 'case-1', asset_id: null, status: SCANNING_MODES[0].resultingStatus,
+        quantity: 1, scanned_at: '2026-10-11T09:00:00.000Z', scanned_by: 'user-1' }
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => ({ ...list(away), tracking: [packedHere] }))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await screen.findByText('Mic Case')
+      await user.click(screen.getByText(SCANNING_MODES[1].label))
+      await act(async () => { await scannerProps.onScan('CASE-1') })
+      expect(screen.queryByText(/still out at/)).not.toBeInTheDocument()
+      expect(inventoryTrackingService.submitScan).toHaveBeenCalledWith(expect.objectContaining({ kitId: 'case-1', status: SCANNING_MODES[1].resultingStatus }))
+    })
   })
 
   // #185 (Cameron, 10-10): a unit that isn't on the list is only ever added to the gig. There is no
