@@ -109,6 +109,21 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
+- **Docs Lead status, 10-12 01:40 UTC.**
+  - **Published (PRs, ready for review):**
+    - **PR #274:** Equipment → Locations (prod since 10-11), with a screenshot.
+    - **PR #275:** Payment received → Apply to an open booking (#262, prod).
+  - **Held for the next deploy:**
+    - **Branch `claude/docs-held-10-12` (0a5931e):**
+      - #267 packing list: Columns remembered per browser and used in print; "N kits · M pieces"; partly packed lots "4 of 6"; contents indented and wrapped; the packing-list screenshot is no longer held.
+      - #270: Undo write-off on the equipment's page, and the "asks for 6, lot has 4" note in Equipment needed.
+      - #271: removed the Managers-see-Delete TODOs.
+      - #272: desktop Track a gig scanning.
+      - #263: mobile transaction rows.
+      - #264: the "new version is ready" notice (in Onboarding).
+    - **Branch `claude/docs-kits-draft` (2c3e6b0):** #273 kit page labels, Duplicate opening the copy, lots counting pieces, the #270 kit-editor note, and "4 × any + a specific unit = 5".
+  - **For the coordinator:** #267 doesn't change tick printing; the agent found no such change in the code. The printout's ✓ column has always printed empty boxes, as the published page says, so I didn't document a change.
+  - **Waiting:** #183 D (CSV import).
 - **Locations guide draft (Docs Lead, 10-11 10:40 UTC):** on branch `claude/docs-locations-draft` (402905d), not a PR. Held until #258/#260 are in prod.
   - **What it covers:** reading the page, cases and Contents, untagged items (in a case vs loose), the three filters, and Override for Admins and Managers. The Equipment overview links to it.
   - **App notes, not filed:**
