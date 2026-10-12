@@ -26,8 +26,8 @@ monitor that went out to one gig and then on to another shows once, at the secon
 ### Cases
 
 A case, such as the "Mic Case", has a **Container** badge. Open it to see what's
-inside. What's in a case goes where the case goes, so the case's contents show with
-it.
+inside. When you scan a case, its contents are recorded with it, so they normally show
+under the case.
 
 If the case and its contents end up in different places, for example after you
 correct the case's location by hand, the contents are listed in full under the case's
@@ -38,7 +38,8 @@ name with a **Contents** badge, at the place their own records give.
 Items without tags, such as cables, stands and the mics in a case, are counted rather
 than tagged.
 
-- **Inside a case,** they're one place, wherever the case's newest record puts them.
+- **Inside a case,** they're one place: wherever their newest record in that case puts
+  them.
 - **Loose,** they show at each gig where pieces are still out, and once at home for
   the pieces that came back. A box of cables split between two gigs shows at both.
 
