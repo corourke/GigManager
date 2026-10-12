@@ -111,6 +111,32 @@ describe('ManualTrackingOverrideDialog', () => {
       })));
     });
 
+    // Cameron (10-12): part of a lot in a case may go to another gig, with a warning. Those
+    // pieces leave the case and show loose at the new gig.
+    describe('pieces in a case', () => {
+      const twoGigs = [{ id: 'gig-1', title: 'Summer Festival' }, { id: 'gig-2', title: 'Corporate Event' }];
+      const inCase = { ...lot, inCase: { name: 'Mic Case', gigId: 'gig-1', gigTitle: 'Summer Festival' } };
+
+      it('to another gig: says they leave the case, which stays, and writes them loose', async () => {
+        render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={inCase} gigs={twoGigs} />);
+        fireEvent.click(screen.getByRole('option', { name: 'Corporate Event' }));
+        fireEvent.click(screen.getByRole('option', { name: 'Checked Out' }));
+        fireEvent.change(screen.getByLabelText('How many to move'), { target: { value: '2' } });
+        expect(screen.getByText('These 2 leave Mic Case. The case stays at Summer Festival.')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Move 2' }));
+        await waitFor(() => expect(moveLotPieces).toHaveBeenCalledWith(expect.objectContaining({ n: 2, toGigId: 'gig-2', leaveCase: true })));
+      });
+
+      it('home, or at the case\'s own gig: no warning, and they stay in the case', async () => {
+        render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={inCase} gigs={twoGigs} />);
+        fireEvent.click(screen.getByRole('option', { name: 'In Warehouse' }));
+        fireEvent.change(screen.getByLabelText('How many to move'), { target: { value: '2' } });
+        expect(screen.queryByText(/leave Mic Case/)).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Move 2' }));
+        await waitFor(() => expect(moveLotPieces).toHaveBeenCalledWith(expect.objectContaining({ leaveCase: false })));
+      });
+    });
+
     it('from home, no more than the pieces at home can go', async () => {
       const home = { here: 1, of: 6, status: 'In Warehouse', location: 'Bay 2', place: 'Bay 2' };
       render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={home} />);

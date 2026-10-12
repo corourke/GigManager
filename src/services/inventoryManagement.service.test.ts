@@ -221,6 +221,23 @@ describe('inventoryManagement.service', () => {
       });
     });
 
+    it('pieces leaving their case for another gig are written loose there; the rest stay in the case (Cameron, 10-12)', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const before = [lotRow('c', 'gig-a', 'case', 'On Site', 6, '2026-10-05T10:00:00Z', true)];
+      const chain = capture(before);
+      await moveLotPieces({ ...base, kitId: 'case', here: 6, lotOf: 10, n: 2, toGigId: 'gig-b', toStatus: 'Checked Out', toLocation: 'Dock', leaveCase: true });
+      expect(inserted(chain)).toEqual([
+        { gig_id: 'gig-a', kit_id: 'case', status: 'On Site', location: 'Stage', quantity: 4 },
+        { gig_id: 'gig-b', kit_id: null, status: 'Checked Out', location: 'Dock', quantity: 2 },
+      ]);
+      const rows = [...before, ...chain.insert.mock.calls.flatMap((c: any[]) => c[0]).map((r: any, i: number) => ({ ...r, id: `n${i}`, created_at: null }))];
+      expect(whereabouts(rows, [{ id: 'lot', quantity: 10, status: 'Active' }], (k) => k === 'case')).toEqual([
+        { gig_id: 'gig-a', location: 'Stage', quantity: 4 },
+        { gig_id: 'gig-b', location: 'Dock', quantity: 2 },
+        { gig_id: null, location: null, quantity: 4 },
+      ]);
+    });
+
     it('from home with none home, nothing goes: it says so', async () => {
       const { moveLotPieces } = await import('./inventoryManagement.service');
       const chain = capture([lotRow('out', 'gig-b', 'k2', 'On Site', 6, '2026-10-02T10:00:00Z')]);
@@ -1624,6 +1641,18 @@ describe('inventoryManagement.service', () => {
           ['t58', 'halloween', 'Staging Area'],
           ['t58', 'paper-lanterns', 'Warehouse'],
         ]);
+      });
+
+      it('a lot line in a case says where the case itself is (Cameron, 10-12)', async () => {
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+          ? { data: [{ id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null, quantity: 6 }], error: null }
+          : { data: [
+            row('case-row', 'gig-b', null, 'Checked Out', 'Dock', '2026-10-10T10:00:00.000Z'),
+            { ...row('t58-row', 'gig-b', 't58', 'Checked Out', 'Dock', '2026-10-10T10:00:00.000Z'), quantity: 4 },
+          ], error: null }));
+        const lines = await getItemsByLocation('org-1', { itemId: undefined, status: allStatuses });
+        expect(lines.find((l) => l.asset_id === 't58')).toMatchObject({ case_gig_id: 'gig-b', case_gig_title: 'gig-b' });
       });
 
       it('a lot\'s lines count its pieces now: the home line is the lot less what\'s out (review, 10-12)', async () => {
