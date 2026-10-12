@@ -118,8 +118,8 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
 - **Docs Lead status, 10-12 05:35 UTC (after Cameron's 10-12 deploy):**
-  - **PR #277:** publishes the held drafts: packing list (#267), Undo write-off and the lot note (#270), Delete for Admins only (#271), desktop scanning (#272), phone rows (#263), the update notice (#264), CSV import (#276), and the #269 case warning. Columns persistence and desktop scanning were checked on dev.
-  - **PR #280:** publishes Kits (#273 and #270), audited against main, with 2 screenshots.
+  - **PR #277 (merged 10-12 15:23 UTC):** publishes the held drafts: packing list (#267), Undo write-off and the lot note (#270), Delete for Admins only (#271), desktop scanning (#272), phone rows (#263), the update notice (#264), CSV import (#276), and the #269 case warning. Columns persistence and desktop scanning were checked on dev.
+  - **PR #280:** publishes Kits (#273 and #270), audited against main, with 2 screenshots. Main merged in after #277 (taken.json); head c1c83b3, builds clean.
   - **Filed:**
     - **#278:** the kit list's Tracking Status count reads "6/0" and "7/5".
     - **#279:** the kit editor's Kit Contents table overflows its card (Total Value and the remove X are cut off).
@@ -247,39 +247,39 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong / next |
 |---|---|---|---|
 | `equipment/assets.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/assigning-to-a-gig.md` | published (PRs #250, #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | kit assignment, equipment table, Not returned, write-offs, Added at pack-out label; Out on gigs (Track a gig) to come with #186 |
+| `equipment/assigning-to-a-gig.md` | published (PRs #250, #259, #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | kit assignment, equipment table, Not returned, write-offs, Undo write-off on the equipment page (#270), Added at pack-out label |
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/csv-asset-import.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/inventory-reports.md` | published (PRs #250, #259), packing list only | 2026-10-11 (Docs Lead; matches prod 10-11) | Added at pack-out group; packing-list shot held for #249; manifest and maintenance queue to come |
-| `equipment/kits.md` | draft, written (branch `claude/docs-kits-draft`) | 2026-10-09 (Docs Lead) | held until #185/#186; N × any lines, kit editor, kit page |
-| `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; update after #268 (Item filter, where-is-it card, Move N) |
+| `equipment/csv-asset-import.md` | published (PR #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Importing equipment from a spreadsheet (#276): example/template, invoice rows, units vs lots, kits by name, fix and retry |
+| `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come |
+| `equipment/kits.md` | publishing in PR #280 (open) | 2026-10-12 (Docs Lead; audited against prod) | kit page (#273), editor, any lines, nesting, containers; 2 shots; kit-list and Kit Contents shots wait on #278/#279 |
+| `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 merged 10-12, page update drafted once it reaches prod (Item filter, where-is-it card, Move N) |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
-| `financials/gig-expenses.md` | published | 2026-10-12 (Docs Lead, PR #275; matches prod) | projected staff estimate; Payment received → Apply to an open booking (#262) |
+| `financials/gig-expenses.md` | published | 2026-10-12 (Docs Lead, PRs #275, #277; matches prod) | projected staff estimate; Payment received → Apply to an open booking (#262); phone row names (#263) |
 | `financials/overview.md` | published | 2026-10-09 (Docs Lead, PR #227) | Upload Invoice is on the Items tab |
 | `financials/purchases.md` | published | 2026-10-09 (Docs Lead, PR #227) | Track as equipment makes a lot |
 | `financials/reporting.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | Schedule C and Needs attention documented |
 | `financials/receipts-and-invoices.md` | published | 2026-10-09 (Docs Lead, PR #227) | purchase form updated for #216/#221 (units/lots, Equipment details, quantity changes) |
 | `financials/tax-treatment.md` | published | 2026-10-09 (Docs Lead, PR #227) | equipment records and filed-year wording updated for #221 |
-| `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
+| `getting-started/onboarding.md` | published | 2026-10-12 (Docs Lead, PR #277); screenshots PR #163 | Keeping up to date: the new-version notice (#264) |
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
 | `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in; overview shot retakeable again (PR #261, merged 10-11); its list uses the server's real date, so move the seed anchor at the next full refresh |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
 | `gigs/calendar-view.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/conflict-detection.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | per-item conflicts, Equipment needed table, same-unit rule after #238 |
+| `gigs/conflict-detection.md` | published | 2026-10-12 (Docs Lead, PRs #235, #277; matches prod 10-12) | per-item conflicts, Equipment needed table, same-unit rule after #238, lot short/missing notes (#270) |
 | `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
 | `gigs/documents-and-notes.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
-| `gigs/overview.md` | published | 2026-10-07 (Docs Lead, PR #166/#177) | Delete is Admin-only fix lands with #177 |
+| `gigs/overview.md` | published | 2026-10-12 (Docs Lead, PR #277) | Delete is Admin-only (#271) |
 | `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/schedule.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/staffing-and-participants.md` | published (PR #222) | 2026-10-09 (Docs Lead, PR #224) | — |
-| `gigs/the-gig-list.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
+| `gigs/the-gig-list.md` | published (PRs #222, #277) | 2026-10-12 (Docs Lead) | Delete is Admin-only (#271) |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
 | `mobile/adding-at-pack-out.md` | published (PR #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | scan or + Add, conflict check, Added at pack-out, offline; 1 phone shot |
-| `mobile/field-inventory.md` | published (PR #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | Scanning equipment on your phone: steps, scanning, counting, any lines, Unload, notes; 1 phone shot |
+| `mobile/field-inventory.md` | published (PRs #259, #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Scanning equipment on your phone: steps, scanning, counting, any lines, Unload, notes; desktop Track a gig (#272); case-still-out warning (#269); 1 phone shot |
 | `mobile/offline-access.md` | draft | — | held |
 | `mobile/overview.md` | draft | — | held |
 | `reference/access-requests-and-moderation.md` | published (PR #222) | 2026-10-07 (Docs Lead); screenshots PR #191 | — |
