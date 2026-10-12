@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X, CheckCircle2, AlertCircle, Keyboard, Camera } from 'lucide-react';
 
 interface MobileBarcodeScannerProps {
@@ -191,17 +191,30 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
     setManualEntry('');
   };
 
-  const handleClose = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const closeScanner = () => {
     setStopStream(true);
     window.setTimeout(() => onClose(), 0);
   };
 
+  const handleClose = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeScanner();
+  };
+
   if (!isScanning) return null;
 
-  return createPortal(
-    <div
+  // The overlay is its own modal Radix Dialog layer, not a bare portal (#256). Desktop
+  // "Track a gig" shows Inventory Mode inside a modal Radix Dialog, whose focus trap and
+  // `pointer-events: none` on <body> would swallow a plain portal to <body>: the tag field
+  // couldn't be focused or typed in, and Submit couldn't be clicked. As a nested Radix layer
+  // the scanner pauses the outer dialog's focus trap and takes pointer events itself; on a
+  // phone (no dialog around it) it behaves as before. Escape closes the scanner only.
+  return (
+    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) closeScanner(); }}>
+    <DialogPrimitive.Portal>
+    <DialogPrimitive.Content
+      aria-describedby={undefined}
       style={{
         position: 'fixed',
         top: 0,
@@ -212,6 +225,7 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: '#000000',
+        outline: 'none',
       }}
     >
       <div
@@ -226,7 +240,9 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontWeight: 600, fontSize: '16px', color: '#ffffff' }}>Scanner</span>
+          <DialogPrimitive.Title asChild>
+            <span style={{ fontWeight: 600, fontSize: '16px', color: '#ffffff' }}>Scanner</span>
+          </DialogPrimitive.Title>
           {statusMessage && <span style={{ fontSize: '12px', color: '#a1a1aa' }}>{statusMessage}</span>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -367,7 +383,8 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
           </p>
         )}
       </div>
-    </div>,
-    document.body
+    </DialogPrimitive.Content>
+    </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 };

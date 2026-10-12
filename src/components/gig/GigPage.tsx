@@ -35,7 +35,7 @@ import { EditSessionProvider } from '../../utils/hooks/EditSessionProvider';
 import { deleteGig, duplicateGig, getGig } from '../../services/gig.service';
 import { getGigActivity } from '../../services/activityLog.service';
 import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
-import { canManage } from '../../utils/permissions';
+import { canDeleteGig, canManage } from '../../utils/permissions';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
 import type { ActivityLogEntry, Gig, Organization, User, UserRole } from '../../utils/supabase/types';
@@ -80,6 +80,8 @@ export default function GigPage({
   onLogout,
 }: GigPageProps) {
   const canEdit = canManage(userRole);
+  // Deleting a gig is Admin-only on the server (#175).
+  const canDelete = canDeleteGig(userRole);
   const [gig, setGig] = useState<Gig | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(initialEditing && canEdit);
@@ -253,9 +255,11 @@ export default function GigPage({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={handleDuplicate}><Copy className="w-4 h-4 mr-2" />Duplicate Gig</DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
-                      <Trash2 className="w-4 h-4 mr-2" />Delete Gig
-                    </DropdownMenuItem>
+                    {canDelete && (
+                      <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
+                        <Trash2 className="w-4 h-4 mr-2" />Delete Gig
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <Button onClick={() => setEditing(true)} className="bg-sky-700 hover:bg-sky-800 text-white">

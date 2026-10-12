@@ -177,10 +177,13 @@ export default function KitDetailScreen({
 
   const handleDuplicate = async () => {
     try {
-      const _newKit = await duplicateKit(kitId);
-      toast.success('Kit duplicated successfully');
-      // Navigate to the new kit
-      onBack();
+      const newKit = await duplicateKit(kitId);
+      // Tags are scanned, so the copy can't share this kit's: it starts with
+      // none, and opens for editing to give it its own (#266).
+      toast.success(kit?.tag_number
+        ? 'Kit duplicated. Give the copy its own Tag Number.'
+        : 'Kit duplicated');
+      onEdit(newKit.id);
     } catch (error: any) {
       console.error('Error duplicating kit:', error);
       toast.error(error.message || 'Failed to duplicate kit');
@@ -222,7 +225,7 @@ export default function KitDetailScreen({
       + flattenedItems.reduce((total, row) => total + row.total_quantity, 0);
   };
 
-  // Containers count as one, un-drilled — contrast with getTotalItems above,
+  // "Pieces to check off": containers count as one, un-drilled — contrast with getTotalItems above,
   // which is fully flattened and ignores container boundaries entirely.
   const getInventoryItems = () => countInventoryItems(componentTree);
 
@@ -340,15 +343,16 @@ export default function KitDetailScreen({
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card className="p-6">
-            <p className="text-sm text-gray-600 mb-1">Total Assets</p>
+            <p className="text-sm text-gray-600 mb-1">Lines</p>
             <p className="text-3xl text-gray-900">{flattenedAssets.length + flattenedItems.length}</p>
+            <p className="text-xs text-gray-500 mt-1">Each unit, lot or item once</p>
           </Card>
           <Card className="p-6">
-            <p className="text-sm text-gray-600 mb-1">Total Items</p>
+            <p className="text-sm text-gray-600 mb-1">Pieces</p>
             <p className="text-3xl text-gray-900">{getTotalItems()}</p>
           </Card>
           <Card className="p-6">
-            <p className="text-sm text-gray-600 mb-1">Inventory Items</p>
+            <p className="text-sm text-gray-600 mb-1">Pieces to check off</p>
             <p className="text-3xl text-gray-900">{getInventoryItems()}</p>
             <p className="text-xs text-gray-500 mt-1">Containers count as one</p>
           </Card>
@@ -364,21 +368,21 @@ export default function KitDetailScreen({
 
         {/* Flattened Assets Table */}
         <Card className="p-6">
-          <h3 className="text-gray-900 mb-1">Assets in Kit</h3>
+          <h3 className="text-gray-900 mb-1">Equipment in Kit</h3>
           <p className="text-xs text-gray-500 mb-4">
             Aggregated across this kit and everything nested inside it
           </p>
           {flattenedAssets.length === 0 && flattenedItems.length === 0 ? (
             <div className="text-center py-12">
               <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600">No assets in this kit</p>
+              <p className="text-gray-600">Nothing in this kit yet</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Asset</TableHead>
+                    <TableHead>Item</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Serial Number</TableHead>
                     <TableHead>Quantity</TableHead>
@@ -453,7 +457,7 @@ export default function KitDetailScreen({
                 <div className="flex justify-end">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-8">
-                      <span className="text-sm text-gray-600">Total Items:</span>
+                      <span className="text-sm text-gray-600">Pieces:</span>
                       <span className="text-sm text-gray-900">{getTotalItems()}</span>
                     </div>
                     <div className="flex items-center justify-between gap-8">
@@ -480,7 +484,7 @@ export default function KitDetailScreen({
             </label>
           </div>
           <p className="text-xs text-gray-500 mb-4">
-            Every asset and sub-kit nested in this kit, at every level. A Container is scanned and tracked as one sealed unit — its own contents are hidden by default.
+            Every item, unit, lot and sub-kit nested in this kit, at every level. A Container is scanned and tracked as one sealed unit — its own contents are hidden by default.
           </p>
           {componentTree.length === 0 ? (
             <p className="text-sm text-gray-500">This kit has no components yet.</p>
