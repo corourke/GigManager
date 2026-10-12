@@ -31,6 +31,26 @@
     "taken": "2026-10-10",
     "appCommit": "0122c92"
   },
+  "equipment/kits-editor": {
+    "page": "equipment/kits.md",
+    "user": "admin",
+    "sources": [
+      "src/components/KitScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-12",
+    "appCommit": "337a8ee"
+  },
+  "equipment/kits-kit-page": {
+    "page": "equipment/kits.md",
+    "user": "admin",
+    "sources": [
+      "src/components/KitDetailScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-12",
+    "appCommit": "337a8ee"
+  },
   "equipment/location-explorer-overview": {
     "page": "equipment/location-explorer.md",
     "user": "admin",
