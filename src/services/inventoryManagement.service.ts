@@ -1042,6 +1042,8 @@ export async function getMaintenanceQueueReport(organizationId: string): Promise
   }
 }
 
+const WHEREABOUTS_ID_BATCH = 100;
+
 /** An item's pieces at one place, with the gig's title (#186). */
 export interface ItemWhereabout {
   gig_id: string | null;
@@ -1060,16 +1062,20 @@ export async function getItemWhereabouts(organizationId: string, records: readon
   const supabase = getSupabase();
   try {
     const rows: TrackingRow[] = [];
-    for (let from = 0; ; from += TRACKING_PAGE) {
-      const { data, error } = await (supabase.from('inventory_tracking') as any)
-        .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at, kit:kit_id(is_container)')
-        .eq('organization_id', organizationId)
-        .in('asset_id', records.map((r) => r.id))
-        .order('id', { ascending: true })
-        .range(from, from + TRACKING_PAGE - 1);
-      if (error) throw error;
-      rows.push(...((data ?? []) as TrackingRow[]));
-      if ((data ?? []).length < TRACKING_PAGE) break;
+    // A batch of ids at a time keeps the request URL short for an item with many units.
+    const ids = records.map((r) => r.id);
+    for (let i = 0; i < ids.length; i += WHEREABOUTS_ID_BATCH) {
+      for (let from = 0; ; from += TRACKING_PAGE) {
+        const { data, error } = await (supabase.from('inventory_tracking') as any)
+          .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at, kit:kit_id(is_container)')
+          .eq('organization_id', organizationId)
+          .in('asset_id', ids.slice(i, i + WHEREABOUTS_ID_BATCH))
+          .order('id', { ascending: true })
+          .range(from, from + TRACKING_PAGE - 1);
+        if (error) throw error;
+        rows.push(...((data ?? []) as TrackingRow[]));
+        if ((data ?? []).length < TRACKING_PAGE) break;
+      }
     }
     const containers = new Set((rows as (TrackingRow & { kit?: { is_container?: boolean } | null })[])
       .filter((r) => r.kit_id && r.kit?.is_container).map((r) => r.kit_id as string));
