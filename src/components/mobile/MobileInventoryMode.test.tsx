@@ -784,8 +784,8 @@ describe('MobileInventoryMode', () => {
     })
   })
 
-  // #265 (Cameron, 10-11): a container still out at another gig asks first at Pack-Out and Load
-  // Truck. The warning only informs: Pack anyway records it here.
+  // #265 (10-11): a container still out at another gig asks first at Pack-Out and Load Truck.
+  // The warning only informs (Cameron, 10-10): Pack anyway records it here.
   describe('a container still out at another gig (#265)', () => {
     const list = (last: any) => ({
       gig_id: 'gig-1', gig_title: 'Warehouse Check-In', top_level_kit_ids: ['case-1'], hierarchy_edges: [],
