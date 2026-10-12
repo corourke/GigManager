@@ -128,6 +128,10 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **Filed:**
     - **#278:** the kit list's Tracking Status count reads "6/0" and "7/5".
     - **#279:** the kit editor's Kit Contents table overflows its card (Total Value and the remove X are cut off).
+- **Docs Lead status, 10-12 15:35 UTC:**
+  - **PR #280** has main merged in (head c1c83b3), and it's green and ready to merge.
+  - **#268 Locations draft (held):** on `claude/docs-locations-268` (fd0d10d), checked on dev. It covers the Item filter and card, the "2 of 10" lot lines, pieces counts, Move N with its After line, the Move N button and the leave-the-case warning. A save split the T58s 2 and 2 as expected. No PR until prod has #268.
+  - **Small wording issue (not filed):** a place with one piece reads "1 pieces" in Locations' place headings (the old "1 items" note).
   - **Locations** is untouched until #268.
 - **Docs Lead status, 10-12 01:40 UTC.**
   - **Published (PRs, ready for review):**
@@ -257,7 +261,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/csv-asset-import.md` | published (PR #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Importing equipment from a spreadsheet (#276): example/template, invoice rows, units vs lots, kits by name, fix and retry |
 | `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come |
 | `equipment/kits.md` | publishing in PR #280 (open) | 2026-10-12 (Docs Lead; audited against prod) | kit page (#273), editor, any lines, nesting, containers; 2 shots; kit-list and Kit Contents shots wait on #278/#279 |
-| `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 merged 10-12, page update drafted once it reaches prod (Item filter, where-is-it card, Move N) |
+| `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 update drafted and checked on dev, held on branch `claude/docs-locations-268` (fd0d10d) until #268 is in prod; overview shot to retake then (place headings now read "N pieces") |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
