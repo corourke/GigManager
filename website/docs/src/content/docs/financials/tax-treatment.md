@@ -62,6 +62,7 @@ Once you've filed a year's taxes, an Admin locks that year under **Financials â†
 
 - **Locked:** you can't change that year's purchases' costs, dates, categories or tax treatment, or add or delete purchases dated in it.
 - **Gig money is locked too:** a gig's income, and its expenses that didn't come from a purchase (quick expenses, mileage, staff pay), dated in that year. Their amounts, dates, categories and status can't change, and you can't add or remove them. Their notes and descriptions still can. A gig expense that came from a purchase stays editable on the gig, because the purchase is what counts for tax.
+- **Write-offs follow the year too:** you can't write off missing equipment in a locked year, and a write-off made in a locked year can't be undone.
 - A change that a locked year refuses shows a message naming the year.
 - **Still allowed:** tracking an item as equipment (and choosing its equipment category), putting it in kits, editing descriptions, and editing its equipment details: serials, tags, replacement value, insurance, and a recovery period that hasn't been set. Quantities and lines are locked, so units can't be added or removed.
 

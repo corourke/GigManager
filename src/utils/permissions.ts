@@ -11,6 +11,23 @@ export function canManage(role: UserRole | undefined | null): boolean {
 }
 
 /**
+ * Whether a role may change equipment status, or add equipment to a gig at pack-out (#185):
+ * Admin, Manager and Staff. Mirrors update_asset_status and the pack-out insert policy.
+ */
+export function isStaffOrAbove(role: UserRole | undefined | null): boolean {
+  return role === 'Admin' || role === 'Manager' || role === 'Staff';
+}
+
+/**
+ * Whether a role may delete a gig (#175): Admin only. Mirrors the gigs DELETE
+ * RLS policy ("Admins of participating orgs can delete gigs"), so Managers
+ * aren't offered a Delete that would fail.
+ */
+export function canDeleteGig(role: UserRole | undefined | null): boolean {
+  return role === 'Admin';
+}
+
+/**
  * Whether the caller may edit/delete a given organization's details (issue
  * #24/#33): an Admin of THAT org always can; an Admin of ANY org can only
  * while it's unclaimed. Mirrors the server's "Admins can update per claimed

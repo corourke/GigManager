@@ -5,13 +5,55 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **10-12 merges** (with Cameron's OK, after coordinator review): **#267** (Equipment Lead; fixes #245, #249: contents wrap and indent, partly packed lot "N of M", Columns remembered per browser and used for print, header "N kits · M pieces"); **#270** (Equipment Lead; #242 items 5, 7: Undo write-off on the equipment page, "asks for 6, lot has 4"); **#271** (helper; #175 stopgap, Delete gig for Admins only); **#272** (helper; fixes #256, scanner manual entry inside the desktop dialog); **#273** (helper; #266 items 1–4, kit page). Each had a failing test first; no migrations.
+
+- **PR #264** (coordinator, merged 10-11 with Cameron's OK): the open app checks for a new version on returning to the foreground and every 30 min, and shows "A new version of GigWrangler is ready." with Reload (never reloads by itself). Failing test first.
+
+- **Open-issue audit** (coordinator, 10-11, Cameron's OK): closed #184 (kit editor, overlap; #225, #230, #236, #238), #185 (packing list, phone scanning; #239, #240, #246), #226 (released items #233, #237, #248/#251, #252; parked items to WORK_PLAN §5) and #174 (#199; item 4 in §5). Filed #265 (container still out at another gig) and #266 (kit-page follow-ups).
+
+- **PR #263** (coordinator, merged 10-11 with Cameron's OK): mobile transactions name rows Booking / Expense and show the desktop stage text ("Accepted, payment due", "Paid Oct 11"); rowName/stageText shared in financials/format.ts. Failing test first.
+
+- **PR #262** (coordinator, merged 10-11; Cameron's report): Payment received on a gig with an open booking (mobile and desktop) pays that booking off via "Apply to" instead of adding a second paid row; "Separate payment (no booking)" keeps the old behaviour; a short payment asks still owed / not coming. Failing test first.
+
+- **PR #261** (Docs Lead, merged 10-11): screenshot script keeps the seeded Last Login times (restored via dev SQL) and no longer waits for a named gig on the dashboard shot.
+
+- **#181 (Equipment items: data grouping review for Cameron)** (closed by Cameron 10-08): the grouping was reviewed and fixed before the #180 migration ran on prod. Triage removed the stale §1 row 10-11.
+
+- **User guide, PR #259** (Docs Lead, merged 10-11): published Scanning equipment on your phone and Adding equipment at pack-out (#246, live 10-11).
+
+- **PRs #258 and #260** (coordinator, merged 10-11; Cameron's report after the 10-11 deploy): on Locations, an untagged item shows in no more places than it has pieces (each record's quantity now read), and an untagged item inside a container is one place per case (newest across gigs). Fixes SndEng Case and Stage Snakes showing in two places. Docs Lead tested on dev (pass @ cd98ef8).
+
+- **Prod deploy, 10-11** (Cameron): #246, #250, #251, #252, #253, #254, #257 + migration 20261019000000 (pack-out additions). Coordinator verified read-only: prod at 20261019000000; `gig_kit_assignments.added_at_pack_out` boolean not null default false; `update_asset_status` and `user_is_staff_or_above_of_org` SECURITY DEFINER with search_path pinned; the pack-out INSERT/DELETE policies present; new build served (`/static/index-CzmUKkKx.js`), `/static/nope.js` → 404, `/gigs` and `/equipment/locations` → 200.
+
+- **#185 PR 2, PR #246** (Equipment Lead, merged 10-11 after Cameron's branch test on dev): phone counts lots and "any" lines; ad-hoc adds at Pack-Out and Load Truck (Staff+), no swap; notes always append one row carrying the last status (kit notes write one kit row only; lines never inherit a kit row); Send to Maintenance; note popup lines and button row; migration 20261019000000 (dev applied; prod at next deploy).
+
+- **PR #257** (coordinator, merged 10-11): fixes #255. On Locations, a lot's pieces that came home show once (its newest return), and a container's contents that sit apart from the case list in full under a "Contents" heading instead of one item becoming a second case heading. Docs Lead tested on dev (pass @ e659aa6).
+
+- **User guide, PR #250** (Docs Lead, merged 10-10): published Assigning equipment to a gig and Inventory reports (packing list), true for prod as of the 10-10 deploy.
+
+- **PR #254** (coordinator, merged 10-10): Locations reports each item at its own newest record (Cameron: a container's newer note or override doesn't move its contents); NotificationBell test waits for the Radix menu to take clicks (CI flake).
+
+- **PR #253** (coordinator's sub-agent, merged 10-10): Equipment → Locations shows each case, unit and lot at its newest record across gigs (Cameron's report: a case showed an older gig's In Transit / Car). New `currentRows()` in src/utils/locations.ts; filters applied after the newest-row pick.
+
+- **#226 item 6, PR #252** (coordinator's sub-agent, merged 10-10): a purchase line that is tracked and expensed needs an expense category before Save (filed years exempt).
+
+- **PR #251** (coordinator's sub-agent, merged 10-10): #248 follow-up. The $0-total guard skips filed years, "Use $X" keeps line costs, and the message replaces the Mismatch banner.
+
+- **Prod deploy, 10-10 ~16:00 UTC** (Cameron): #247 (missing build files 404, chunk self-repair) and #248 ($0 invoice total guard). No migrations; prod at 20261018000000. Coordinator verified read-only: `/static/nope.js` → 404, `/gigs` and `/assets/new` → 200, entry script served from `/static/`.
+
+- **PR #248** (triage, merged 10-10): #226 item 5, Save blocked on a $0 invoice total over costed lines, with "Use $X". Follow-up fix in #251.
+
+- **#246 redesign (Cameron, 10-10):** the swap (scan an unlisted unit → "Swap for #X", auto In Warehouse row for the listed one) was rejected: the app can't know which unit is being replaced, and it made up a record. Interchangeable gear uses "any N" kit lines (already supported, #162); specific-tag kits are adjusted by the operator step by step; no auto records.
+
+- **PR #247** (coordinator's sub-agent, merged 10-10): missing build files return a real 404 (build output moved from /assets/ to /static/, Cameron's choice; `public/static/404.html`; the no-op `_redirects` removed); the app self-repairs once on a chunk-load error (clears caches, unregisters the service worker, reloads); `deploy_prod.sh` checks every deployed JS/CSS file and that a missing one gets 404. Fixes the ItemDetailScreen chunk error Cameron hit after the 10-10 deploy (the SPA HTML had been cached under the chunk URL for 4 h). **Needs a prod deploy.**
+
 - **#185 PR 1b, PR #240** (Equipment Lead, merged 10-10): web packing list with "any" lines, counted lines, lot sizes, container contents, pieces summary, print blanks; packed counts from the shared location rule; Holds column.
 
 - **PR #244** (coordinator's sub-agents, merged 10-10): Status and Location columns on the gig's Equipment table (Cameron 10-09; off by default, counts from the packing list); #242 items 1–4 (History labels for write-offs, confirm before Write off, Missing records' retired date and disposal amount locked, honest filed-year wording).
 
 - **User guide, PR #241** (Docs Lead, merged 10-10): Equipment overview uses items, units and lots; gig Equipment tab lists Equipment needed.
 
-- **Next prod deploy ready 10-10** (pending Cameron): #239, #240, #244 + migration 20261018000000 (write-offs). Read-only prod pre-checks clean (no tracking rows break the new rule; no recovery period without a line; no Missing yet).
+- **Prod deploy, 10-10 ~05:00 UTC** (Cameron): #239, #240, #241, #244 + migration 20261018000000 (write-offs). Coordinator verified read-only: prod at 20261018000000, write-off functions and columns present, `update_asset_status` search_path pinned, new build served. Pre-checks were clean. Cameron saw one chunk-load error (ItemDetailScreen) right after the deploy; the chunk served correctly minutes later (CDN propagation). User guide #243 merged after the deploy.
 
 - **#185 PR 1, PR #239** (Equipment Lead, merged 10-09): write off missing equipment (whole or part of a lot, disposal with no proceeds, undo unless the tax year is filed), the gig's Not returned list, Missing out of owned/available/insured, Disposals by record; tracking rows reference their own organization's equipment; status changes into or out of retired statuses follow the write-off rules. **Migration 20261018000000 on dev; prod with the next deploy (Cameron).**
 

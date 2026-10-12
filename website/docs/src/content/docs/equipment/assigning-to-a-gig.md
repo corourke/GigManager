@@ -1,7 +1,6 @@
 ---
 title: Assigning equipment to a gig
 description: Attach kits to a gig, see what hasn't come back after it, and write off missing equipment.
-draft: true
 sidebar:
   order: 4
 ---
@@ -10,15 +9,28 @@ You put equipment on a gig by assigning kits to it on the gig's **Equipment** ta
 After the gig, the same tab shows what hasn't come back. Admins and Managers can mark
 it returned there, or write it off as missing.
 
-<!-- TODO: write the kit-assignment and Tracking sections. Still to cover:
-- Assigning a kit to a gig from the gig's Equipment section.
-- Enforced rules: singular kit quantity; asset quantity capped to stock; no
-  cross-path asset duplication.
-- The **Tracking** page (web + mobile): what's out, on which gig, and the
-  load/unload flow ("Active Gig").
-- Equipment conflict detection with other gigs.
-Screenshots: Gig → Equipment → assign a kit; Tracking page.
-Source: Plan §4. Conflict detection: `docs/technical/conflict-detection.md`. -->
+## Assigning a kit
+
+Admins and Managers assign kits in edit mode.
+
+1. Open the gig and select **Edit**.
+2. On the **Equipment** tab, open **Select kit to assign...** at the top right of the
+   **Equipment** card, and choose a kit. Kits already on the gig aren't offered.
+
+The kit is added and saved straight away. The table lists each kit's **Name**,
+**Tag #**, **Category** and **Rental Value**. In **Actions**, the notes button opens
+**Equipment Notes** for a note about that kit on this gig (select **Save Notes**), and
+the trash button takes the kit off the gig.
+
+Assign the top kit you'll take, such as "Full Band Sound Package". Its nested kits and
+containers come with it. If two kits on the same gig contain the same equipment, an
+**Overlapping equipment** warning names them. Conflicts with other gigs show here too;
+see [Conflict detection](/gigs/conflict-detection/).
+
+A kit added from a phone while packing has an **Added at pack-out** label. See
+[Adding equipment at pack-out](/mobile/adding-at-pack-out/).
+
+<!-- TODO: the Tracking page (Out on gigs), once #186 lands. -->
 
 ## The gig's equipment table
 
@@ -38,7 +50,7 @@ The columns are:
 Select **Columns** to choose which columns to show. GigWrangler remembers your choice in
 this browser.
 
-<!-- 📸 The Harvest Gala Dinner & Dance Equipment card: Full Band Sound Package and Club Lighting Package with Tag #, Category, Holds, Status and Location shown. -->
+![The Equipment card for Harvest Gala Dinner & Dance with Status and Location turned on: Full Band Sound Package, KIT-004, Audio, 62 pieces, Checked Out 6 of 29 at Staging Area; Club Lighting Package, KIT-003, Lighting, 25 pieces, Not packed](../../../assets/screenshots/equipment/assigning-to-a-gig-equipment-table.png)
 
 ### Status and Location
 
@@ -93,7 +105,7 @@ A lot that went out in two kits has a row for each kit.
 Only equipment that was scanned to the gig appears here. Gear in the gig's kits that
 was never scanned out isn't listed.
 
-<!-- 📸 The Harvest Gala Dinner & Dance Equipment tab after the gig: the Not returned card with "XLR Cable, 50 ft  in Full Band Sound Package  2 not returned  Staging Area" and a unit row, each with Returned and Mark missing. NOTE: the demo seed only checks gear out for the gala (Checked Out, Staging Area) and the shot clock is before the gala ends, so the card doesn't show yet. The shot needs the clock after the gala, or a seeded past gig with gear still out. -->
+![The Not returned card after a two-day festival, "2 pieces still out": a Halden HX-8M Floor Monitor (#DSL-0032) Checked Out on the Truck, and 1 Tessel T58 vocal mic not returned at the Festival Main Stage, both in the Full Band Sound Package, each with Returned and Mark missing](../../../assets/screenshots/equipment/assigning-to-a-gig-not-returned.png)
 
 Staff and Viewers see the list, but not the buttons.
 
@@ -124,7 +136,7 @@ You'll see "Written off: 2 missing", for example. The row moves to **Written off
 this gig**, further down the card, and the gig's [History](/gigs/change-history/) shows
 **Equipment Written Off**.
 
-<!-- 📸 A Not returned row for "XLR Cable, 50 ft" after Mark missing: the "How many are missing" box set to 2, with Write off and Cancel. -->
+![The confirmation: "Write off 1 × Tessel T58 Dynamic Vocal Microphone as missing? It'll leave owned equipment and show as disposed of in 2026's tax reports. You can undo this unless the tax year is filed." with Cancel and Write off](../../../assets/screenshots/equipment/assigning-to-a-gig-write-off-confirm.png)
 
 ### What a write-off does
 
@@ -152,8 +164,6 @@ If fewer pieces are missing than the row shows, the rest stay on the list as sti
 at the gig. For example, if a row shows "4 not returned" and you write off 1, the row
 then shows "3 not returned". Select **Returned** when those come back, or scan them in.
 
-<!-- TODO (screenshot): before the gig's end, a row left this way is the only kind
-the card shows. Confirm in the running app once the phone's partial-return flow lands. -->
 
 ### Taxes
 
@@ -188,7 +198,6 @@ where the equipment was written off.
 - **Pieces split off a lot** go back into that lot, at home. If that lot is gone (written
   off or disposed of), they come back as a lot of their own.
 
-<!-- 📸 The Written off at this gig list with one entry: "XLR Cable, 50 ft  2 missing  written off …" and Undo. -->
 
 :::caution[Filed years]
 Once the year of the write-off is locked, **Undo** is turned off. You'll see "This

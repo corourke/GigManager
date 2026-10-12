@@ -1,0 +1,17 @@
+<!doctype html>
+<!--
+  Cloudflare Pages serves the closest 404.html for a missing file, so a missing
+  /static/* chunk gets a real 404 instead of the SPA's index.html (whose 200
+  text/html would otherwise be cached under the chunk's URL). There is
+  deliberately no top-level 404.html: without one, Pages keeps its SPA mode
+  and every other path still falls back to index.html.
+  See docs/technical/deployment.md, "Missing build files return 404".
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="robots" content="noindex" />
+    <title>Not found</title>
+  </head>
+  <body>Not found</body>
+</html>

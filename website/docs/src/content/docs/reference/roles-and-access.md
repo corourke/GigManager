@@ -28,6 +28,7 @@ You can be an **Admin** of one organization and a **Viewer** of another. Switchi
 | Lock or unlock a filed tax year, and edit category lists | ✓ | — | — | — |
 | See assets, kits and locations | ✓ | ✓ | ✓ | ✓ |
 | Add, edit and delete assets and kits; assign kits to gigs | ✓ | ✓ | — | — |
+| Mark gear returned, or write it off as missing, on a gig's **Not returned** list, and undo a write-off | ✓ | ✓ | — | — |
 | Scan gear in and out from your phone (field inventory) | ✓ | ✓ | ✓ | ✓ |
 | See the **Team** list | ✓ | ✓ | ✓ | ✓ |
 | Invite or add team members, edit profiles, remove members | ✓ | ✓ | — | — |

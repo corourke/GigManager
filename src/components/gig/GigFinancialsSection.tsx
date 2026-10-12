@@ -48,9 +48,7 @@ import {
   isCommitted,
   outstandingAmount,
   settledAmount,
-  stageLabel,
   stagePickerLabel,
-  toDateKey,
   type FinDirection,
   type FinStage,
 } from '../../utils/moneyFlow';
@@ -59,7 +57,7 @@ import { useGigFinancialsData, useDeleteGigFinancial } from './useGigFinancialsD
 import MoneySummaryStrip from './financials/MoneySummaryStrip';
 import FinancialRowDialog from './financials/FinancialRowDialog';
 import RecordPaymentDialog, { type RecordPaymentValues } from './financials/RecordPaymentDialog';
-import { formatMoney, formatShort } from './financials/format';
+import { formatMoney, formatShort, rowName, stageText } from './financials/format';
 import { projectedStaffCost } from '../../utils/rateEstimate';
 
 type FinancialRow = DbGigFinancial & { counterparty?: { id: string; name: string } | null; attachment_count?: number };
@@ -94,17 +92,6 @@ function stageTone(row: FinancialRow, gigEnd: string | null | undefined): keyof 
   if (row.stage === 'declined' || row.stage === 'cancelled') return 'muted';
   if (isDue(row, gigEnd)) return 'attention';
   return 'pending';
-}
-
-function stageText(row: FinancialRow, gigEnd?: string | null): string {
-  const label = stageLabel(row.direction, row.stage);
-  if (row.stage === 'paid') return row.paid_at ? `${label} ${formatShort(row.paid_at)}` : label;
-  if (outstandingAmount(row) > 0) {
-    if (row.due_date && row.due_date < toDateKey(new Date())) return `${label}, overdue since ${formatShort(row.due_date)}`;
-    if (row.due_date) return `${label}, due ${formatShort(row.due_date)}`;
-    if (isDue(row, gigEnd)) return `${label}, payment due`;
-  }
-  return label;
 }
 
 const counterpartyName = (row: FinancialRow) => row.counterparty?.name || row.external_entity_name || '';
@@ -303,6 +290,7 @@ export default function GigFinancialsSection({
                 onSuccess={refresh}
                 onOther={() => setDialog({ row: null, defaults: { direction: 'in', stage: 'accepted', date: gigStartDate } })}
                 gigStartDate={gigStartDate}
+                financials={rows}
                 userRole={userRole}
               />
               <div className="relative overflow-hidden">
@@ -352,7 +340,7 @@ export default function GigFinancialsSection({
                       return (
                         <TableRow key={row.id} className={cn(ended && 'text-gray-500')} data-testid={`money-in-${row.id}`}>
                           <TableCell className="py-3">
-                            <div className="font-medium">{row.description || 'Booking'}</div>
+                            <div className="font-medium">{rowName(row)}</div>
                             <div className="mt-1 text-xs text-gray-500">{[name, formatShort(row.date)].filter(Boolean).join(' · ')}</div>
                           </TableCell>
                           <TableCell className="py-3">
@@ -421,7 +409,7 @@ export default function GigFinancialsSection({
                       return (
                         <TableRow key={row.id} className={cn((row.stage === 'declined' || row.stage === 'cancelled') && 'text-gray-500')}>
                           <TableCell className="py-3">
-                            <div className="font-medium">{row.description || 'Expense'}</div>
+                            <div className="font-medium">{rowName(row)}</div>
                             <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500">
                               <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
                                 {source === 'Receipt' ? <Receipt className="w-3 h-3 mr-1" /> : source === 'Staff' ? <Users className="w-3 h-3 mr-1" /> : <MousePointer2 className="w-3 h-3 mr-1" />}

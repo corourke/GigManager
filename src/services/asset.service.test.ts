@@ -252,6 +252,28 @@ describe('asset.service', () => {
       }));
     });
 
+    // #185 PR 2: equipment status changes take Staff or above. Saving other fields with the
+    // status unchanged mustn't ask for one, or a member who may edit the rest is refused.
+    it('changes status only when it changed', async () => {
+      const preAsset = { id: 'a1', manufacturer_model: 'Model A', status: 'Active', organization_id: 'org-1' };
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'assets') {
+          const chain = makeChain({ data: preAsset, error: null });
+          chain.update = vi.fn().mockReturnValue(makeChain({ data: preAsset, error: null }));
+          return chain;
+        }
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+
+      await updateAsset('a1', { manufacturer_model: 'Model B', status: 'Active' });
+      expect(mockSupabase.rpc).not.toHaveBeenCalled();
+
+      await updateAsset('a1', { status: 'Maintenance' });
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('update_asset_status', { p_asset_id: 'a1', p_status: 'Maintenance' });
+    });
+
     it('does NOT log asset.updated when tracked fields are unchanged', async () => {
       const updates = { manufacturer_model: 'Model A' };
       const preAsset = { id: 'a1', manufacturer_model: 'Model A', organization_id: 'org-1' };

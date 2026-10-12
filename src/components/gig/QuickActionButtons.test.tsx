@@ -6,6 +6,7 @@ import * as attachmentService from '../../services/attachment.service';
 
 vi.mock('../../services/gig.service', () => ({
   createGigFinancial: vi.fn(),
+  recordGigFinancialPayment: vi.fn(),
 }));
 
 vi.mock('../../services/attachment.service', () => ({
@@ -71,6 +72,76 @@ describe('QuickActionButtons', () => {
         amount_settled: 450,
         paid_at: '2026-10-03',
       }));
+    });
+  });
+
+  describe('Payment received on a gig with an open booking', () => {
+    const booking = {
+      id: 'fin-booking', gig_id: 'test-gig-id', organization_id: 'test-org-id',
+      direction: 'in', stage: 'accepted', amount: 250, amount_settled: null,
+      date: '2026-10-09', due_date: null, description: null, currency: 'USD',
+    } as any;
+    const paidMileage = {
+      id: 'fin-miles', direction: 'out', stage: 'paid', amount: 31.92, amount_settled: 31.92, date: '2026-10-09',
+    } as any;
+
+    it('pays off the booking instead of adding a second paid row', async () => {
+      vi.mocked(gigService.recordGigFinancialPayment).mockResolvedValue({ paid: booking, remainder: null } as any);
+      render(<QuickActionButtons {...defaultProps} gigStartDate="2026-10-09" financials={[booking, paidMileage]} />);
+      fireEvent.click(screen.getByText('Payment received'));
+      // the open booking is chosen, and its amount filled in
+      expect(screen.getByLabelText('Apply to')).toHaveTextContent('Booking · Accepted · $250.00');
+      expect(screen.getByLabelText('Amount')).toHaveValue('250');
+      fireEvent.click(screen.getByText('Save Payment'));
+
+      await waitFor(() => {
+        expect(gigService.recordGigFinancialPayment).toHaveBeenCalledWith(booking, expect.objectContaining({
+          amount: 250,
+          paid_at: '2026-10-09',
+          remainder: 'split',
+        }));
+      });
+      expect(gigService.createGigFinancial).not.toHaveBeenCalled();
+      expect(defaultProps.onSuccess).toHaveBeenCalled();
+    });
+
+    it('asks what the rest is when less than the booking arrives', async () => {
+      vi.mocked(gigService.recordGigFinancialPayment).mockResolvedValue({ paid: booking, remainder: null } as any);
+      render(<QuickActionButtons {...defaultProps} gigStartDate="2026-10-09" financials={[booking]} />);
+      fireEvent.click(screen.getByText('Payment received'));
+      fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '200' } });
+      fireEvent.click(screen.getByLabelText(/Not coming: settle for \$200\.00/));
+      fireEvent.click(screen.getByText('Save Payment'));
+
+      await waitFor(() => {
+        expect(gigService.recordGigFinancialPayment).toHaveBeenCalledWith(booking, expect.objectContaining({
+          amount: 200,
+          remainder: 'settle',
+        }));
+      });
+    });
+
+    it('can still record a separate payment', async () => {
+      vi.mocked(gigService.createGigFinancial).mockResolvedValue({ id: 'fin-new' } as any);
+      render(<QuickActionButtons {...defaultProps} gigStartDate="2026-10-09" financials={[booking]} />);
+      fireEvent.click(screen.getByText('Payment received'));
+      fireEvent.click(screen.getByLabelText('Apply to'));
+      fireEvent.click(await screen.findByRole('option', { name: 'Separate payment (no booking)' }));
+      fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '40' } });
+      fireEvent.click(screen.getByText('Save Payment'));
+
+      await waitFor(() => {
+        expect(gigService.createGigFinancial).toHaveBeenCalledWith(expect.objectContaining({
+          direction: 'in', stage: 'paid', amount: 40, amount_settled: 40,
+        }));
+      });
+      expect(gigService.recordGigFinancialPayment).not.toHaveBeenCalled();
+    });
+
+    it('offers no booking when the booking is already paid', () => {
+      render(<QuickActionButtons {...defaultProps} financials={[{ ...booking, stage: 'paid', amount_settled: 250 }]} />);
+      fireEvent.click(screen.getByText('Payment received'));
+      expect(screen.queryByLabelText('Apply to')).not.toBeInTheDocument();
     });
   });
 

@@ -4,6 +4,7 @@ import { Toaster } from './components/ui/sonner';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { useAuth } from './contexts/AuthContext';
 import { useMobileLock } from './hooks/useMobileLock';
+import { useAppUpdateNotice } from './hooks/useAppUpdateNotice';
 import MobileLockScreen from './components/mobile/MobileLockScreen';
 import EditUserProfileDialog from './components/EditUserProfileDialog';
 import InvitationErrorScreen from './components/InvitationErrorScreen';
@@ -33,6 +34,7 @@ function parseInvitationError(): InvitationError | null {
 }
 
 function AppContent() {
+  useAppUpdateNotice();
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);

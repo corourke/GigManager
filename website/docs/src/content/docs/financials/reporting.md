@@ -65,7 +65,7 @@ If you bought no depreciated equipment, you'll see "No depreciated equipment was
 
 ### Disposed of in {year}
 
-**Disposed of in {year}** lists depreciated equipment you sold or retired in the year, whenever you bought it. It shows **Description**, **Date bought**, **Cost**, **Date disposed**, **Sale proceeds** and **Status**. Select **Download disposals CSV** to save it.
+**Disposed of in {year}** lists depreciated equipment you sold, retired or wrote off as missing in the year, whenever you bought it. Each unit or lot has its own row, at its share of the purchase line's cost. Equipment written off as missing has the status **Missing** and no sale proceeds. It shows **Description**, **Date bought**, **Cost**, **Date disposed**, **Sale proceeds** and **Status**. Select **Download disposals CSV** to save it.
 
 ## The Grey zone report
 

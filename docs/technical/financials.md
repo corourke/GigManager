@@ -262,7 +262,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 | Purchases report → **Attach Doc** | A `purchase` attachment on the header | No scan. |
 | Import → **CSV Import** | Headers, lines and assets from rows | No gig links, no attachments. `source` 0 = header, 1 = equipment line + asset, 2 = expense line. See `purchases-field-mapping.md`. |
 | Assets → new asset | An `assets` row only | No purchase. |
-| Gig → **Booking** / **Payment received** / **Other** | Money-in or money-out rows | |
+| Gig → **Booking** / **Payment received** / **Other** | Money-in or money-out rows | Payment received on a gig with an open booking pays that booking off by default (same as its Record Payment); "Separate payment (no booking)" adds a paid row |
 | Gig → **Expense / Mileage** | One money-out row | Mileage = miles × the IRS rate for the date (`src/utils/financials.utils.ts`; 2025–26 rates wrong, #125 F1). A simple expense can carry a receipt (`gig_financial`). |
 | Staffing → **Finalize** | Money-out row at Owed | §2.4 |
 | Purchases report → line → **Assign Gig** | Line `gig_id`; then offers a paid money-out row at `line_cost` | Moving the line moves the row; clearing the gig offers to delete it; **Add to gig ledger** covers lines linked earlier. |

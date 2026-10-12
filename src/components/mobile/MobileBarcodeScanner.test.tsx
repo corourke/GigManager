@@ -1,7 +1,9 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MobileBarcodeScanner } from './MobileBarcodeScanner'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
 
 const mockScanner = vi.fn()
 
@@ -60,5 +62,79 @@ describe('MobileBarcodeScanner', () => {
     expect(await screen.findByText(/camera permission was denied/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/tag number/i)).toBeInTheDocument()
     expect(mockScanner).toHaveBeenCalled()
+  })
+
+  describe('manual tag entry (#256)', () => {
+    // A computer with no camera: the scanner opens straight on manual entry.
+    const noCamera = () => {
+      Object.defineProperty(navigator, 'mediaDevices', { value: undefined, configurable: true })
+    }
+
+    it('on a phone (no dialog around it), a typed tag is submitted by Submit and by Enter', async () => {
+      noCamera()
+      const onScan = vi.fn()
+      const user = userEvent.setup()
+      render(<MobileBarcodeScanner isScanning onClose={vi.fn()} onScan={onScan} />)
+
+      const field = await screen.findByPlaceholderText(/tag number/i)
+      await user.click(field)
+      await user.type(field, 'DSL-0041')
+      expect(field).toHaveValue('DSL-0041')
+      await user.click(screen.getByRole('button', { name: 'Submit' }))
+      expect(onScan).toHaveBeenLastCalledWith('DSL-0041')
+
+      await user.type(field, 'DSL-0042{Enter}')
+      expect(onScan).toHaveBeenLastCalledWith('DSL-0042')
+    })
+
+    it('inside the desktop "Track a gig" dialog, a typed tag can be entered and submitted', async () => {
+      noCamera()
+      const onScan = vi.fn()
+      const user = userEvent.setup()
+      // Mirrors InventoryTabScreen: Track a gig is a modal Radix Dialog, and the scanner
+      // (TrackingTab -> MobileInventoryMode) renders inside its content.
+      render(
+        <Dialog open onOpenChange={vi.fn()}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Track a gig</DialogTitle>
+              <DialogDescription>Scan equipment out and back in for a gig.</DialogDescription>
+            </DialogHeader>
+            <MobileBarcodeScanner isScanning onClose={vi.fn()} onScan={onScan} />
+          </DialogContent>
+        </Dialog>
+      )
+
+      const field = await screen.findByPlaceholderText(/tag number/i)
+      await user.click(field)
+      expect(field).toHaveFocus()
+      await user.type(field, 'DSL-0041')
+      expect(field).toHaveValue('DSL-0041')
+      await user.click(screen.getByRole('button', { name: 'Submit' }))
+      expect(onScan).toHaveBeenLastCalledWith('DSL-0041')
+
+      await user.type(field, 'DSL-0042{Enter}')
+      expect(onScan).toHaveBeenLastCalledWith('DSL-0042')
+    })
+    it('inside the Track a gig dialog, Escape closes the scanner, not the dialog', async () => {
+      noCamera()
+      const onClose = vi.fn()
+      const onOpenChange = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <Dialog open onOpenChange={onOpenChange}>
+          <DialogContent>
+            <DialogTitle>Track a gig</DialogTitle>
+            <DialogDescription>Scan equipment out and back in for a gig.</DialogDescription>
+            <MobileBarcodeScanner isScanning onClose={onClose} onScan={vi.fn()} />
+          </DialogContent>
+        </Dialog>
+      )
+
+      await user.click(await screen.findByPlaceholderText(/tag number/i))
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+      expect(onOpenChange).not.toHaveBeenCalled()
+    })
   })
 })

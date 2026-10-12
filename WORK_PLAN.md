@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-09 04:15 UTC (coordinator check-in: #225, #228 merged; prod verified through #221)
+- **Last updated:** 2026-10-12 01:40 UTC (coordinator: merged #267, #270, #271, #272, #273 with Cameron's OK; #268 and #269 back to the Equipment Lead for review fixes; #183 D1 review fixes in progress)
 
 ---
 
@@ -18,12 +18,13 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | # | Item | State | Next / owner |
 |---|---|---|---|
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
-| [#181](https://github.com/corourke/GigManager/issues/181) | Data grouping review for Cameron | #180 is in prod (158 items); regrouping is now a data change. Coordinator supplies prod data | Equipment Lead |
-| [#183](https://github.com/corourke/GigManager/issues/183)–[#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (c) kit editor, overlap; (d) packing list, gig equipment, scanning; (e) locations, override, maintenance (closes #160) | #182 done; #183 A, B, C merged (PRs #216, #221) and **in prod 10-09**; #183 D (CSV import) off the critical path; follow-ups in [#226](https://github.com/corourke/GigManager/issues/226). #184 PR 1 (#225) and PR 2 (per-item overlap check, #230) merged 10-09: #230 follow-ups merged (#236). **#184 done** apart from a small PR: the same-unit conflict lists only tracked units (Cameron, 10-09). Shared location rule merged (#231): lot count = sum of newest row per (gig, kit, lot); `quantity` = how many are there now. **#185 plan v2 approved by Cameron 10-09** (see #185): write-off = disposal with $0 proceeds; Missing out of owned/available/insured, listed with a badge; only Admins/Managers write off or undo; undo any time unless the year is filed; un-check deletes; swap = back home; several lots = picked automatically (most at home first). PR 1 split: #239 (migration 20261018000000, write-offs, Not returned list; **migration on dev 10-09 20:15 UTC**; dev check passed; **merged 10-09**; its migration goes to prod with the next deploy) and #240 (web packing list; rebase on #239 with packed counts from `bucketsAt`). #238 (same-unit lists units; containers count as one unit) merged 10-09. PR 2 (phone) **adds ad-hoc pack-out (Cameron, 10-09)**, in Pack-Out and Load Truck only: scan or search any kit, item or lot the org owns and add it to the gig; a kit added becomes a real assignment marked "added at pack-out"; anyone scanning (Staff included) can add (narrow RLS change); loose extras count in overlap checks. Plan update on #185 before building. ~~Status and Location columns on the gig's Equipment card~~ **done, PR #244**; was (Cameron 10-09: summary with counts, e.g. "Checked Out 9 of 15"; location or "Mixed" with breakdown) | Equipment Lead: **partial lot returns (Cameron, 10-09): ask at scan time**, leave the rest at the gig (shown "not returned") or mark them missing (write-off; designed in #185's plan). **#186 split (Cameron, 10-09)**: a Locations PR first (shared "N from a lot" scan helper with tests, back-home statuses from workflow config, moves per unit/lot), with #185 built alongside on that helper; override and maintenance stay in a later #186 PR. D by a coordinator sub-agent when the Lead says it's clear |
+| [#183](https://github.com/corourke/GigManager/issues/183), [#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (e) locations, override, maintenance (closes #160) | Audit 10-11: #184 and #185 **closed** (all PRs in prod); #183 A–C in prod, **piece D (CSV import) not started**; #186: Locations fixes shipped (#231, #253, #254, #257, #258, #260), but the Item filter, where-is-it card, moving N of a lot in Override (#160), the maintenance flow and an editable Maintenance screen are unbuilt; the 10-09 plan's Q1–Q4 are unanswered | Next #186 PR and #183 D wait on Cameron's release; Equipment Lead after #245/#249 |
+| [#245](https://github.com/corourke/GigManager/issues/245), [#249](https://github.com/corourke/GigManager/issues/249) | Packing-list fixes | Released 10-11; Lead's plans posted; item 2 of #245 already fixed by #246. Defaults for the Lead's questions: ticks don't carry to print, Columns choice not remembered, header "N kits · M pieces · P packed" | Equipment Lead, one PR |
+| [#242](https://github.com/corourke/GigManager/issues/242) | Write-off follow-ups | Items 1–4 shipped (#244). Open: 5 Undo only from Not returned; 6 whole-record vs split-lot undo (intended?); 7 no warning when a kit line asks for more than a shrunken lot | Cameron: build 5/7 and document 6, or park |
+| [#256](https://github.com/corourke/GigManager/issues/256), [#265](https://github.com/corourke/GigManager/issues/265), [#266](https://github.com/corourke/GigManager/issues/266) | Desktop scanner manual entry; container still out at another gig; kit-page follow-ups | Filed, not released | Cameron releases |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
-| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c) |
-| [#174](https://github.com/corourke/GigManager/issues/174) | Team roles and invitations: UI offers what the server refuses | Cameron 10-07: a Manager must never be able to make anyone an Admin, by any path | Coordinator; the server side is the private finding in §2 |
+| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c). Audit 10-11: Managers still see Delete in prod (gated only by `canEdit`) |
 
 ## 2. Waiting on Cameron
 
@@ -48,6 +49,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 (none)
 
+**Open PRs, 10-10 16:50 UTC:**
+- **#246 (#185 PR 2, phone) on hold.** Cameron 10-10: no "swap" (removed by the Lead); interchangeable gear goes in kits as "any N" lines; for kits that list specific tags the operator decides each step (Maintenance via the note popup's checkbox, add the replacement ad hoc, a human updates the kit later). No new scanner menu, no kit review flag. **Note rule (Cameron, 10-10):** saving a note always appends a new tracking row that carries the item's last status (and lot quantity, location) forward, never counting it as packed; ticking Send to Maintenance (renamed from "Maintenance Req'd") appends "Sent to Maintenance." to the note; the popup shows the person's name, never a UUID. No database procedure did this (checked); it goes in the app service. Sent to the Equipment Lead 10-10 17:10. **Cameron 10-10 18:50:** a note on a unit last recorded at another gig is still recorded at this gig (carrying that status); Send to Maintenance is never blocked. Review of adea8b3 (10-10 19:00): needs changes (kit-level note rows read as checked, duplicate adds); sent to the Lead. Cameron 10-10 19:15: un-check after a note is not a bug; the note popup adds lines for last status / location, gig name, and last notes (if any); its buttons go in one row: Cancel, Clear note, Save. #246 must merge main (conflict with #253 in inventoryManagement.service.ts). **Kit notes (Cameron, 10-10 19:35):** a note on a kit writes one kit row with the note and nothing else (prod bug on main: a note on "Stage Snakes" at 19:26:30Z cascaded into two Checked Out unit rows and lost the note); a kit note must never make unscanned items read as checked. Sent to the Lead; fix ships with #246. **Re-review at a47064d (10-10 20:45):** Cameron's items all pass (kit note = one kit row, lines never inherit a kit row, popup lines and one-row buttons, duplicate adds); two small fixes sent (carry location from another gig's record; "+ Add" on a lot opens the counter). After that: Cameron tests claude/185-phone against dev before merge (dev already has 20261019000000). **10-11 04:30: ready for Cameron's branch test at 08939c8** (includes #257); the Lead's 11-step test list is in its session. **Cameron 10-11: leave it** — a note on a never-scanned item or case saves it as In Warehouse and may read as checked at Unload (it is in the warehouse); no note-marker column. Cameron tests the final phone changes on a branch before deploy. Mockup: https://claude.ai/artifact/JCVPy7Eid54tiLwZnteohd
+- #250 merged 10-10 (equipment user-guide pages).
+- **In prod 10-11:** #246, #251–#254, #257 and migration 20261019000000 (verified). The Docs Lead is publishing the #246 guide pages. **After the deploy (Cameron, 10-11):** SndEng Case and Stage Snakes still showed in two places on Locations (untagged one-piece items are lots; stale per-gig places). #258 (merged 10-11 05:51) fixes one-piece lots; #260 (open) selects each record's quantity so multi-piece lots work too; the Docs Lead's test of b07b728 found it dropped a T58 still On Site at a festival (pieces that came home in the Mic Case and went back out were counted twice), so cd98ef8 counts an untagged item inside a container as one place per case (newest across gigs); loose lots keep per-gig places and the lot-size rule. **#260 passed the Docs Lead's re-check @ cd98ef8 and merged 10-11 06:42. Main is ready for Cameron's prod deploy (#258, #260; no migrations).** #259 (Docs Lead, #246 guide pages) merged 10-11 after review fixes. Docs Lead next: the screenshot script's dashboard date problem and the Last Login gap. Both need a prod deploy. Stage Snakes' newest records are the 10-10 note-bug Checked Out rows; Cameron can Unload or Override them. Follow-up noted: no "still out at …" warning when packing a container that's still out at another gig. **Equipment Lead next (Cameron, 10-11): the packing-list fixes #245 and #249** (§3c). **#262 (merged 10-11 18:45):** Cameron's report: on mobile, Payment received on a Booked gig with an open booking added a second paid row and counted the revenue twice (Blue Valley @ Las Positas 10/9/2026, $250 booking + $250 paid row). Payment received now shows "Apply to" with the open booking selected and pays it off. Frontend only. The duplicate prod row (paid, ref "Venmo"): Cameron will clean it up in the app after the deploy (delete it, then Record Payment on the booking). **After the 10-11 evening deploy (Cameron):** his phone kept the old build (the PWA only checks on a full load), so Payment received added another duplicate (19:52, Venmo); he cleans it up in the app. **#263 (merged 10-11 20:16, not yet in prod):** mobile transactions name rows Booking / Expense and show desktop's stage text ("Accepted, payment due"). **#264 (open):** the app checks for a new version on return to the foreground and every 30 min, and shows "A new version of GigWrangler is ready." with Reload (never reloads by itself; Cameron's choice 10-11). Merge on Cameron's OK. Docs Lead's pre-deploy test of main @ 248994e (on #250): #251 and #252 pass; #253/#254 improve on prod, but lots in a case showed once per gig (#255). **Cameron (10-10 ~23:00): wait for the #255 fix (PR #257), then deploy.** Docs Lead's test of #257 @ 093edc0: the per-gig duplicates and gig filter are fixed, but when a case-only record moves the case away from its contents, LocationExplorer promoted the first item to a second case heading and dropped it from the list. Fixed in e659aa6 (contents list in full under a "Contents" heading), test first; the Docs Lead's re-check passed and **#257 merged 10-11 02:40. Main is ready for Cameron's prod deploy** (#251–#254, #257; no migrations). Also found: #256 (desktop Track a gig: the scanner's manual tag entry is blocked by the dialog; old bug, not yet released). Prod still has #248's two bugs and the Locations bug until then.
+
 ### 3c. Ready to build, nothing blocking
 
 *Coordinator only.* An item here counts as approved in shape (AGENTS.md rule 1): post the plan on the issue, then build. Anything not here needs approval first.
@@ -55,9 +61,22 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 **[#226](https://github.com/corourke/GigManager/issues/226) items 3, 5, 6 and 8: released to triage (Cameron, 10-09).** One PR per item, one per run, in this order; failing test first; no migrations. Post a short plan comment on #226 before each. Leave #226 open (other items stay parked). Avoid `src/services/conflictDetection*` and the kit files (the Equipment Lead is working there).
 1. ~~**Item 8, URL guards.**~~ **Done: PR #233, merged 10-09.** Staff and Viewer opening `/assets/new`, `/assets/:id/edit` or `/financials` by URL are redirected to their landing page (same rule the menus use, `src/utils/permissions.ts`), with no flash of the form. Route-level, in `src/routes/` (guards or a small role-gate wrapper). Tests: each route × role.
 2. ~~**Item 3, clearing a money field on the unit edit page saves.**~~ **Done: PR #237, merged 10-09.** In `AssetScreen.tsx` edit mode, clearing item price, item cost, replacement value or sale proceeds must save `null`, not drop the field as `undefined`. Test: clear each field, save, assert the update payload has `null`.
-3. **Item 5, $0 invoice total.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
-4. **Item 6, tracked expensed line needs a category.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
+3. ~~**Item 5, $0 invoice total.**~~ **Done: PR #248 (in prod 10-10), follow-up fix PR #251.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
+4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
+
+**Status 10-12 01:40 UTC:**
+- **Merged (not yet in prod):** #263, #264, #267 (#245/#249), #270 (#242 items 5, 7; #242 closed), #271 (#175 stopgap: Delete gig Admin-only), #272 (#256), #273 (#266 items 1–4; #266 closed). No migrations.
+- **Back to the Equipment Lead for fixes (coordinator review 10-12):** #268 (#186 Locations step): the where-is-it card and Item page don't use the `currentRows` rule (T58 regression), Move N can exceed the lot via a stale bucket, the Maintenance + In Warehouse mismatch, home lot count/cap, and the closing row's location. #269 (#265): the warning repeats after the case is packed here (reads only server `last_records`).
+- **#183 D (CSV import), branch `claude/183d-csv-import`:** D1 built; review fixes in progress: group all rows so lines keep their invoice, hold purchases with invalid rows, Retry failed, guard the preview. **Cameron 10-12: the `status` column is removed (import seeds a new account; every unit is Active)**; the kit column stays; retired_on/liquidation_amt dropped; template regrouped; example mic-kit file. No migration.
+- Open question for Cameron later: should #265's warning also cover a case *added* at pack-out?
+
+**Released by Cameron 10-11 (answers recorded on each issue):**
+- **Equipment Lead, in order, one PR each:** (1) #245 + #249: ticks don't print (blank boxes); the Columns choice is remembered per browser; print header "N kits · M pieces". (2) #186 next Locations step: home pieces show "Not checked out"; gig ↔ home moves only; desktop Mark for Maintenance waits; Item filter, piece counts, "2 of 10", where-is-it card, Move N of a lot (fixes #160), Item page "Where they are". (3) #265 container still out warning. (4) #242 items 5 (Undo write-off on the equipment page) and 7 (amber "asks for 6, lot has 4"); item 6 is kept as is and documented.
+- **Coordinator's helper agents:** #175 stopgap (Delete gig shown to Admins only); #256 desktop scanner manual entry; #266 items 1–4 (item 5: "4 × any + a specific unit" = 5, kept, document it); #183 D CSV import (plan first, questions to Cameron).
+- Merges still need Cameron's OK.
+
+**[#245](https://github.com/corourke/GigManager/issues/245) and [#249](https://github.com/corourke/GigManager/issues/249): packing-list fixes, released to the Equipment Lead (Cameron, 10-11).** #245: partly packed lots show no count; a unit's status can disagree with its packed count; print ignores the Columns choice; the print header's counts; container contents aren't indented. #249: the Name column (~1,190px) pushes the other columns out of view. Plan comment on each issue first; failing test first; no migrations expected (stop and ask if one is needed); "Ready for coordinator re-review: <sha>" on the PR. Not yet released: #256 (desktop scanner in dialog), the "still out at …" container warning, the next #186 PR.
 
 **PAUSED (Cameron, 10-08): don't start any #20 batch until #186 merges.** Batches 3–7 collide with #183–#186 and #175. Triage: skip #20 and do a `docs/` pass instead.
 
@@ -86,6 +105,44 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 (none open: the 10-07 entries are filed as #157–#160, #168–#171, #173–#176 and #178, and their decisions are in §1 and §2)
 
+- **#257 re-tested @ e659aa6 (Docs Lead, 10-11 00:45 UTC): pass.** The Mic Case has one Container heading (at Shelf D), and its contents list in full under Contents, PDI-1 included. The Cedar Hall gig filter is empty and the T58 split is right. The earlier result follows.
+- **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
+  - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
+  - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
+- **Locations guide draft (Docs Lead, 10-11 10:40 UTC):** on branch `claude/docs-locations-draft` (402905d), not a PR. Held until #258/#260 are in prod.
+  - **What it covers:** reading the page, cases and Contents, untagged items (in a case vs loose), the three filters, and Override for Admins and Managers. The Equipment overview links to it.
+  - **App notes, not filed:**
+    - Items not in any kit are listed under an "Unknown Kit" heading, for example gear added at pack-out on its own and the Wash Bars on the Repair Bench. A heading like "Not in a kit" or "Added at pack-out" would read better.
+    - The Override (pencil) buttons have no label or tooltip.
+- **#260 re-tested @ cd98ef8 (Docs Lead, 10-11 06:45 UTC): pass.** T58 shows at Halloween Bash and the festival. There are no Cedar Hall entries and no stale Warehouse entry. K91 and the other lots show once each, under one Mic Case heading. The earlier result follows.
+- **#260 (the #258 follow-up) tested on dev @ b07b728 (Docs Lead, 10-11 06:05 UTC): regression.** Cedar Hall's stale places are gone and K91 shows once. But the festival T58 (1 piece, On Site, Not returned) now disappears from Locations, because the Paper Lanterns return (the same 4 pieces that went back out) fills the lot. Suggested a different key: a container's contents per (lot, container) across gigs. Details on #260.
+- **#258 tested on dev @ 978b83a (Docs Lead, 10-11 05:45 UTC): partial.** The full result is on #258.
+  - Pass: one-piece lots (K91, standing in for the SndEng Case and Stage Snakes) show once, in both orders. The T58 split shows. The Mic Case has one Container heading plus Contents.
+  - Fail: lots of more than one piece keep stale places (T58 in 4 places, 13 pieces from a lot of 6). `getItemsByLocation` doesn't select `quantity` (`inventoryManagement.service.ts:435`), so every place counts as 1 piece. The fix is to add `quantity` to that select.
+  - Also seen: packing out a container that's still out at another gig gives no "Before you pack" warning.
+- **PR #259 (Docs Lead, 10-11 05:35 UTC): publishes the phone pages, live in prod 10-11.** Covers Scanning equipment on your phone and Adding equipment at pack-out, with 2 phone screenshots. **Merged 10-11 08:35 after review fixes.**
+  - **Post-release check:** I retook every shot. Nothing changed except rendering noise and Last Login.
+  - **Known gap:** the dashboard overview shot can't be retaken now. The dashboard's upcoming-gigs list uses the server's real date, and Harvest Gala (10-10) has dropped off it. The published image is still accurate. It needs a script or seed-date fix at the next full refresh.
+  - **Seed note:** Harvest Gala's seeded scans sit under the top kit, so on the phone the nested FOH Console Package reads "0 / 6" beside checked lines. I'll check whether a real phone scan records the nested kit; if it does, it's seed-only.
+- **#246 guide drafts (Docs Lead; updated 10-11 04:55 UTC to match #246 as merged, c1bbe38):** held until prod has the deploy, then a "publish what's live" PR. Note 1 below is fixed in the merge (a lot's tag opens the counter). on branch `claude/docs-246-draft` (67642f1), not a PR. Held until #246 merges; I'll update them after Cameron's test.
+  - **Pages:** `mobile/field-inventory.md` (Scanning equipment on your phone) and the new `mobile/adding-at-pack-out.md`, plus cross-references from the gig Equipment and packing-list pages.
+  - **Written from claude/185-phone at 7fa117b,** with labels checked on dev. Nothing saved: I only opened the + Add search, the note popup, the counter and Finish unload.
+  - **Noticed in #246 while drafting, for the Equipment Lead** (not filed; the branch is still changing):
+    1. Scanning a listed lot's tag records 1 piece without opening the counter. "+ Add" on the same lot does open it.
+    2. A note on a line with no record anywhere writes In Warehouse, so in Unload that line reads as checked.
+    3. "Select a gig from the dashboard…" is shown to Admins, Managers and Viewers, whose bottom bar says Gigs, not Dashboard.
+    4. "Before you pack" and "Pack anyway" also appear in Load Truck. Fine, but the guide says "in Pack-Out" for planned gear.
+    5. Wording differs between screens for "any" lines: the phone shows "Any · 2 / 4"; the web packing list shows "2 of 4" or "7 counted · 3 short".
+    6. Only the person who added a kit can Remove it; Admins can't.
+    7. Additions and "any" lines have no note button.
+- **Pre-deploy test of main @ 248994e (Docs Lead, 10-10 22:30 UTC).** The full report is on PR #250.
+  - **#251 and #252: pass** for Admin and Manager, filed-year cases included. Staff and Viewer have no Financials.
+  - **#253 and #254: partial.**
+    - Pass: a case and tagged units show once, at their newest record; a newer case-only record doesn't move the case's contents; the status and location filters use where things are now; lot splits show at each gig.
+    - Fail, filed as **#255**: untagged items in a case are listed once per gig they've been to; they bring back a stale copy of the case; the gig filter still lists them.
+    - **Not a regression:** prod already keys everything per gig. Whether #255 holds the deploy is Cameron's call.
+  - **Also filed: #256.** On desktop, Track a gig → Scan: manual entry can't be typed into or submitted. Pre-existing; the phone layout works.
+  - **Dev data:** the test tracking rows are left for repro. Harbor Truck has a $0 total and an edited line description until `./scripts/seed-demo.sh` is re-run.
 - **Docs Lead status, 10-09 20:45 UTC.**
   - **Post-release screenshot check (prod 10-09):** I retook all 41 shots from main. None needs replacing: #235 had already retaken the changed screens, and 3 of the 4 diffs are invisible anti-aliasing.
   - **Known gap: the team members table's Last Login** shows the screenshot runs' real sign-in times (Oct 8–9), later than the pinned date (Oct 7), and they change each run. Signing in is what updates it.
@@ -96,7 +153,12 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
     - Published-page changes are in **PR #243, to merge after the deploy that carries #239** (stacked on #241).
     - App follow-ups are filed as **#242**: raw event names in History, Write off has no confirmation, a Missing record's Retired On is still editable, the locked-year message, Undo is reachable only from the gig, and kits after a partial write-off.
   - **PR #241 (merge now):** two pages already wrong for prod. The Equipment overview still said Assets instead of Items, units and lots, and the gig Equipment tab didn't list Equipment needed.
-  - **Still to draft, once they merge:** #240 (packing list with "any" lines) and #185 PR 2 (ad-hoc pack-out; scan or search to add kits and items, in Pack-Out and Load Truck only).
+  - **Ready for the next deploy (10-10):**
+    - PR #243 now covers History's **Equipment Written Off** and **Write-off Undone** too.
+    - The held Equipment drafts match #244: the write-off confirmation, the locked fields, the filed-year message and #242 items 5–7 as the app works now. They also cover the packing list (#240) and the gig Equipment table's **Status** and **Location** columns.
+    - Packing-list app problems are filed as **#245**: partly packed lots show no count; a unit's status can disagree with the packed count; print ignores the Columns choice; the print header's counts; container contents aren't indented.
+    - The demo seed has no counted "any" line (every "any" item is tagged), so that case can't be screenshotted yet.
+  - **Still to draft, once it merges:** #185 PR 2 (ad-hoc pack-out; scan or search to add kits and items, in Pack-Out and Load Truck only).
 - **Equipment conflicts, two questions from checking #230 on dev (Docs Lead, 10-09):**
   1. **The shared-unit message also lists lots.** On the Oct 17 gigs it reads "Equipment conflict with kits: Main PA … (Speaker Stand, Tripod, Speakon Speaker Cable, 50 ft, Voltline PD-20 … (#DSL-0211))". The stands and cables are lots, already counted in the per-item shortage, and a lot in two kits isn't "the same unit booked twice". So a lot with plenty spare would still be flagged.
   2. **The card's "This gig: 4 (Full Band Sound Package × 4)"** reads as four packages. It means 4 speakers from that kit. Wording like "4 via Full Band Sound Package" would be clearer.
@@ -123,7 +185,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **Rotating:** create the new token in the Supabase dashboard (Account → Access Tokens), replace the variable's value, start a new session, run the access test, then revoke the old token.
 - Dev Auth sends email through a Mailtrap sandbox (custom SMTP set by Cameron 10-08). The SMTP password lives only in the Supabase dashboard, not in the environment or the repo.
 
-**Pace through 10-17 (Cameron, 10-08):** keep triage and the leads busy. Cameron (10-08 evening): sub-agents do the coordinator's builds; the coordinator reviews, merges and may deploy to **dev** with `./deploy_dev.sh` (never prod). The coordinator checks in at least every 4 hours (Routine `trig_013iEPNzrK1NR8j2Qih9jzJy`, bound to coordinator session `session_01XTmXKhviMSkyy5PqcRAfUn` in the Supabase Prod environment; it disables itself after 10-17) to queue work, review ready PRs and ask Cameron about blockers.
+**Pace through 11-10 (Cameron, 10-08; extended from 10-17 on 10-10):** keep triage and the leads busy. Cameron (10-08 evening): sub-agents do the coordinator's builds; the coordinator reviews, merges and may deploy to **dev** with `./deploy_dev.sh` (never prod). The coordinator checks in every 2 hours (Routine `trig_013iEPNzrK1NR8j2Qih9jzJy`, bound to coordinator session `session_01XTmXKhviMSkyy5PqcRAfUn` in the Supabase Prod environment; it disables itself after 11-10) to queue work, review ready PRs and ask Cameron about blockers.
 
 **Equipment Lead** (next: #186 Locations and #185 in parallel, after #230) (`session_013gAYYf2hpcECG9QpxFz5Vo`, Supabase Dev environment, no prod access) owns #181–#186, the grouping review and the items screens, and reviews #180 from the screens side. The coordinator owns #179 and #180 and supplies prod data the Lead can't reach. It reports on #162 and each sub-issue.
 
@@ -154,13 +216,13 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | Page (`website/docs/src/content/docs/`) | Status | Last verified | Still wrong / next |
 |---|---|---|---|
 | `equipment/assets.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/assigning-to-a-gig.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/assigning-to-a-gig.md` | published (PRs #250, #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | kit assignment, equipment table, Not returned, write-offs, Added at pack-out label; Out on gigs (Track a gig) to come with #186 |
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/inventory-reports.md` | draft | — | held: equipment rework (#162/#180) |
+| `equipment/inventory-reports.md` | published (PRs #250, #259), packing list only | 2026-10-11 (Docs Lead; matches prod 10-11) | Added at pack-out group; packing-list shot held for #249; manifest and maintenance queue to come |
 | `equipment/kits.md` | draft, written (branch `claude/docs-kits-draft`) | 2026-10-09 (Docs Lead) | held until #185/#186; N × any lines, kit editor, kit page |
-| `equipment/location-explorer.md` | draft | — | held: equipment rework (#162/#180) |
-| `equipment/overview.md` | published | — | held: equipment rework (#162/#180) |
+| `equipment/location-explorer.md` | draft, written (branch `claude/docs-locations-draft`) | 2026-10-11 (Docs Lead; matches main with #258/#260) | publish after #258/#260 reach prod |
+| `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
 | `financials/gig-expenses.md` | published | 2026-10-08 (Docs Lead, PR #220) | projected staff estimate documented |
@@ -171,7 +233,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `financials/tax-treatment.md` | published | 2026-10-09 (Docs Lead, PR #227) | equipment records and filed-year wording updated for #221 |
 | `getting-started/onboarding.md` | published | 2026-10-06 (triage, PR #139); screenshots PR #163 | — |
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
-| `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in |
+| `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in; overview shot retakeable again (PR #261, merged 10-11); its list uses the server's real date, so move the seed anchor at the next full refresh |
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
 | `gigs/calendar-view.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
@@ -185,7 +247,8 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `gigs/the-gig-list.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
-| `mobile/field-inventory.md` | draft | — | held: equipment rework (#162/#180) |
+| `mobile/adding-at-pack-out.md` | published (PR #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | scan or + Add, conflict check, Added at pack-out, offline; 1 phone shot |
+| `mobile/field-inventory.md` | published (PR #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | Scanning equipment on your phone: steps, scanning, counting, any lines, Unload, notes; 1 phone shot |
 | `mobile/offline-access.md` | draft | — | held |
 | `mobile/overview.md` | draft | — | held |
 | `reference/access-requests-and-moderation.md` | published (PR #222) | 2026-10-07 (Docs Lead); screenshots PR #191 | — |
@@ -198,12 +261,17 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `team/member-profiles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | #206 workaround removed |
 | `team/overview.md` | published | 2026-10-07 (Docs Lead, PR #177, merged) | — |
 | `team/people-without-logins.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
-| `team/team-and-roles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | — |
+| `team/team-and-roles.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #217) | members-table shot retaken with stable Last Login (PR #261, merged 10-11) |
 
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
 ## 5. Future considerations (not open work)
 
+- *From #266 / the #225 review:* concurrent kit edits can leave partial writes; nested-container availability isn't shown; the kit editor's item query isn't paged.
+- *From the #183 D1 review:* Track as equipment can double-track across two sessions (client-side check); the import's item/kit lookups load full records and are subject to the ~1000-row PostgREST cap.
+- *Parked from #226 (Cameron 10-09; #226 closed 10-11):* 1 multi-step purchase save isn't atomic (needs an RPC migration); 2 Mark Inactive takes two requests; 4 removing a purchase line unlinks its units silently; 7 no duplicate tag/serial warning; 9 Purchase column on hand-added units; 10 differences from mockups 3 and 4; 11 `kit-null` duplicate-key warning (unverified still present); 12 Track as equipment still uses the v1 RPC (with #183 D).
+- *Docs Lead's #246 phone notes 3–7 (from #185, closed 10-11):* Gigs vs Dashboard wording; Pack-Out wording in Load Truck; "any" line wording; Admins can't Remove a kit someone else added; no Note button on additions and "any" lines.
+- *#186 docs notes (Docs Lead):* "Unknown Kit" heading for loose items; Override pencil buttons have no labels.
 - **`deploy_prod.sh` env preflight** (Cameron 10-08: track here; not released, since `deploy_prod.sh` is never pre-approved). The prod bundle's `VITE_*` values come only from the deploying machine's git-ignored `.env.production.local`, and nothing checks them. Before `npm run build`, fail if that file is missing, if `VITE_SUPABASE_URL` doesn't contain `$PROD_REF`, or if `VITE_SUPABASE_ANON_KEY` / `VITE_GOOGLE_CLIENT_ID` is empty.
 - *Noticed by tonight's sub-agents (10-08), not built:*
   - The Vitest suite runs close to the 5 s per-test timeout; under load (several runs in parallel) purchases, scan-review and staff tests time out. CI is fine today; a higher global `testTimeout` or faster tests would make it robust.

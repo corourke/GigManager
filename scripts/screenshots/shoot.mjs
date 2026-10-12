@@ -5,7 +5,7 @@
 //   node scripts/screenshots/shoot.mjs --only gigs/       shots whose id starts with gigs/
 //   node scripts/screenshots/shoot.mjs --list             list shots and their pages
 import { chromium } from 'playwright';
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +44,36 @@ if (!selected.length) {
   process.exit(1);
 }
 
-const ctx = { base: BASE, users: USERS, password: PASSWORD };
+// SQL on the dev project only, as scripts/seed-demo.sh runs it: auth is injected by the
+// environment's proxy, and no token is read or sent here. Returns null when it can't run.
+const DEV_REF = 'qcrzwsazasaojqoqxwnr';
+const SQL_API = `${process.env.SHOT_SQL_API_BASE || 'https://api.supabase.com/v1/projects'}/${DEV_REF}/database/query`;
+const devSql = (query) => {
+  try {
+    const out = execFileSync('curl', ['-sS', '-X', 'POST', SQL_API, '-H', 'Content-Type: application/json', '-d', '@-'],
+      { input: JSON.stringify({ query }), stdio: ['pipe', 'pipe', 'ignore'] }).toString();
+    const rows = JSON.parse(out);
+    return Array.isArray(rows) ? rows : null;
+  } catch {
+    return null;
+  }
+};
+
+// Signing in through the form updates each demo user's last sign-in, which the team
+// table shows as Last Login. Note the seeded times before anyone signs in, and put them
+// back before the shots that show them and at the end of the run.
+const DEMO_EMAILS = Object.values(USERS).map((e) => `'${e}'`).join(', ');
+const seenTimes = devSql(`select id, last_sign_in_at from auth.users where email in (${DEMO_EMAILS})`);
+if (!seenTimes) console.warn('note  Could not read the demo users\' last sign-in (dev SQL unavailable); Last Login will show this run\'s times.');
+const restoreSignIns = () => {
+  if (!seenTimes?.length) return;
+  const values = seenTimes
+    .map((r) => `('${r.id}'::uuid, ${r.last_sign_in_at ? `'${r.last_sign_in_at}'::timestamptz` : 'null'})`)
+    .join(', ');
+  devSql(`update auth.users u set last_sign_in_at = v.t from (values ${values}) as v(id, t) where u.id = v.id returning u.id`);
+};
+
+const ctx = { base: BASE, users: USERS, password: PASSWORD, restoreSignIns };
 const browser = await chromium.launch({ executablePath: CHROMIUM });
 const newContext = (viewport, storageState) =>
   browser.newContext({
@@ -116,6 +145,7 @@ for (const shot of selected) {
   await c.close();
 }
 await browser.close();
+restoreSignIns();
 const sorted = Object.fromEntries(Object.keys(log).sort().map((k) => [k, log[k]]));
 fs.writeFileSync(logFile, JSON.stringify(sorted, null, 2) + '\n');
 process.exit(failed ? 1 : 0);

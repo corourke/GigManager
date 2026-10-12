@@ -1,5 +1,5 @@
 import { createClient } from '../utils/supabase/client';
-import { containerPiecesByItem, recordItemMaps, summarizeItem } from '../utils/equipmentItems';
+import { containerPiecesByItem, isRetired, recordItemMaps, recordKind, summarizeItem } from '../utils/equipmentItems';
 import { gigNeeds, type ItemCounts, type ItemNeed, type KitLine, type KitMeta, type NeedsContext } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
@@ -11,22 +11,37 @@ export interface EquipmentNeedsData {
   ctx: NeedsContext;
   /** Owned, available, in maintenance and in containers, per item asked for. */
   counts: Map<string, ItemCounts>;
+  /** Each lot's size, a written-off lot at 0 (#242: "asks for 6, lot has 4"). Units aren't in it. */
+  lotHas: Map<string, number>;
+}
+
+/**
+ * Kits that aren't in the kits table, with their lines and records' items: what a gig had added
+ * at pack-out on its own (#185), as one kit per gig.
+ */
+export interface ExtraNeeds {
+  kits: readonly KitMeta[];
+  lines: ReadonlyMap<string, KitLine[]>;
+  assetItem: ReadonlyMap<string, string>;
 }
 
 /**
  * Everything needed to count what a set of kits asks for per item (#184): their
  * lines through nested kits, each record's item, and each item's counts.
  */
-export async function loadEquipmentNeeds(kitIds: readonly string[], organizationId?: string): Promise<EquipmentNeedsData> {
+export async function loadEquipmentNeeds(kitIds: readonly string[], organizationId?: string, extra?: ExtraNeeds): Promise<EquipmentNeedsData> {
   const supabase = getSupabase();
   const kits = new Map<string, KitMeta & { organization_id?: string }>();
   const lines = new Map<string, KitLine[]>();
   const assetItem = new Map<string, string>();
-  const empty = { ctx: { kits, lines, assetItem }, counts: new Map<string, ItemCounts>() };
-  if (kitIds.length === 0) return empty;
+  for (const k of extra?.kits ?? []) kits.set(k.id, k);
+  for (const [id, l] of extra?.lines ?? []) lines.set(id, l);
+  for (const [id, item] of extra?.assetItem ?? []) assetItem.set(id, item);
+  const empty = { ctx: { kits, lines, assetItem }, counts: new Map<string, ItemCounts>(), lotHas: new Map<string, number>() };
+  if (kitIds.length === 0 && kits.size === 0) return empty;
 
   // The kits and their lines, level by level through nested kits.
-  let frontier = Array.from(new Set(kitIds));
+  let frontier = Array.from(new Set(kitIds)).filter((id) => !lines.has(id));
   for (let depth = 0; frontier.length && depth < MAX_DEPTH; depth++) {
     const [meta, rows] = await Promise.all([
       (supabase.from('kits') as any).select('id, name, is_container, organization_id').in('id', frontier),
@@ -41,7 +56,7 @@ export async function loadEquipmentNeeds(kitIds: readonly string[], organization
   }
 
   // Each specific unit's item.
-  const assetIds = Array.from(new Set([...lines.values()].flat().map((l) => l.asset_id).filter((id): id is string => !!id)));
+  const assetIds = Array.from(new Set([...lines.values()].flat().map((l) => l.asset_id).filter((id): id is string => !!id && !assetItem.has(id))));
   if (assetIds.length) {
     const { data, error } = await (supabase.from('assets') as any).select('id, equipment_item_id').in('id', assetIds);
     if (error) throw error;
@@ -51,7 +66,7 @@ export async function loadEquipmentNeeds(kitIds: readonly string[], organization
   // The items asked for, with their records.
   const ctx: NeedsContext = { kits, lines, assetItem };
   const itemIds = Array.from(new Set(Array.from(kits.keys()).flatMap((id) => [...gigNeeds([id], ctx).keys()])));
-  if (itemIds.length === 0) return { ctx, counts: new Map() };
+  if (itemIds.length === 0) return { ctx, counts: new Map(), lotHas: new Map() };
   const { data: items, error: itemsError } = await (supabase.from('equipment_items') as any)
     .select('id, manufacturer_model, records:assets(id, quantity, status, retired_on, serial_number, tag_number)')
     .in('id', itemIds);
@@ -71,12 +86,18 @@ export async function loadEquipmentNeeds(kitIds: readonly string[], organization
     for (const [k, n] of active) activeInContainers.set(k, (activeInContainers.get(k) ?? 0) + n);
   }
 
+  const lotHas = new Map<string, number>();
+  for (const i of items ?? []) {
+    for (const r of i.records ?? []) {
+      if (recordKind(r) === 'lot') lotHas.set(r.id, isRetired(r) ? 0 : Math.max(0, Number(r.quantity ?? 1) || 0));
+    }
+  }
   const counts = new Map<string, ItemCounts>();
   for (const i of items ?? []) {
     const s = summarizeItem(i.records ?? [], activeInContainers.get(i.id) ?? 0);
     counts.set(i.id, { name: i.manufacturer_model, owned: s.owned, available: s.available, inMaintenance: s.inMaintenance, inContainers: inContainers.get(i.id) ?? 0 });
   }
-  return { ctx, counts };
+  return { ctx, counts, lotHas };
 }
 
 /** Pieces per item inside the organization's container kits, once for each record-to-item map. */

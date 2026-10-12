@@ -549,6 +549,16 @@ export default function ReviewScannedDataDialog({
     });
   };
 
+  // "Use $X" on the $0 total message: the total becomes the lines' own cost sum,
+  // so the line costs stay as they are (re-burdening would re-spread them by price).
+  const useLinesTotal = () => {
+    setFormData(prev => {
+      if (!prev) return null;
+      const sum = prev.items.reduce((acc, item) => acc + ((item.item_cost ?? 0) * item.quantity), 0);
+      return { ...prev, total_inv_amount: Number(sum.toFixed(2)) };
+    });
+  };
+
   const handleItemChange = (index: number, field: keyof ScannedItem, value: string | number | boolean) => {
     setFormData(prev => {
       if (!prev) return null;
@@ -942,7 +952,15 @@ export default function ReviewScannedDataDialog({
   const calculatedTotalCost = formData.items.reduce((sum, item) => sum + ((item.item_cost ?? 0) * item.quantity), 0);
   const diff = Math.abs(calculatedTotalCost - formData.total_inv_amount);
   const hasMismatch = diff > 0.05;
+  // A $0 or empty invoice total over lines that cost something is a missed field (#226).
+  // Not in a filed year: the total is locked there and only descriptions are saved.
+  const missingTotal = !purchaseLocked && !(formData.total_inv_amount > 0) && calculatedTotalCost > 0.005;
   const undecided = formData.items.filter(item => !item.tax_treatment).length;
+  // A line tracked as equipment and expensed needs an expense category too (#226 item 6).
+  // Not in a filed year: the tax fields are locked there. Untracked lines may stay uncategorised.
+  const needsExpenseCategory = (item: ScannedItem) =>
+    !purchaseLocked && item.is_asset && item.tax_treatment === 'expense' && !item.category?.trim();
+  const noExpenseCategory = formData.items.filter(needsExpenseCategory).length;
   // New equipment records need a category (lines already tracked have one).
   const noEquipCategory = formData.items
     .filter(item => item.is_asset && !(isEditMode && item._assetId) && !equipmentCategoryOf(item).trim()).length;
@@ -950,7 +968,7 @@ export default function ReviewScannedDataDialog({
   const noPeriod = formData.items.filter(item => item.tax_treatment === 'depreciate' && !periodOf(item)).length;
   // Units need a serial or a tag each (#183).
   const noUnits = formData.items.filter(item => unitProblemOf(item)).length;
-  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noEquipCategory === 0 && noPeriod === 0 && noUnits === 0;
+  const canSave = !isSubmitting && formData.items.length > 0 && !!formData.vendor && undecided === 0 && noExpenseCategory === 0 && noEquipCategory === 0 && noPeriod === 0 && noUnits === 0 && !missingTotal;
   const isImage = file?.type.startsWith('image/');
   const isPdf = file?.type === 'application/pdf';
 
@@ -1108,8 +1126,9 @@ export default function ReviewScannedDataDialog({
   const renderExpenseCategory = (item: ScannedItem, index: number) => {
     const value = item.category || '';
     const known = expenseCats.some(c => c.name === value);
+    const needed = needsExpenseCategory(item);
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: '0 1 240px', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, flex: '0 1 240px', minWidth: 0 }}>
         {fieldLabel('Expense')}
         <select
           aria-label={`Expense category: ${item.description || 'item'}`}
@@ -1122,6 +1141,7 @@ export default function ReviewScannedDataDialog({
           {value && !known && <option value={value}>{value} (not on the list)</option>}
           {expenseCats.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
         </select>
+        {needed && <span role="status" style={{ flexBasis: '100%', fontSize: 10, fontWeight: 600, color: '#92400e' }}>Choose an expense category</span>}
       </div>
     );
   };
@@ -1371,7 +1391,8 @@ export default function ReviewScannedDataDialog({
                 )}
               </div>
 
-              {/* Reconciliation */}
+              {/* Reconciliation (the $0 total message below replaces it when the total is missing) */}
+              {!missingTotal && (
               <div style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: `1px solid ${hasMismatch ? '#fde68a' : '#a7f3d0'}`, background: hasMismatch ? '#fffbeb' : '#ecfdf5', color: hasMismatch ? '#92400e' : '#065f46' }}>
                 <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: hasMismatch ? '#f59e0b' : '#10b981' }} />
                 <span>
@@ -1380,6 +1401,20 @@ export default function ReviewScannedDataDialog({
                   {hasMismatch && <span style={{ color: '#d97706' }}> (diff: ${diff.toFixed(2)})</span>}
                 </span>
               </div>
+              )}
+              {missingTotal && (
+                <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
+                  <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />
+                  <span>Enter the invoice total, or set it to match the lines (${calculatedTotalCost.toFixed(2)}).</span>
+                  <button
+                    type="button"
+                    onClick={useLinesTotal}
+                    style={{ marginLeft: 'auto', fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}
+                  >
+                    Use ${calculatedTotalCost.toFixed(2)}
+                  </button>
+                </div>
+              )}
               {undecided > 0 && (
                 <div role="status" style={{ padding: 6, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
                   <AlertCircle style={{ width: 14, height: 14, flexShrink: 0, color: '#f59e0b' }} />

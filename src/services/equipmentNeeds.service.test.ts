@@ -77,4 +77,55 @@ describe('loadEquipmentNeeds (#184)', () => {
     // 3 Active; K4 is in a container but in Maintenance, so it doesn't take one off; org-2's case isn't counted.
     expect(data.counts.get('k12')).toEqual({ name: 'QSC K12.2', owned: 4, available: 3, inMaintenance: 1, inContainers: 1 });
   });
+
+  it('counts kits that aren\'t in the kits table: what a gig had added at pack-out (#185)', async () => {
+    const queried: string[][] = [];
+    const db: Record<string, any[]> = {
+      kits: [{ id: 'pa', name: 'Main PA', is_container: false, organization_id: 'org' }],
+      kit_components: [{ kit_id: 'pa', equipment_item_id: 'k12', quantity: 2 }],
+      assets: [],
+      equipment_items: [{ id: 'k12', manufacturer_model: 'QSC K12.2', records: [{ id: 'k1', status: 'Active', tag_number: 'K1' }, { id: 'k2', status: 'Active', tag_number: 'K2' }, { id: 'k3', status: 'Active', tag_number: 'K3' }] }],
+    };
+    vi.mocked(createClient).mockReturnValue({ from: (t: string) => {
+      const q = table(db[t] ?? []);
+      const inner = q.in;
+      q.in = (col: string, vals: any[]) => { if (t === 'kits') queried.push(vals); return inner(col, vals); };
+      return q;
+    } } as any);
+
+    const extra = {
+      kits: [{ id: 'loose:g1', name: 'Added at pack-out', is_container: false }],
+      lines: new Map([['loose:g1', [{ asset_id: 'k3', quantity: 1 }]]]),
+      assetItem: new Map([['k3', 'k12']]),
+    };
+    const data = await loadEquipmentNeeds(['pa'], 'org', extra);
+    expect(queried.flat()).toEqual(['pa']);
+    expect(needsOf(['pa', 'loose:g1'], data).get('k12')).toEqual({ total: 3, kits: [{ kit_name: 'Main PA', quantity: 2 }, { kit_name: 'Added at pack-out', quantity: 1 }] });
+    expect(data.counts.get('k12')).toMatchObject({ owned: 3, available: 3 });
+  });
+});
+
+// #242 item 7: each lot's size, a written-off lot at 0, for "asks for 6, lot has 4".
+describe('loadEquipmentNeeds: lot sizes (#242)', () => {
+  it('keeps each lot\'s size, a written-off lot at 0, and none for units', async () => {
+    const db: Record<string, any[]> = {
+      kits: [{ id: 'pa', name: 'PA', is_container: false, organization_id: 'org' }],
+      kit_components: [
+        { kit_id: 'pa', asset_id: 'xlr-lot', quantity: 6 },
+        { kit_id: 'pa', asset_id: 'dmx-lot', quantity: 2 },
+        { kit_id: 'pa', asset_id: 'amp-1', quantity: 1 },
+      ],
+      assets: [{ id: 'xlr-lot', equipment_item_id: 'xlr' }, { id: 'dmx-lot', equipment_item_id: 'dmx' }, { id: 'amp-1', equipment_item_id: 'amp' }],
+      equipment_items: [
+        { id: 'xlr', manufacturer_model: 'XLR', records: [{ id: 'xlr-lot', status: 'Active', quantity: 4 }] },
+        { id: 'dmx', manufacturer_model: 'DMX', records: [{ id: 'dmx-lot', status: 'Missing', quantity: 5, retired_on: '2026-10-09' }] },
+        { id: 'amp', manufacturer_model: 'Amp', records: [{ id: 'amp-1', status: 'Active', tag_number: 'A1' }] },
+      ],
+      kit_flattened_cache: [],
+      kit_flattened_item_cache: [],
+    };
+    vi.mocked(createClient).mockReturnValue({ from: (t: string) => table(db[t] ?? []) } as any);
+    const data = await loadEquipmentNeeds(['pa'], 'org');
+    expect(data.lotHas).toEqual(new Map([['xlr-lot', 4], ['dmx-lot', 0]]));
+  });
 });

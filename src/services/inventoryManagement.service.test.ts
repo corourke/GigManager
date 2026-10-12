@@ -21,7 +21,7 @@ function makeQueryChain(result: { data: any; error: any }) {
   const methods = [
     'select', 'insert', 'update', 'upsert', 'delete',
     'eq', 'neq', 'in', 'not', 'is', 'or', 'gte', 'lte', 'lt',
-    'order', 'limit',
+    'order', 'limit', 'range',
   ];
   methods.forEach((m) => { chain[m] = vi.fn().mockReturnValue(chain); });
   chain.single = vi.fn().mockResolvedValue(result);
@@ -691,6 +691,30 @@ describe('inventoryManagement.service', () => {
       expect(rows.find((r) => r.asset_id === 'stands')).toMatchObject({ kind: 'lot', lot_of: 6, quantity: 2, packed: 2 });
     });
 
+    // #185 PR 2: what was added at pack-out. A kit added there is flagged; units and lots added
+    // on their own (no-kit rows) are one group, "Added at pack-out", after the kits.
+    it('lists what was added at pack-out', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+      const pd20 = { equipment_item_id: 'item-pd20', tag_number: 'DSL-0211', serial_number: null, manufacturer_model: 'PD-20', quantity: 1, status: 'Active', retired_on: null };
+      const trio = { equipment_item_id: 'item-trio', tag_number: null, serial_number: null, manufacturer_model: 'Intimidator Trio', quantity: 8, status: 'Active', retired_on: null };
+      anyKit({
+        ...base,
+        gig_kit_assignments: { data: [{ kit_id: 'kit-1', added_at_pack_out: true, kit: { id: 'kit-1', name: 'Main PA', is_container: false, tag_number: null, organization_id: 'org-1' } }], error: null },
+        inventory_tracking: { data: [
+          scan('pd20', 'item-pd20', { kit_id: null, location: 'Staging Area', asset: pd20 }),
+          scan('trio', 'item-trio', { kit_id: null, quantity: 4, scanned_at: '2026-10-09T10:05:00Z', asset: trio }),
+          scan('trio', 'item-trio', { id: 't-trio-old', kit_id: null, quantity: 6, asset: trio }),
+        ], error: null },
+      });
+      const rows = await getPackingListReport('org-1', 'gig-1');
+      expect(rows.filter((r) => r.group_kit_id === 'kit-1').every((r) => r.group_added_at_pack_out)).toBe(true);
+      const added = rows.filter((r) => r.group_kit_id === 'loose:gig-1');
+      expect(added.map((r) => r.group_kit_name)).toEqual(['Added at pack-out', 'Added at pack-out']);
+      expect(rows.slice(-2)).toEqual(added);
+      expect(added.find((r) => r.asset_id === 'pd20')).toMatchObject({ kind: 'unit', asset_name: 'PD-20', tag_number: 'DSL-0211', quantity: 1, packed: 1, status: 'Checked Out', location: 'Staging Area', group_is_container: false, group_is_loose: true });
+      expect(added.find((r) => r.asset_id === 'trio')).toMatchObject({ kind: 'lot', lot_of: 8, quantity: 4, packed: 4 });
+    });
+
     // #240 review: lines are filed under the owning kit, so the same item or lot in two of its
     // sub-kits must add up, not collapse into one line.
     it('sums the same "any" item and the same lot across sub-kits of one kit', async () => {
@@ -761,7 +785,7 @@ describe('inventoryManagement.service', () => {
         id: `${gig_id}-${kit_id}-${asset_id}-${at}`, gig_id, kit_id, asset_id, status: 'Checked Out', quantity: 1, scanned_at: `2026-10-09T${at}:00Z`,
         created_at: `2026-10-09T${at}:00Z`, asset, ...over,
       });
-      const setup = (tracking: any[]) => {
+      const setup = (tracking: any[], extraComponents: any[] = []) => {
         mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
         mockSupabase.from.mockImplementation((table: string) => makeQueryChain(({
           gig_kit_assignments: { data: [
@@ -776,6 +800,7 @@ describe('inventoryManagement.service', () => {
             { kit_id: 'kit-a', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 1, item: sm57 },
             { kit_id: 'kit-b', asset_id: null, equipment_item_id: 'item-sm57', child_kit_id: null, quantity: 1, item: sm57 },
             { kit_id: 'kit-a', asset_id: 'cables', child_kit_id: null, quantity: 4, asset: { id: 'cables', ...lot } },
+            ...extraComponents,
           ], error: null },
           assets: { data: [{ equipment_item_id: 'item-sm57', tag_number: 'MIC-1', status: 'Active', retired_on: null }], error: null },
           inventory_tracking: { data: tracking, error: null },
@@ -796,6 +821,66 @@ describe('inventoryManagement.service', () => {
         setup([row('gig-1', 'kit-a', 'u1', '10:00', u1), row('gig-2', 'kit-x', 'u1', '11:00', u1)]);
         const rows = await getPackingListReport('org-1', 'gig-1');
         expect(packedOn(rows, 'kit-a', (r) => r.item_id === 'item-sm57')).toBe(0);
+      });
+
+      // #240 follow-up: a unit's status says where it is now, not where it was last scanned here.
+      it('a unit line since moved to another gig shows no status here', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        const u2 = { ...u1, tag_number: 'MIC-2' };
+        setup(
+          [row('gig-1', 'kit-b', 'u2', '10:00', u2), row('gig-2', 'kit-x', 'u2', '11:00', u2), row('gig-1', 'kit-b', 'u3', '10:00', u2, { status: 'In Warehouse' })],
+          [{ kit_id: 'kit-b', asset_id: 'u2', child_kit_id: null, quantity: 1, asset: { id: 'u2', ...u2 } },
+            { kit_id: 'kit-b', asset_id: 'u3', child_kit_id: null, quantity: 1, asset: { id: 'u3', ...u2, tag_number: 'MIC-3' } }],
+        );
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(rows.find((r) => r.asset_id === 'u2')).toMatchObject({ packed: 0, status: null, location: null });
+        // Returned from here and not moved since: it says so.
+        expect(rows.find((r) => r.asset_id === 'u3')).toMatchObject({ packed: 0, status: 'In Warehouse' });
+      });
+
+      // #240 follow-up: every row of what's tracked here, past the first page of 1000.
+      it('reads every tracking row of the records here, a page at a time', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        setup([]);
+        const old = Array.from({ length: 1000 }, (_, i) => ({ ...row('gig-3', 'kit-y', 'u1', '09:00', u1), id: `old-${i}` }));
+        mockSupabase.from.mockImplementation((table: string) => {
+          if (table !== 'inventory_tracking') return makeQueryChain(({
+            gig_kit_assignments: { data: [{ kit_id: 'kit-a', kit: { id: 'kit-a', name: 'Kit A', is_container: false, tag_number: null, organization_id: 'org-1' } }], error: null },
+            kits: { data: [{ id: 'kit-a', name: 'Kit A', category: null, is_container: false, tag_number: null }], error: null },
+            kit_components: { data: [{ kit_id: 'kit-a', asset_id: 'u1', child_kit_id: null, quantity: 1, asset: { id: 'u1', ...u1 } }], error: null },
+          } as Record<string, any>)[table] ?? { data: [], error: null });
+          let select = '';
+          let from: number | null = null;
+          const chain = makeQueryChain({ data: [], error: null });
+          chain.select = vi.fn((cols: string) => { select = cols; return chain; });
+          chain.range = vi.fn((a: number) => { from = a; return chain; });
+          chain.then = (res: any, rej: any) => {
+            const data = select.includes('asset:') ? [row('gig-1', 'kit-a', 'u1', '10:00', u1)]
+              : from === 1000 ? [row('gig-2', 'kit-x', 'u1', '11:00', u1)] : old;
+            return Promise.resolve({ data, error: null }).then(res, rej);
+          };
+          return chain;
+        });
+        const rows = await getPackingListReport('org-1', 'gig-1');
+        expect(rows.find((r) => r.asset_id === 'u1')).toMatchObject({ packed: 0, status: null });
+      });
+
+      // #240 follow-up: a container is one case, packed only where its newest row puts it.
+      it('a container since moved to another gig is not packed here', async () => {
+        const { getPackingListReport } = await import('./inventoryManagement.service');
+        const caseRow = (gig_id: string, at: string, over: Record<string, unknown> = {}) =>
+          ({ id: `${gig_id}-case-${at}`, gig_id, kit_id: 'case-1', asset_id: null, status: 'Checked Out', quantity: 1, scanned_at: `2026-10-09T${at}:00Z`, created_at: `2026-10-09T${at}:00Z`, ...over });
+        mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+        const tables = (tracking: any[]) => mockSupabase.from.mockImplementation((table: string) => makeQueryChain(({
+          gig_kit_assignments: { data: [{ kit_id: 'case-1', kit: { id: 'case-1', name: 'Mic Case', is_container: true, tag_number: 'MC-1', organization_id: 'org-1' } }], error: null },
+          inventory_tracking: { data: tracking, error: null },
+        } as Record<string, any>)[table] ?? { data: [], error: null }));
+
+        tables([caseRow('gig-1', '10:00'), caseRow('gig-2', '11:00')]);
+        expect((await getPackingListReport('org-1', 'gig-1')).find((r) => r.kit_id === 'case-1')).toMatchObject({ packed: 0, status: null });
+
+        tables([caseRow('gig-2', '09:00'), caseRow('gig-1', '10:00', { location: 'Truck' })]);
+        expect((await getPackingListReport('org-1', 'gig-1')).find((r) => r.kit_id === 'case-1')).toMatchObject({ packed: 1, status: 'Checked Out', location: 'Truck' });
       });
 
       it('written-off pieces are never packed', async () => {
@@ -1120,6 +1205,204 @@ describe('inventoryManagement.service', () => {
       expect(result).toEqual([
         expect.objectContaining({ kit_id: 'kit-2', is_container: true, asset_id: null }),
       ]);
+    });
+  });
+
+  describe('getItemsByLocation', () => {
+    // A container ("Case") went out on gig A, came home by kit-only overrides, then went out
+    // and back on gig B (Cameron, 10-10). Rows are append-only; the newest row wins across gigs.
+    const kit = { name: 'Case', is_container: true };
+    const units = ['u1', 'u2', 'u3'];
+    const row = (id: string, gig_id: string, asset_id: string | null, status: string, location: string, scanned_at: string) => ({
+      id, gig_id, kit_id: 'case', asset_id, status, location, scanned_at, created_at: scanned_at,
+      scanned_by: 'user-1', notes: null, scanned_by_user: null, kit, gig: { title: gig_id },
+    });
+    const gigARows = [
+      row('a1', 'gig-a', null, 'In Transit', 'Car', '2026-10-02T00:06:09.133Z'),
+      ...units.map((u) => row(`a1-${u}`, 'gig-a', u, 'In Transit', 'Car', '2026-10-02T00:06:09.133Z')),
+      row('a2', 'gig-a', null, 'In Warehouse', 'Garage', '2026-10-06T17:21:50.575Z'),
+      row('a3', 'gig-a', null, 'In Warehouse', 'Garage', '2026-10-06T17:22:25.725Z'),
+      row('a4', 'gig-a', null, 'In Warehouse', 'Garage', '2026-10-07T14:24:45.187Z'),
+    ];
+    const gigBRows = [
+      row('b1', 'gig-b', null, 'In Transit', 'Truck', '2026-10-09T19:47:31.847Z'),
+      ...units.map((u) => row(`b1-${u}`, 'gig-b', u, 'In Transit', 'Truck', '2026-10-09T19:47:31.847Z')),
+      // The case's row sorts after its units' (same scanned_at, id breaks the tie).
+      row('b2', 'gig-b', null, 'In Warehouse', 'Garage', '2026-10-10T06:03:16.329Z'),
+      ...units.map((u) => row(`b0-${u}`, 'gig-b', u, 'In Warehouse', 'Garage', '2026-10-10T06:03:16.329Z')),
+    ];
+    const allStatuses = ['Checked Out', 'In Transit', 'On Site', 'In Warehouse'];
+
+    function mockRows(rows: any[]) {
+      mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+        ? { data: units.map((u) => ({ id: u, manufacturer_model: `Mic ${u}`, tag_number: `T-${u}`, serial_number: null })), error: null }
+        : { data: rows, error: null }));
+    }
+
+    it('shows a container where its newest scan puts it, not at an older gig\'s last scan', async () => {
+      const { getItemsByLocation } = await import('./inventoryManagement.service');
+      mockRows([...gigBRows, ...gigARows]);
+
+      const result = await getItemsByLocation('org-1', { status: allStatuses });
+
+      expect(result.filter((i) => i.status === 'In Transit')).toEqual([]);
+      expect(result.filter((i) => !i.asset_id)).toEqual([
+        expect.objectContaining({ kit_id: 'case', status: 'In Warehouse', location: 'Garage', gig_id: 'gig-b', scanned_at: '2026-10-10T06:03:16.329Z' }),
+      ]);
+      // Each unit once, from the same (tied) scan as the case.
+      expect(result.filter((i) => i.asset_id).map((i) => [i.asset_id, i.status, i.location, i.scanned_at]).sort()).toEqual(
+        units.map((u) => [u, 'In Warehouse', 'Garage', '2026-10-10T06:03:16.329Z']));
+    });
+
+    it('each item reports its own newest row: a newer kit-only row for the container (e.g. a note) doesn\'t move its units (Cameron, 10-10)', async () => {
+      const { getItemsByLocation } = await import('./inventoryManagement.service');
+      mockRows(gigARows);
+
+      const result = await getItemsByLocation('org-1', { status: allStatuses });
+
+      expect(result.filter((i) => !i.asset_id)).toEqual([
+        expect.objectContaining({ kit_id: 'case', status: 'In Warehouse', location: 'Garage', scanned_at: '2026-10-07T14:24:45.187Z' }),
+      ]);
+      expect(result.filter((i) => i.asset_id).map((i) => [i.asset_id, i.status, i.location, i.scanned_at]).sort()).toEqual(
+        units.map((u) => [u, 'In Transit', 'Car', '2026-10-02T00:06:09.133Z']));
+    });
+
+    it('filters on where things are now: an older row that matches the filter isn\'t shown', async () => {
+      const { getItemsByLocation } = await import('./inventoryManagement.service');
+      mockRows([...gigBRows, ...gigARows]);
+
+      expect(await getItemsByLocation('org-1', { status: ['In Transit'] })).toEqual([]);
+      expect(await getItemsByLocation('org-1', { location: 'Car' })).toEqual([]);
+      expect(await getItemsByLocation('org-1', { gigId: 'gig-a' })).toEqual([]);
+      expect(await getItemsByLocation('org-1', { location: 'Garage' })).toHaveLength(1 + units.length);
+    });
+
+    describe('an untagged item (a lot) in the case (#255)', () => {
+      // Out and back on gig A, a case-only override (Shelf C), out and back on gig B, another
+      // override (Shelf D). The lot ('t58', no tag) went with the case each time.
+      const caseRows = [
+        row('a-out', 'gig-a', null, 'Checked Out', 'Staging Area', '2026-10-10T15:10:00.000Z'),
+        row('a-out-u1', 'gig-a', 'u1', 'Checked Out', 'Staging Area', '2026-10-10T15:10:00.000Z'),
+        row('a-out-t58', 'gig-a', 't58', 'Checked Out', 'Staging Area', '2026-10-10T15:10:00.000Z'),
+        row('a-back', 'gig-a', null, 'In Warehouse', 'Warehouse', '2026-10-10T15:17:00.000Z'),
+        row('a-back-u1', 'gig-a', 'u1', 'In Warehouse', 'Warehouse', '2026-10-10T15:17:00.000Z'),
+        row('a-back-t58', 'gig-a', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T15:17:00.000Z'),
+        row('a-override', 'gig-a', null, 'In Warehouse', 'Warehouse, Shelf C', '2026-10-10T15:18:00.000Z'),
+        row('b-out', 'gig-b', null, 'Checked Out', 'Staging Area', '2026-10-10T15:18:30.000Z'),
+        row('b-out-u1', 'gig-b', 'u1', 'Checked Out', 'Staging Area', '2026-10-10T15:18:30.000Z'),
+        row('b-out-t58', 'gig-b', 't58', 'Checked Out', 'Staging Area', '2026-10-10T15:18:30.000Z'),
+        row('b-back', 'gig-b', null, 'In Warehouse', 'Warehouse', '2026-10-10T15:19:00.000Z'),
+        row('b-back-u1', 'gig-b', 'u1', 'In Warehouse', 'Warehouse', '2026-10-10T15:19:00.000Z'),
+        row('b-back-t58', 'gig-b', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T15:19:00.000Z'),
+        row('b-override', 'gig-b', null, 'In Warehouse', 'Warehouse, Shelf D', '2026-10-10T15:20:00.000Z'),
+      ];
+
+      function mockWithLot(rows: any[]) {
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+          ? { data: [
+            { id: 'u1', manufacturer_model: 'DI Box', tag_number: 'DSL-0211', serial_number: null },
+            { id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null },
+          ], error: null }
+          : { data: rows, error: null }));
+      }
+      const shown = (items: { asset_id?: string | null; gig_id: string; location?: string | null }[]) =>
+        items.map((i) => [i.asset_id ?? 'case', i.gig_id, i.location]).sort();
+
+      it('the case, its unit and its lot each show once, at their newest row: no second case heading from gig A', async () => {
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        mockWithLot(caseRows);
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
+          ['case', 'gig-b', 'Warehouse, Shelf D'],
+          ['t58', 'gig-b', 'Warehouse'],
+          ['u1', 'gig-b', 'Warehouse'],
+        ]);
+        // Nothing of the case is at gig A now.
+        expect(await getItemsByLocation('org-1', { gigId: 'gig-a' })).toEqual([]);
+      });
+
+      it('a genuine split still shows at each place: 1 T58 On Site at gig C, the rest home once', async () => {
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        mockWithLot([...caseRows, { ...row('c-t58', 'gig-c', 't58', 'On Site', 'Stage', '2026-10-10T16:00:00.000Z'), kit_id: 'band', kit: { name: 'Band', is_container: false } }]);
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
+          ['case', 'gig-b', 'Warehouse, Shelf D'],
+          ['t58', 'gig-b', 'Warehouse'],
+          ['t58', 'gig-c', 'Stage'],
+          ['u1', 'gig-b', 'Warehouse'],
+        ]);
+        expect(shown(await getItemsByLocation('org-1', { gigId: 'gig-c' }))).toEqual([['t58', 'gig-c', 'Stage']]);
+      });
+
+      it('a one-piece untagged item shows once: an older gig\'s "still out" row is stale (SndEng Case, 10-11)', async () => {
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+          ? { data: [{ id: 'evo', manufacturer_model: 'Audient EVO 4', tag_number: null, serial_number: null, quantity: 1 }], error: null }
+          : { data: [
+            row('wr-evo', 'white-road', 'evo', 'In Transit', 'Car', '2026-10-02T00:06:09.133Z'),
+            row('bv-out-evo', 'blue-valley', 'evo', 'In Transit', 'Truck', '2026-10-09T19:47:31.847Z'),
+            row('bv-back-evo', 'blue-valley', 'evo', 'In Warehouse', 'Garage', '2026-10-10T06:03:16.329Z'),
+          ], error: null }));
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([['evo', 'blue-valley', 'Garage']]);
+        expect(await getItemsByLocation('org-1', { gigId: 'white-road' })).toEqual([]);
+      });
+
+      it('a lot in a case is one place per case: pieces that came home and went back out aren\'t counted twice (#260 test)', async () => {
+        // T58, a lot of 6. 4 ride in the Mic Case (a container): out on Cedar Hall (never unloaded),
+        // out and back on Paper Lanterns, now out on Halloween Bash. 1 is On Site at the festival
+        // since 9-27 under Full Band (a logical kit). Now: 4 at Halloween, 1 at the festival.
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        const band = { kit_id: 'band', kit: { name: 'Full Band', is_container: false } };
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+          ? { data: [{ id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null, quantity: 6 }], error: null }
+          : { data: [
+            { ...row('fest', 'festival', 't58', 'On Site', 'Stage', '2026-09-27T20:00:00.000Z'), ...band, quantity: 1 },
+            { ...row('cedar', 'cedar', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:30:00.000Z'), quantity: 4 },
+            { ...row('pl-out', 'paper-lanterns', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:40:00.000Z'), quantity: 4 },
+            { ...row('pl-back', 'paper-lanterns', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T22:50:00.000Z'), quantity: 4 },
+            { ...row('hb', 'halloween', 't58', 'Checked Out', 'Staging Area', '2026-10-10T23:10:00.000Z'), quantity: 4 },
+          ], error: null }));
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
+          ['t58', 'festival', 'Stage'],
+          ['t58', 'halloween', 'Staging Area'],
+        ]);
+      });
+
+      it('a multi-piece lot counts each place\'s pieces: a stale place drops once the newer ones hold the whole lot (#258 test)', async () => {
+        // T58, a lot of 6: 4 left Checked Out at Cedar Hall (never unloaded), then 4 out and back on
+        // Paper Lanterns, 1 On Site at the festival, and 4 now out at Halloween Bash. Now: 4 at
+        // Halloween, 1 at the festival, the rest at home; the Cedar Hall place is stale.
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        const loose = { kit_id: 'mics', kit: { name: 'Mic bag', is_container: false } };
+        const tracking = [
+          { ...row('cedar', 'cedar', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:30:00.000Z'), ...loose, quantity: 4 },
+          { ...row('pl-out', 'paper-lanterns', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:40:00.000Z'), ...loose, quantity: 4 },
+          { ...row('pl-back', 'paper-lanterns', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T22:50:00.000Z'), ...loose, quantity: 4 },
+          { ...row('fest', 'festival', 't58', 'On Site', 'Stage', '2026-10-10T23:00:00.000Z'), ...loose, quantity: 1 },
+          { ...row('hb', 'halloween', 't58', 'Checked Out', 'Staging Area', '2026-10-10T23:10:00.000Z'), ...loose, quantity: 4 },
+        ];
+        mockSupabase.from.mockImplementation((table: string) => {
+          if (table === 'assets') {
+            return makeQueryChain({ data: [{ id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null, quantity: 6 }], error: null });
+          }
+          // Like PostgREST: a column comes back only if it was selected.
+          const chain = makeQueryChain({ data: tracking, error: null });
+          chain.select = vi.fn((arg: string) => {
+            const picked = /(^|[\s,])quantity([\s,]|$)/.test(arg) ? tracking : tracking.map(({ quantity: _q, ...r }) => r);
+            const inner = makeQueryChain({ data: picked, error: null });
+            return inner;
+          });
+          return chain;
+        });
+
+        expect(shown(await getItemsByLocation('org-1', { status: allStatuses }))).toEqual([
+          ['t58', 'festival', 'Stage'],
+          ['t58', 'halloween', 'Staging Area'],
+          ['t58', 'paper-lanterns', 'Warehouse'],
+        ]);
+      });
     });
   });
 
