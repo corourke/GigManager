@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 05:15 UTC (coordinator: #274 merged; #268 passed its third independent check and waits only on the case-split warning Cameron chose, then his merge OK)
+- **Last updated:** 2026-10-12 (coordinator: Cameron deployed to prod; verified read-only; #268 waits on the case-split warning, then Cameron's OK)
 
 ---
 
@@ -68,7 +68,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 **Status 10-12 05:15 UTC:**
 - **#274 merged** (docs: Locations page, live behaviour).
 - **#268 (#186 Locations step, fixes #160):** the third independent check passed. Move N reads back correctly (the target row is written 1 ms after the closing return); there's one stale rule (an out place is stale when other places later held more pieces at once than the lot leaves; returns hold none); a lot home in two cases splits correctly; a move from home with none home is refused. **Cameron 10-12: moving part of a lot in a case to another gig is allowed, with a warning** ("These N leave <case>. The case stays at <gig>."). The Equipment Lead is adding it; then the merge waits on Cameron's OK.
-- **Ready for Cameron's prod deploy (no migrations):** #263, #264, #267, #269, #270, #271, #272, #273, #276; docs #274 and #275 are already live on the docs site.
+- **In prod (Cameron's deploy 10-12; verified read-only: new build /static/index-CxUwJsRY.js serves the Reload banner, CSV Download Example, Undo write-off, the still-out warning, Separate payment, the Pieces wording; migrations unchanged at 20261019000000):** #263, #264, #267, #269, #270, #271, #272, #273, #276. Blue Valley @ Las Positas 10/9/2026 is clean (one Paid $250 booking, Venmo). The Docs Lead is publishing the held pages.
 
 **Status 10-12 03:00 UTC:**
 - **Merged since (not yet in prod):** #276 (#183 D: CSV import makes units, lots and kit lines through the v2 save; kit column kept; no status / retired_on / liquidation_amt; template regrouped; Download Example mic-kit file; held purchases; Retry failed; the app no longer calls v1), #269 (#265: container still out at another gig), #275 (docs: Payment received → Apply to). No migrations.
