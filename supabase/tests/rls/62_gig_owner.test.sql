@@ -161,6 +161,19 @@ SELECT rls_test.expect('An Inactive organization still adds its own staff slots'
     rls_test.id('gig'), rls_test.id('role'), rls_test.id('org_b'))), 1);
 SELECT rls_test.expect('The owner still edits the gig while B is Inactive',
   rls_test.run('a_manager', rls_test.set_gig('gig', $$title = 'Renamed'$$)), 1);
+-- Cameron (10-12): also read-only on the gig's schedule and on other organizations' contacts.
+CREATE FUNCTION rls_test.add_schedule() RETURNS text LANGUAGE sql AS
+  $$ SELECT format('INSERT INTO gig_schedule_entries (gig_id, activity_type, start_time) VALUES (%s, ''Load In'', now())', rls_test.id('gig')) $$;
+SELECT rls_test.expect('An Inactive organization can''t add to the gig''s schedule',
+  rls_test.run('b_admin', rls_test.add_schedule()), -1);
+SELECT rls_test.expect('The owner still can',
+  rls_test.run('a_manager', rls_test.add_schedule()), 1);
+SELECT rls_test.expect('An Inactive organization can''t add another organization''s contact on the gig',
+  rls_test.run('b_admin', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_a'), rls_test.id('a_staff'))), -1);
+SELECT rls_test.expect('...but still manages its own contacts',
+  rls_test.run('b_admin', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_b'), rls_test.id('b_staff'))), 1);
+SELECT rls_test.expect('An active participant can add another organization''s contact',
+  rls_test.run('a_manager', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_b'), rls_test.id('b_staff'))), 1);
 SELECT rls_test.expect_state('An Inactive organization can''t change its own role or notes',
   rls_test.state('b_admin', rls_test.set_part('gig', 'org_b', $$notes = 'n'$$)), '42501');
 SELECT rls_test.expect('An Inactive organization can reactivate itself',
