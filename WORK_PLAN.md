@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 (coordinator: Cameron deployed to prod; verified read-only; #268 waits on the case-split warning, then Cameron's OK)
+- **Last updated:** 2026-10-12 (triage: §1 verified against open issues/PRs; closed rows removed)
 
 ---
 
@@ -18,13 +18,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | # | Item | State | Next / owner |
 |---|---|---|---|
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
-| [#183](https://github.com/corourke/GigManager/issues/183), [#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (e) locations, override, maintenance (closes #160) | Audit 10-11: #184 and #185 **closed** (all PRs in prod); #183 A–C in prod, **piece D (CSV import) not started**; #186: Locations fixes shipped (#231, #253, #254, #257, #258, #260), but the Item filter, where-is-it card, moving N of a lot in Override (#160), the maintenance flow and an editable Maintenance screen are unbuilt; the 10-09 plan's Q1–Q4 are unanswered | Next #186 PR and #183 D wait on Cameron's release; Equipment Lead after #245/#249 |
-| [#245](https://github.com/corourke/GigManager/issues/245), [#249](https://github.com/corourke/GigManager/issues/249) | Packing-list fixes | Released 10-11; Lead's plans posted; item 2 of #245 already fixed by #246. Defaults for the Lead's questions: ticks don't carry to print, Columns choice not remembered, header "N kits · M pieces · P packed" | Equipment Lead, one PR |
-| [#242](https://github.com/corourke/GigManager/issues/242) | Write-off follow-ups | Items 1–4 shipped (#244). Open: 5 Undo only from Not returned; 6 whole-record vs split-lot undo (intended?); 7 no warning when a kit line asks for more than a shrunken lot | Cameron: build 5/7 and document 6, or park |
-| [#256](https://github.com/corourke/GigManager/issues/256), [#265](https://github.com/corourke/GigManager/issues/265), [#266](https://github.com/corourke/GigManager/issues/266) | Desktop scanner manual entry; container still out at another gig; kit-page follow-ups | Filed, not released | Cameron releases |
+| [#183](https://github.com/corourke/GigManager/issues/183), [#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchase review, manual purchases, CSV import; (e) locations, override, maintenance (closes #160) | #183 D (CSV import) shipped in #276 (in prod 10-12); only D2 (summary cards, grouped column guide) is unreleased. #186: Locations fixes shipped; **[#268](https://github.com/corourke/GigManager/pull/268) (Item filter, where-is-it card, Move N of a lot) is open, awaiting the case-split warning and Cameron's OK**; override and maintenance flow still unbuilt | Equipment Lead (#268); the rest waits on Cameron's release |
+| [#278](https://github.com/corourke/GigManager/issues/278), [#279](https://github.com/corourke/GigManager/issues/279) | Kit list Tracking Status count reads "6/0"; Kit Contents table wider than its card | Filed by the Docs Lead 10-12, not released | Cameron releases |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
-| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c). Audit 10-11: Managers still see Delete in prod (gated only by `canEdit`) |
+| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c). Stopgap #271 (Delete gig Admin-only) merged 10-12 and in prod; the 3-PR owner-organization plan is still after #186 |
 
 ## 2. Waiting on Cameron
 
