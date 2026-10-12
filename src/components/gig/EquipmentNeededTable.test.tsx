@@ -50,4 +50,17 @@ describe('EquipmentNeededTable (#184)', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(container).toBeEmptyDOMElement();
   });
+
+  // #242 item 7: a line asking a lot for more than it holds.
+  it('says when a kit asks a lot for more than it holds, or a lot that\'s gone', async () => {
+    vi.mocked(getEquipmentNeeded).mockResolvedValue({ overlapping: 0, rows: [
+      row({ itemId: 'xlr', name: 'XLR', lotShortfalls: [{ asked: 6, has: 4 }] }),
+      row({ itemId: 'dmx', name: 'DMX', lotShortfalls: [{ asked: 2, has: 0 }] }),
+    ] } as any);
+    render(<EquipmentNeededTable gigId="g1" gigStart="2026-10-10T19:00:00Z" gigEnd="2026-10-10T23:00:00Z" organizationId="org-1" />);
+    const xlr = (await screen.findByText('XLR')).closest('tr')!;
+    expect(within(xlr).getByText('asks for 6, lot has 4')).toBeInTheDocument();
+    const dmx = screen.getByText('DMX').closest('tr')!;
+    expect(within(dmx).getByText('asks for 2, lot is missing')).toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { containersIn, kitNeeds, gigNeeds, itemNeedRows, type GigNeeds, type ItemNeed, type KitLine, type KitMeta } from './equipmentNeeds';
+import { containersIn, kitNeeds, gigNeeds, itemNeedRows, lotShortfalls, type GigNeeds, type ItemNeed, type KitLine, type KitMeta } from './equipmentNeeds';
 
 // #184 PR 2: count units per item across overlapping gigs (mockup screen 10).
 const kits: Record<string, KitMeta> = {
@@ -133,5 +133,34 @@ describe('containersIn', () => {
     expect([...containersIn('mic-case', ctx)].sort()).toEqual(['mic-case', 'pouch'])
     expect([...containersIn('stage', ctx)].sort()).toEqual(['mic-case', 'pouch'])
     expect([...containersIn('pouch', ctx)]).toEqual(['pouch'])
+  })
+})
+
+// #242 item 7: a kit line asking a lot for more than it holds (a lot shrunk by a partial
+// write-off, or written off whole).
+describe('lotShortfalls (#242)', () => {
+  const kits = new Map<string, KitMeta>([
+    ['top', { id: 'top', name: 'Stage', is_container: false }],
+    ['sub', { id: 'sub', name: 'Sub', is_container: false }],
+    ['case', { id: 'case', name: 'Case', is_container: true }],
+  ])
+  const lines = new Map<string, KitLine[]>([
+    ['top', [{ asset_id: 'xlr', quantity: 6 }, { child_kit_id: 'sub', quantity: 2 }, { child_kit_id: 'case', quantity: 1 }, { asset_id: 'dmx', quantity: 3 }, { asset_id: 'gone', quantity: 2 }]],
+    ['sub', [{ asset_id: 'xlr', quantity: 1 }]],
+    ['case', [{ asset_id: 'xlr', quantity: 9 }]],
+  ])
+  const assetItem = new Map([['xlr', 'item-xlr'], ['dmx', 'item-dmx'], ['gone', 'item-gone']])
+  const ctx = { kits, lines, assetItem }
+
+  it('adds up what the kits ask of each lot, through nested kits but not into containers, and lists those asking too many', () => {
+    const lotHas = new Map([['xlr', 4], ['dmx', 5], ['gone', 0]])
+    expect(lotShortfalls(['top'], ctx, lotHas)).toEqual(new Map([
+      ['item-xlr', [{ asked: 8, has: 4 }]],
+      ['item-gone', [{ asked: 2, has: 0 }]],
+    ]))
+  })
+
+  it('ignores units and lots it has no size for', () => {
+    expect(lotShortfalls(['top'], ctx, new Map())).toEqual(new Map())
   })
 })

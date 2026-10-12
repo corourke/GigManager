@@ -5,7 +5,7 @@ import type { OrganizationRole } from '../utils/supabase/types';
 import { assetLabel } from './kit.service';
 import { recordKind } from '../utils/equipmentItems';
 import { loadEquipmentNeeds, needsOf, type ExtraNeeds } from './equipmentNeeds.service';
-import { containersIn, itemNeedRows, type GigNeeds, type ItemNeed, type ItemNeedRow, type KitLine, type NeedsContext, type ShortMoment } from '../utils/equipmentNeeds';
+import { containersIn, itemNeedRows, lotShortfalls, type GigNeeds, type ItemNeed, type ItemNeedRow, type KitLine, type NeedsContext, type ShortMoment } from '../utils/equipmentNeeds';
 
 const getSupabase = () => createClient();
 
@@ -250,7 +250,7 @@ async function loadNeedsSafely(kitIds: string[], organizationId?: string, extra?
     return await loadEquipmentNeeds(kitIds.filter((id) => !isLooseKit(id)), organizationId, extra);
   } catch (err) {
     console.error('Error loading equipment needs:', err);
-    return { ctx: { kits: new Map(), lines: new Map(), assetItem: new Map() }, counts: new Map() };
+    return { ctx: { kits: new Map(), lines: new Map(), assetItem: new Map() }, counts: new Map(), lotHas: new Map() };
   }
 }
 
@@ -626,6 +626,12 @@ export async function getEquipmentNeeded(gigId: string, startTime: string, endTi
       data.counts,
     )
       .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
+    // This gig's lines asking a lot for more than it holds (#242 item 7).
+    const shortfalls = lotShortfalls(kitIds.filter((id) => !isLooseKit(id)), data.ctx, data.lotHas ?? new Map());
+    for (const row of rows) {
+      const lots = shortfalls.get(row.itemId);
+      if (lots) row.lotShortfalls = lots;
+    }
     return { overlapping: overlapping.length, rows };
   } catch (err) {
     return handleApiError(err, 'work out the equipment needed');

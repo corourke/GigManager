@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canManage, canEditOrganization, canAssignRole, isStaffOrAbove } from './permissions';
+import { canManage, canEditOrganization, canAssignRole, isStaffOrAbove, canDeleteGig } from './permissions';
 
 describe('canManage', () => {
   it('allows Admin and Manager', () => {
@@ -56,5 +56,12 @@ describe('canAssignRole', () => {
 describe('isStaffOrAbove', () => {
   it('Admin, Manager and Staff; not Viewer or no role', () => {
     expect(['Admin', 'Manager', 'Staff', 'Viewer', undefined, null].map((r) => isStaffOrAbove(r as any))).toEqual([true, true, true, false, false, false]);
+  });
+});
+
+// #175: only Admins may delete a gig (gigs DELETE RLS is Admin-only).
+describe('canDeleteGig', () => {
+  it('Admin only; not Manager, Staff, Viewer or no role', () => {
+    expect(['Admin', 'Manager', 'Staff', 'Viewer', undefined, null].map((r) => canDeleteGig(r as any))).toEqual([true, false, false, false, false, false]);
   });
 });

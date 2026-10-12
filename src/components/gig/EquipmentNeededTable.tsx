@@ -80,7 +80,13 @@ export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimez
                 <TableCell className="text-right">{row.owned}</TableCell>
                 <TableCell className="text-right">{row.inMaintenance}</TableCell>
                 <TableCell className="text-right">{row.free}</TableCell>
-                <TableCell className="text-xs"> <Status row={row} /></TableCell>
+                <TableCell className="text-xs">
+                  {' '}<Status row={row} />
+                  {/* A kit asking a lot for more than it holds (#242). */}
+                  {row.lotShortfalls?.map((l, i) => (
+                    <div key={i} className="text-amber-700">{l.has > 0 ? `asks for ${l.asked}, lot has ${l.has}` : `asks for ${l.asked}, lot is missing`}</div>
+                  ))}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
