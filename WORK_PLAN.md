@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 21:10 UTC (coordinator: #281 (#175 PR 1) back from the Equipment Lead at 9fd9607; independent re-review running)
+- **Last updated:** 2026-10-12 21:10 UTC (coordinator: #281 (#175 PR 1) re-reviewed: no blockers; one small round back with the Equipment Lead)
 
 ---
 
@@ -64,7 +64,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 
 **Status 10-12 21:15 UTC:**
-- **#281 (#175 PR 1, database):** CI green; an independent review says fix first (the details went to Cameron privately). **10-12: the Lead's fixes are in (9fd9607, CI green); independent re-review running.** Also folded into this PR: the participant-change path in the app (delete + insert with error checks), removal of the legacy delete route (needs an edge-function deploy), the demo-seed owner, and more RLS 62 cases. **Cameron 10-12:** an Inactive organization is also read-only on the gig schedule and on other organizations' contacts. The migration goes to dev only after re-review.
+- **#281 (#175 PR 1, database):** CI green; an independent review says fix first (the details went to Cameron privately). **10-12: re-review of 9fd9607 found no blockers; one small round back with the Lead (app error checks, the createGig rollback, more RLS 62 cases). Prod backfill dry run (read-only): 99/99 resolve, no child gigs.** Also folded into this PR: the participant-change path in the app (delete + insert with error checks), removal of the legacy delete route (needs an edge-function deploy), the demo-seed owner, and more RLS 62 cases. **Cameron 10-12:** an Inactive organization is also read-only on the gig schedule and on other organizations' contacts. The migration goes to dev only after re-review.
 
 **Status 10-12 18:45 UTC:**
 - **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card). Fixed by a coordinator helper and merged 10-12 with Cameron's OK: #282 (Tracking Status reads the badge plus "N of M" at the active gig) and #283 (Kit Contents fits its card). Not yet in prod.
