@@ -68,12 +68,15 @@ FROM tree t WHERE t.id = g.id AND g.parent_gig_id IS NOT NULL;
 ALTER TABLE public.gigs ENABLE TRIGGER update_gigs_updated_at;
 
 -- Fail loudly rather than guess (Cameron, 10-12).
+-- A child whose top-level gig's owner isn't on it fails here too.
 DO $$
 DECLARE v_unresolved text;
 BEGIN
-  SELECT string_agg(id::text, ', ' ORDER BY id) INTO v_unresolved FROM public.gigs WHERE owner_organization_id IS NULL;
+  SELECT string_agg(g.id::text, ', ' ORDER BY g.id) INTO v_unresolved FROM public.gigs g
+  WHERE g.owner_organization_id IS NULL
+     OR NOT EXISTS (SELECT 1 FROM public.gig_participants p WHERE p.gig_id = g.id AND p.organization_id = g.owner_organization_id);
   IF v_unresolved IS NOT NULL THEN
-    RAISE EXCEPTION 'No owner organization could be resolved for gig(s): %', v_unresolved;
+    RAISE EXCEPTION 'No owner organization on the gig could be resolved for gig(s): %', v_unresolved;
   END IF;
 END $$;
 
@@ -81,14 +84,17 @@ ALTER TABLE public.gigs ALTER COLUMN owner_organization_id SET NOT NULL;
 CREATE INDEX idx_gigs_owner_organization_id ON public.gigs (owner_organization_id);
 
 -- ── Helpers ─────────────────────────────────────────────────────────────────
--- Like user_can_manage_gig, but through an active participation only.
+-- Like user_can_manage_gig, but through an active participation only. Inactive is per
+-- organization: one of its roles on the gig marked Inactive makes it Inactive on the gig.
 CREATE OR REPLACE FUNCTION public.user_can_manage_gig_active(p_gig_id uuid, p_user uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT EXISTS (
     SELECT 1 FROM gig_participants gp
     JOIN organization_members om ON om.organization_id = gp.organization_id
-    WHERE gp.gig_id = p_gig_id AND NOT gp.inactive
-      AND om.user_id = p_user AND om.role IN ('Admin', 'Manager'))
+    WHERE gp.gig_id = p_gig_id
+      AND om.user_id = p_user AND om.role IN ('Admin', 'Manager')
+      AND NOT EXISTS (SELECT 1 FROM gig_participants x
+                      WHERE x.gig_id = gp.gig_id AND x.organization_id = gp.organization_id AND x.inactive))
 $$;
 
 -- An Admin or Manager of the gig's owner organization.
@@ -118,6 +124,16 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
         WHERE gp.gig_id = g.id AND gp.organization_id <> g.owner_organization_id AND o.claimed))
 $$;
 
+-- Signed-in users only (as in 20260929000000).
+REVOKE EXECUTE ON FUNCTION public.user_can_manage_gig_active(uuid, uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.user_manages_gig_owner(uuid, uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.org_is_claimed(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.user_can_delete_gig(uuid, uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.user_can_manage_gig_active(uuid, uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_manages_gig_owner(uuid, uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.org_is_claimed(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_can_delete_gig(uuid, uuid) TO authenticated, service_role;
+
 -- ── gigs ────────────────────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "Admins of participating orgs can delete gigs" ON public.gigs;
 CREATE POLICY "Owner Admins can delete gigs no other claimed organization is on" ON public.gigs
@@ -128,28 +144,41 @@ CREATE POLICY "Admins and Managers of active participants can update gigs" ON pu
   FOR UPDATE USING (public.user_can_manage_gig_active(id, auth.uid()))
   WITH CHECK (public.user_can_manage_gig_active(id, auth.uid()));
 
--- A child gig has its parent's owner. Status, owner and parent are the owner's to change, and a
--- new owner must be an active participant. Checks apply to signed-in users (not migrations).
--- SECURITY DEFINER so the parent's owner is read whether or not the user can see the parent.
+-- A child gig has its parent's owner: a gig goes under a parent only if its owner owns the
+-- parent, and a child's owner isn't set apart from its parent's. A new owner must be an active
+-- participant. Status, owner and parent are the owner's Admins' and Managers' to change (signed-in
+-- users; migrations aren't checked). SECURITY DEFINER so the parent is read whether or not the
+-- user can see it.
 CREATE OR REPLACE FUNCTION public.gigs_owner_rules()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_parent_owner uuid;
 BEGIN
   IF NEW.parent_gig_id IS NOT NULL THEN
     SELECT owner_organization_id INTO v_parent_owner FROM gigs WHERE id = NEW.parent_gig_id;
-    IF v_parent_owner IS NOT NULL THEN NEW.owner_organization_id := v_parent_owner; END IF;
+    IF TG_OP = 'UPDATE' AND NEW.parent_gig_id IS DISTINCT FROM OLD.parent_gig_id
+       AND v_parent_owner IS DISTINCT FROM OLD.owner_organization_id THEN
+      RAISE EXCEPTION 'A gig can only go under a parent gig its owner organization owns.' USING ERRCODE = '42501';
+    END IF;
+    IF NEW.owner_organization_id IS NOT NULL AND NEW.owner_organization_id IS DISTINCT FROM v_parent_owner
+       AND (TG_OP = 'INSERT' OR NEW.owner_organization_id IS DISTINCT FROM OLD.owner_organization_id) THEN
+      RAISE EXCEPTION 'A child gig has its parent gig''s owner organization.' USING ERRCODE = '23514';
+    END IF;
+    NEW.owner_organization_id := v_parent_owner;
   END IF;
 
-  IF TG_OP = 'UPDATE' AND auth.uid() IS NOT NULL THEN
-    IF (NEW.status, NEW.owner_organization_id, NEW.parent_gig_id, NEW.hierarchy_depth)
+  IF TG_OP = 'UPDATE' THEN
+    IF auth.uid() IS NOT NULL
+       AND (NEW.status, NEW.owner_organization_id, NEW.parent_gig_id, NEW.hierarchy_depth)
          IS DISTINCT FROM (OLD.status, OLD.owner_organization_id, OLD.parent_gig_id, OLD.hierarchy_depth)
        AND NOT public.user_is_admin_or_manager_of_org(OLD.owner_organization_id, auth.uid()) THEN
       RAISE EXCEPTION 'Only the owner organization''s Admins and Managers can change a gig''s status, owner or parent gig.'
         USING ERRCODE = '42501';
     END IF;
-    IF NEW.owner_organization_id IS DISTINCT FROM OLD.owner_organization_id AND NEW.parent_gig_id IS NULL
-       AND NOT EXISTS (SELECT 1 FROM gig_participants
-                       WHERE gig_id = NEW.id AND organization_id = NEW.owner_organization_id AND NOT inactive) THEN
+    IF NEW.owner_organization_id IS DISTINCT FROM OLD.owner_organization_id
+       AND (NOT EXISTS (SELECT 1 FROM gig_participants p
+                        WHERE p.gig_id = NEW.id AND p.organization_id = NEW.owner_organization_id)
+            OR EXISTS (SELECT 1 FROM gig_participants p
+                       WHERE p.gig_id = NEW.id AND p.organization_id = NEW.owner_organization_id AND p.inactive)) THEN
       RAISE EXCEPTION 'A gig''s owner must be one of its active participants.' USING ERRCODE = '23514';
     END IF;
   END IF;
@@ -178,7 +207,7 @@ CREATE TRIGGER gigs_owner_to_children
 DROP POLICY IF EXISTS "Admins and Managers can manage gig participants" ON public.gig_participants;
 
 CREATE POLICY "Admins and Managers of active participants can add participants" ON public.gig_participants
-  FOR INSERT WITH CHECK (public.user_can_manage_gig_active(gig_id, auth.uid()));
+  FOR INSERT WITH CHECK (public.user_can_manage_gig_active(gig_id, auth.uid()) AND NOT inactive);
 
 CREATE POLICY "Participants and the organization itself can update a participation" ON public.gig_participants
   FOR UPDATE USING (public.user_can_manage_gig_active(gig_id, auth.uid())
@@ -204,15 +233,15 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
   SELECT owner_organization_id INTO v_owner FROM gigs WHERE id = NEW.gig_id;
-  IF NEW.inactive AND NEW.organization_id = v_owner THEN
-    RAISE EXCEPTION 'The owner organization can''t be marked Inactive; cancel the gig instead.' USING ERRCODE = '23514';
-  END IF;
-  IF auth.uid() IS NULL THEN RETURN NEW; END IF;
-  IF NEW.inactive IS DISTINCT FROM OLD.inactive
+  IF auth.uid() IS NOT NULL AND NEW.inactive IS DISTINCT FROM OLD.inactive
      AND NOT public.user_is_admin_or_manager_of_org(v_owner, auth.uid())
      AND NOT public.user_is_admin_or_manager_of_org(NEW.organization_id, auth.uid()) THEN
     RAISE EXCEPTION 'Only the owner or the organization itself can mark it Inactive or reactivate it.' USING ERRCODE = '42501';
   END IF;
+  IF NEW.inactive AND NEW.organization_id = v_owner THEN
+    RAISE EXCEPTION 'The owner organization can''t be marked Inactive; cancel the gig instead.' USING ERRCODE = '23514';
+  END IF;
+  IF auth.uid() IS NULL THEN RETURN NEW; END IF;
   IF (NEW.role, NEW.notes, NEW.is_client) IS DISTINCT FROM (OLD.role, OLD.notes, OLD.is_client)
      AND NOT public.user_can_manage_gig_active(NEW.gig_id, auth.uid()) THEN
     RAISE EXCEPTION 'Only an active participant''s Admins and Managers can change a participation.' USING ERRCODE = '42501';
@@ -256,6 +285,39 @@ END $$;
 CREATE TRIGGER gig_participants_after_remove
   AFTER DELETE ON public.gig_participants
   FOR EACH ROW EXECUTE FUNCTION public.gig_participants_after_remove();
+
+-- The owner always has a participation on its gig, and none of its rows is Inactive. Checked
+-- at commit, so a gig and its participants can be written in either order.
+CREATE OR REPLACE FUNCTION public.gig_owner_is_active_participant()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_gig uuid;
+  v_owner uuid;
+BEGIN
+  IF TG_TABLE_NAME = 'gigs' THEN
+    v_gig := NEW.id;
+  ELSIF TG_OP = 'DELETE' THEN
+    v_gig := OLD.gig_id;
+  ELSE
+    v_gig := NEW.gig_id;
+  END IF;
+  SELECT owner_organization_id INTO v_owner FROM gigs WHERE id = v_gig;
+  IF v_owner IS NULL THEN RETURN NULL; END IF;
+  IF NOT EXISTS (SELECT 1 FROM gig_participants WHERE gig_id = v_gig AND organization_id = v_owner)
+     OR EXISTS (SELECT 1 FROM gig_participants WHERE gig_id = v_gig AND organization_id = v_owner AND inactive) THEN
+    RAISE EXCEPTION 'A gig''s owner organization must be one of its active participants.' USING ERRCODE = '23514';
+  END IF;
+  RETURN NULL;
+END $$;
+
+CREATE CONSTRAINT TRIGGER gigs_owner_is_active_participant
+  AFTER INSERT OR UPDATE OF owner_organization_id ON public.gigs
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION public.gig_owner_is_active_participant();
+CREATE CONSTRAINT TRIGGER gig_participants_owner_is_active_participant
+  AFTER INSERT OR UPDATE OR DELETE ON public.gig_participants
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION public.gig_owner_is_active_participant();
 
 -- ── create_gig_complex ──────────────────────────────────────────────────────
 -- Stores the owner: the primary organization, or for a child gig its parent's owner (and then

@@ -62,12 +62,24 @@ export async function updateGigParticipants(
     } catch (e) { console.error('Activity log context lookup failed:', e); }
 
     const existingIds = (existingParticipants ?? []).map(p => p.id);
+    const existingOrg = new Map((existingParticipants ?? []).map(p => [p.id, p.organization_id]));
     const incomingIds = participants
       .filter(p => p.id && UUID_REGEX.test(p.id))
       .map(p => p.id!);
 
-    const idsToDelete = existingIds.filter(id => loadedIds.includes(id) && !incomingIds.includes(id));
+    // A participation's organization never changes in place (#175): a row moved to another
+    // organization is removed and a new one added.
+    const moved = new Set(participants
+      .filter(p => p.id && existingOrg.has(p.id) && existingOrg.get(p.id) !== p.organization_id)
+      .map(p => p.id!));
+    const idsToDelete = existingIds.filter(id => (loadedIds.includes(id) && !incomingIds.includes(id)) || moved.has(id));
 
+    if (idsToDelete.length > 0) {
+      const { error: deleteError } = await supabase.from('gig_participants').delete().in('id', idsToDelete);
+      if (deleteError) throw deleteError;
+    }
+
+    // Logged once the rows are gone.
     if (idsToDelete.length > 0 && effectiveCtx) {
       const removedRows = (existingParticipants ?? []).filter(p => idsToDelete.includes(p.id));
       const orgIds = removedRows.map(r => r.organization_id).filter(Boolean);
@@ -97,28 +109,25 @@ export async function updateGigParticipants(
       }
     }
 
-    if (idsToDelete.length > 0) {
-      await supabase.from('gig_participants').delete().in('id', idsToDelete);
-    }
-
     const ids: Array<string | undefined> = [];
     for (const participant of participants) {
       const isDbId = participant.id && UUID_REGEX.test(participant.id);
-      const participantData = {
-        organization_id: participant.organization_id,
+      const changes = {
         role: participant.role,
         notes: participant.notes || null,
         is_client: participant.is_client ?? false,
       };
 
-      if (isDbId && existingIds.includes(participant.id!)) {
-        await supabase.from('gig_participants').update(participantData).eq('id', participant.id!);
+      if (isDbId && existingIds.includes(participant.id!) && !moved.has(participant.id!)) {
+        const { error: updateError } = await supabase.from('gig_participants').update(changes).eq('id', participant.id!);
+        if (updateError) throw updateError;
         ids.push(participant.id);
       } else if (participant.organization_id && participant.role) {
-        const { data: inserted } = await (supabase.from('gig_participants') as any)
-          .insert({ gig_id: gigId, ...participantData })
+        const { data: inserted, error: insertError } = await (supabase.from('gig_participants') as any)
+          .insert({ gig_id: gigId, organization_id: participant.organization_id, ...changes })
           .select('id')
           .single();
+        if (insertError) throw insertError;
         ids.push(inserted?.id);
         if (inserted?.id && effectiveCtx) {
           const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', participant.organization_id).single();
@@ -152,21 +161,32 @@ export async function updateGigParticipants(
 }
 
 /**
+ * Sets which organization holds a single-holder role (Venue, Act) on a gig. A participation's
+ * organization never changes in place (#175): a new one replaces the old by removing and adding.
+ * Every write is checked.
+ */
+async function setGigRoleOrganization(gigId: string, role: 'Venue' | 'Act', organizationId: string | null) {
+  const supabase = getSupabase();
+  const { data: existing, error: fetchError } = await supabase.from('gig_participants')
+    .select('id, organization_id').eq('gig_id', gigId).eq('role', role).maybeSingle();
+  if (fetchError) throw fetchError;
+  if (existing && existing.organization_id === organizationId) return;
+  if (existing) {
+    const { error } = await supabase.from('gig_participants').delete().eq('id', existing.id);
+    if (error) throw error;
+  }
+  if (organizationId) {
+    const { error } = await supabase.from('gig_participants').insert({ gig_id: gigId, organization_id: organizationId, role });
+    if (error) throw error;
+  }
+}
+
+/**
  * Update the venue for a gig
  */
 export async function updateGigVenue(gigId: string, organizationId: string | null) {
-  const supabase = getSupabase();
   try {
-    if (organizationId) {
-      const { data: existing } = await supabase.from('gig_participants').select('id').eq('gig_id', gigId).eq('role', 'Venue').maybeSingle();
-      if (existing) {
-        await supabase.from('gig_participants').update({ organization_id: organizationId }).eq('id', existing.id);
-      } else {
-        await supabase.from('gig_participants').insert({ gig_id: gigId, organization_id: organizationId, role: 'Venue' });
-      }
-    } else {
-      await supabase.from('gig_participants').delete().eq('gig_id', gigId).eq('role', 'Venue');
-    }
+    await setGigRoleOrganization(gigId, 'Venue', organizationId);
   } catch (err) {
     return handleApiError(err, 'update gig venue');
   }
@@ -191,18 +211,8 @@ export async function getGigParticipants(gigId: string) {
 }
 
 export async function updateGigAct(gigId: string, organizationId: string | null) {
-  const supabase = getSupabase();
   try {
-    if (organizationId) {
-      const { data: existing } = await supabase.from('gig_participants').select('id').eq('gig_id', gigId).eq('role', 'Act').maybeSingle();
-      if (existing) {
-        await supabase.from('gig_participants').update({ organization_id: organizationId }).eq('id', existing.id);
-      } else {
-        await supabase.from('gig_participants').insert({ gig_id: gigId, organization_id: organizationId, role: 'Act' });
-      }
-    } else {
-      await supabase.from('gig_participants').delete().eq('gig_id', gigId).eq('role', 'Act');
-    }
+    await setGigRoleOrganization(gigId, 'Act', organizationId);
   } catch (err) {
     return handleApiError(err, 'update gig act');
   }
