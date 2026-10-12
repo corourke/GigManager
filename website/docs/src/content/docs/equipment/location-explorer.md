@@ -10,14 +10,15 @@ on a truck, at a venue or back in the warehouse. Every scan on the phone, and ev
 correction, updates it. Everyone in the organization can see it; Admins and Managers
 can also correct a record.
 
-<!-- 📸 Locations: Checked Out and In Warehouse groups, with a Mic Case container. -->
+![Locations: the filters, then Checked Out with the Staging Area and Truck groups, each listing equipment under its kit](../../../assets/screenshots/equipment/location-explorer-overview.png)
 
 ## Reading the page
 
 The page is grouped by status, such as **Checked Out** or **In Warehouse**, and then by
 place, such as "Staging Area" or "Warehouse, Bay 2", with how many items are there.
-Inside each place, equipment is listed under its kit. Each line shows the **Item**, its
-**Tag #**, the **Gig** of its latest record and when it was **Last Scanned**.
+Inside each place, equipment is listed under its kit, which has an **Items** badge.
+Each line shows the **Item**, its **Tag #**, the **Gig** of its latest record and when
+it was **Last Scanned**.
 
 Each piece of equipment shows where its newest record puts it, across all gigs. A
 monitor that went out to one gig and then on to another shows once, at the second gig.
