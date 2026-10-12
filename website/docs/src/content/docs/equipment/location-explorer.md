@@ -15,10 +15,11 @@ can also correct a record.
 ## Reading the page
 
 The page is grouped by status, such as **Checked Out** or **In Warehouse**, and then by
-place, such as "Staging Area" or "Warehouse, Bay 2", with how many items are there.
+place, such as "Staging Area" or "Warehouse, Bay 2", with how many pieces are there.
 Inside each place, equipment is listed under its kit, which has an **Items** badge.
 Each line shows the **Item**, its **Tag #**, the **Gig** of its latest record and when
-it was **Last Scanned**.
+it was **Last Scanned**. A lot's line also shows how many of its pieces are at that
+place, such as "2 of 10".
 
 Each piece of equipment shows where its newest record puts it, across all gigs. A
 monitor that went out to one gig and then on to another shows once, at the second gig.
@@ -47,6 +48,11 @@ than tagged.
 
 Use the filters at the top to narrow the list:
 
+- **Item:** one item, such as "XLR Cable, 50 ft". A card above the list sums up where
+  all of it is, for example "XLR Cable, 50 ft: 2 at Harvest Gala Dinner & Dance (Staging
+  Area) · 8 not checked out". Pieces at home read "not checked out", unless they all came back
+  on an **Unload** scan; then the card names where they were unloaded, such as
+  "6 at Warehouse".
 - **Location:** one place, such as "Truck".
 - **Gig:** equipment whose current record is from that gig. Equipment that has since
   moved on to another gig isn't listed.
@@ -69,6 +75,21 @@ without being scanned.
 The correction is a new record, so the item moves to its new place right away, and
 the history of earlier records stays. Correcting a case moves the case. What's in it
 keeps its own records.
+
+### Moving part of a lot
+
+You can move some of the pieces on a lot's line, such as "4 of 6", to another gig, or
+bring them home with **In Warehouse**. The dialog asks how many: "Move 2 of the 4 at
+Cedar Hall Fall Songwriter Showcase (Staging Area)". Below it, a line shows the result,
+such as "After: 2 stay at Cedar Hall Fall Songwriter Showcase (Staging Area) · 2 back
+home", and the button reads **Move 2**.
+
+A new status at the same gig, such as **In Transit**, applies to all the pieces on the
+line, so the count goes away.
+
+If the pieces are in a case and you move some to another gig, the dialog warns "These
+2 leave Mic Case. The case stays at Cedar Hall Fall Songwriter Showcase." The pieces you
+move are loose at the new gig, and the rest stay in the case.
 
 ## Related
 
