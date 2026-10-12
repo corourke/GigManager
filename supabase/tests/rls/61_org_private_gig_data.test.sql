@@ -18,9 +18,9 @@ INSERT INTO rls_test.ids VALUES
   ('fin_a', '00000000-0000-0000-0000-0000000009a1'),
   ('gig_b_only', '00000000-0000-0000-0000-0000000000f2');   -- a second gig only Org B is on
 
-INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated_by)
+INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated_by, owner_organization_id)
 VALUES (rls_test.u('gig_b_only'), 'B-only gig', (enum_range(NULL::gig_status))[1], now(), now() + interval '4 hours',
-        'UTC', rls_test.u('b_admin'), rls_test.u('b_admin'));
+        'UTC', rls_test.u('b_admin'), rls_test.u('b_admin'), rls_test.u('org_b'));
 INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (rls_test.u('gig_b_only'), rls_test.u('org_b'), 'Sound');
 
 INSERT INTO kits (id, organization_id, name, created_by, updated_by)

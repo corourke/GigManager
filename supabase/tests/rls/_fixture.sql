@@ -1,5 +1,5 @@
 -- Two organizations sharing one gig, plus a third org with no part in it.
---   Org A (Production) and Org B (Sound) both participate in gig G.
+--   Org A (Production) and Org B (Sound) both participate in gig G; Org A owns it.
 --   Org C is unrelated.
 -- Users: <org>_admin / _manager / _staff / _viewer, by organization_members.role.
 -- Ids are fixed so tests can refer to them by name via rls_test.u('a_admin').
@@ -30,9 +30,10 @@ INSERT INTO organization_members (organization_id, user_id, role)
 SELECT rls_test.u('org_' || split_part(name, '_', 1)), id, initcap(split_part(name, '_', 2))::user_role
 FROM rls_test.ids WHERE name ~ '_(admin|manager|staff|viewer)$';
 
-INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated_by)
+-- Org A owns the gig (#175).
+INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated_by, owner_organization_id)
 VALUES (rls_test.u('gig'), 'Shared gig', (enum_range(NULL::gig_status))[1], now(), now() + interval '4 hours',
-        'UTC', rls_test.u('a_admin'), rls_test.u('a_admin'));
+        'UTC', rls_test.u('a_admin'), rls_test.u('a_admin'), rls_test.u('org_a'));
 INSERT INTO gig_participants (gig_id, organization_id, role) VALUES
   (rls_test.u('gig'), rls_test.u('org_a'), 'Production'),
   (rls_test.u('gig'), rls_test.u('org_b'), 'Sound');
