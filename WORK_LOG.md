@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #268** (Equipment Lead, merged 10-12 with Cameron's OK after three independent reviews): Locations Item filter, piece counts, "2 of 10" rows, the where-is-it card, Move N of a lot in Manual Tracking Override (fixes #160; the target row is written after the closing return; one stale rule; capped at the lot), and parts of a lot leaving a case get a warning. **PR #277** (Docs Lead): user-guide pages for the 10-12 deploy.
+
 - **Prod deploy, 10-12** (Cameron): #263, #264, #267, #269, #270, #271, #272, #273, #276 (no migrations). The coordinator verified the served build's strings read-only; migrations are unchanged at 20261019000000. The Blue Valley duplicate payment was cleaned up by Cameron in the app.
 
 - **10-12 merges, round 2** (Cameron's OK, after coordinator review): **#276** (#183 D, CSV import onto units, lots and kit lines; independent review found the row-grouping, retired-status, retry and preview-crash problems, all fixed with failing tests first), **#269** (Equipment Lead; #265 container still out at another gig; the review's repeat-warning finding fixed), **#275** (Docs Lead; Payment received → Apply to).

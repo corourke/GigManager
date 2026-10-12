@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 (triage: §1 verified against open issues/PRs; closed rows removed)
+- **Last updated:** 2026-10-12 15:00 UTC (coordinator: #268 and #277 merged with Cameron's OK; #280 needs a conflict fix; #175 full plan released to the Equipment Lead)
 
 ---
 
@@ -22,7 +22,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#278](https://github.com/corourke/GigManager/issues/278), [#279](https://github.com/corourke/GigManager/issues/279) | Kit list Tracking Status count reads "6/0"; Kit Contents table wider than its card | Filed by the Docs Lead 10-12, not released | Cameron releases |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
-| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c). Stopgap #271 (Delete gig Admin-only) merged 10-12 and in prod; the 3-PR owner-organization plan is still after #186 |
+| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08. **Released to the Equipment Lead 10-12 (Cameron)**: 3 PRs per the plan; the design comment on #175 comes before the migration; the coordinator applies it to dev, Cameron to prod. Stopgap #271 (Delete gig Admin-only) merged 10-12 and in prod; the 3-PR owner-organization plan is still after #186 |
 
 ## 2. Waiting on Cameron
 
@@ -62,6 +62,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. ~~**Item 5, $0 invoice total.**~~ **Done: PR #248 (in prod 10-10), follow-up fix PR #251.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
+
+**Status 10-12 15:00 UTC:**
+- **Merged (not yet in prod):** #268 (#186 Locations step: Item filter, piece counts, "2 of 10", the where-is-it card, Move N of a lot with the case-split warning; fixes #160). No migration. The Docs Lead is drafting the Locations update and holding it for the deploy.
+- **Docs:** #277 merged (pages for the 10-12 deploy). #280 (Kits page) is approved but conflicts with #277; the Docs Lead is merging main.
+- **Equipment Lead next (Cameron 10-12): #175 full plan** (owner organization; delete, cancel, leave, Inactive), 3 PRs, migration first via a design comment on #175. **Not released:** the rest of #186 (Maintenance), #183 D2. #20 stays paused.
 
 **Status 10-12 05:15 UTC:**
 - **#274 merged** (docs: Locations page, live behaviour).
