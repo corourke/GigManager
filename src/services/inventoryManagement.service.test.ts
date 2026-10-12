@@ -80,6 +80,15 @@ describe('inventoryManagement.service', () => {
       expect(tracking.select).toHaveBeenCalledWith(expect.stringContaining('is_container'));
     });
 
+    it('reads many records a batch of ids at a time, to keep the URL short', async () => {
+      const { getItemWhereabouts } = await import('./inventoryManagement.service');
+      const tracking = makeQueryChain({ data: [], error: null });
+      mockSupabase.from.mockImplementation(() => tracking);
+      const units = Array.from({ length: 150 }, (_, i) => ({ id: `u${i}`, quantity: 1, tag_number: `T${i}`, status: 'Active' }) as any);
+      await getItemWhereabouts('org-1', units);
+      expect(tracking.in.mock.calls.map((c: any[]) => c[1].length)).toEqual([100, 50]);
+    });
+
     it('reads nothing for no records', async () => {
       const { getItemWhereabouts } = await import('./inventoryManagement.service');
       expect(await getItemWhereabouts('org-1', [])).toEqual([]);
