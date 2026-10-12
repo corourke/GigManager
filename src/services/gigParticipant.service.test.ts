@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { updateGigParticipants } from './gigParticipant.service';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { updateGigParticipants, removeGigParticipant, setGigParticipantInactive } from './gigParticipant.service';
 import { getCurrentUser, getSupabase } from './base/dataAccess';
 
 vi.mock('./base/dataAccess', () => ({
@@ -130,6 +130,12 @@ function makeDb(rows: {
     if (table === 'gig_participants') {
       if (rows.writeError && has(rows.writeError.method)) return { data: null, error: rows.writeError.error };
       if (rows.refuse && has(rows.refuse)) return { data: [], error: null };
+      // Filtered by gig and organization: answer with the matching rows (#175).
+      const eqs = ops.filter(o => o.method === 'eq');
+      if (eqs.some(o => o.args[0] === 'organization_id')) {
+        const matching = (rows.gig_participants ?? []).filter(r => eqs.every(o => r[o.args[0]] === o.args[1]));
+        return { data: has('insert') ? null : matching.map(r => (has('delete') || has('update') ? { id: r.id } : r)), error: null };
+      }
       if (has('delete')) return { data: (has('in')?.args[1] ?? []).map((id: string) => ({ id })), error: null };
       if (has('update')) return { data: [{ id: has('eq')?.args[1] }], error: null };
       if (has('insert')) return { data: { id: 'p-new' }, error: null };
@@ -376,5 +382,74 @@ describe('participant writes (#175)', () => {
     expect(writes(db, 'insert')).toHaveLength(0);
     expect(logActivity).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe('removing an organization from a gig, and Inactive (#175)', () => {
+  const ctx = { organization_id: 'org-1', actor_display_name: 'Jane', actor_org_name: 'Org 1', gig_title: 'Gig' };
+  const rows = [
+    { id: 'p-a', gig_id: 'gig-1', organization_id: 'org-2', role: 'Sound' },
+    { id: 'p-b', gig_id: 'gig-1', organization_id: 'org-2', role: 'Lighting' },
+    { id: 'p-c', gig_id: 'gig-1', organization_id: 'org-3', role: 'Venue' },
+  ];
+  const writes = (db: ReturnType<typeof makeDb>, method: string) => db.calls
+    .filter(c => c.table === 'gig_participants' && c.ops.some(o => o.method === method));
+  const filters = (call: { ops: Op[] }) => call.ops.filter(o => o.method === 'eq').map(o => o.args);
+  const setup = (over: Parameters<typeof makeDb>[0] = {}) => {
+    vi.clearAllMocks();
+    const db = makeDb({ gig_participants: rows, organizations: { 'org-2': 'Sound Co' }, ...over });
+    signIn({ from: db.from }, { id: 'user-1', user_metadata: {} });
+    return db;
+  };
+  let consoleError: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => { consoleError = vi.spyOn(console, 'error').mockImplementation(() => {}); });
+  afterEach(() => consoleError.mockRestore());
+
+  it("removes every one of the organization's roles on the gig, and logs each", async () => {
+    const db = setup();
+    await expect(removeGigParticipant('gig-1', 'org-2', ctx)).resolves.toEqual({ success: true });
+    const [del] = writes(db, 'delete');
+    expect(filters(del)).toEqual(expect.arrayContaining([['gig_id', 'gig-1'], ['organization_id', 'org-2']]));
+    expect(logActivity).toHaveBeenCalledTimes(2);
+    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+      event_type: 'participant.removed', organization_id: 'org-1', entity_id: 'p-b', gig_id: 'gig-1',
+      context: expect.objectContaining({ organization_name: 'Sound Co', role: 'Lighting' }),
+    }));
+  });
+
+  it("passes on the database's reason when it won't remove the organization, and logs nothing", async () => {
+    setup({ writeError: { method: 'delete', error: { code: '23503', message: 'This organization has financials, kits or staff on the gig, so it can only be marked Inactive.' } } });
+    await expect(removeGigParticipant('gig-1', 'org-2', ctx)).rejects.toThrow(/only be marked Inactive/);
+    expect(logActivity).not.toHaveBeenCalled();
+  });
+
+  it('a removal the database silently refuses is reported, not taken as done', async () => {
+    setup({ refuse: 'delete' });
+    await expect(removeGigParticipant('gig-1', 'org-2', ctx)).rejects.toThrow(/permission/i);
+    expect(logActivity).not.toHaveBeenCalled();
+  });
+
+  it("says so when the organization isn't on the gig, and deletes nothing", async () => {
+    const db = setup();
+    await expect(removeGigParticipant('gig-1', 'org-9', ctx)).rejects.toThrow(/not on this gig/i);
+    expect(writes(db, 'delete')).toHaveLength(0);
+  });
+
+  it.each([true, false])('sets inactive=%s on all of the organization\'s roles, and nothing else', async (inactive) => {
+    const db = setup();
+    await expect(setGigParticipantInactive('gig-1', 'org-2', inactive)).resolves.toEqual({ success: true });
+    const [upd] = writes(db, 'update');
+    expect(upd.ops.find(o => o.method === 'update')?.args[0]).toEqual({ inactive });
+    expect(filters(upd)).toEqual(expect.arrayContaining([['gig_id', 'gig-1'], ['organization_id', 'org-2']]));
+  });
+
+  it("passes on the database's reason when it won't change Inactive", async () => {
+    setup({ writeError: { method: 'update', error: { code: '23514', message: "The owner organization can't be marked Inactive; cancel the gig instead." } } });
+    await expect(setGigParticipantInactive('gig-1', 'org-3', true)).rejects.toThrow(/cancel the gig instead/);
+  });
+
+  it('an Inactive change the database silently refuses is reported', async () => {
+    setup({ refuse: 'update' });
+    await expect(setGigParticipantInactive('gig-1', 'org-2', true)).rejects.toThrow(/permission/i);
   });
 });

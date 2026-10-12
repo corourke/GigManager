@@ -31,8 +31,10 @@ vi.mock('../utils/supabase/auth-utils', () => ({
 vi.mock('./googleCalendar.service', () => ({
   syncGigToCalendar: vi.fn().mockResolvedValue(undefined),
   deleteGigFromCalendar: vi.fn().mockResolvedValue(undefined),
+  deleteCalendarEvent: vi.fn().mockResolvedValue(undefined),
   debouncedSyncGigToAllCalendars: vi.fn(),
 }));
+import { deleteCalendarEvent, deleteGigFromCalendar } from './googleCalendar.service';
 
 // Helper: build a chainable Supabase query builder that resolves to `result`
 function makeChain(result: { data: any; error: any }) {
@@ -286,6 +288,48 @@ describe('gig.service', () => {
       });
 
       await expect(deleteGig('gig-1')).rejects.toThrow(/permission|not found/i);
+    });
+
+    // #175: calendar events go only once the gig is gone. Their sync rows are
+    // deleted with the gig, so the event ids are read first.
+    it('removes the calendar events only after the gig was deleted', async () => {
+      const syncChain = makeChain({ data: [{ user_id: 'u-1', google_event_id: 'ev-1' }], error: null });
+      const gigChain = makeChain({ data: [{ id: 'gig-1' }], error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_sync_status') return syncChain;
+        if (table === 'gigs') return gigChain;
+        return makeChain({ data: [], error: null });
+      });
+
+      await deleteGig('gig-1');
+
+      expect(deleteCalendarEvent).toHaveBeenCalledWith('u-1', 'ev-1');
+      expect((deleteCalendarEvent as any).mock.invocationCallOrder[0])
+        .toBeGreaterThan(gigChain.delete.mock.invocationCallOrder[0]);
+    });
+
+    it('leaves the calendar alone when the delete is refused', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_sync_status') return makeChain({ data: [{ user_id: 'u-1', google_event_id: 'ev-1' }], error: null });
+        return makeChain({ data: [], error: null });
+      });
+
+      await expect(deleteGig('gig-1')).rejects.toThrow(/permission|not found/i);
+      expect(deleteCalendarEvent).not.toHaveBeenCalled();
+      expect(deleteGigFromCalendar).not.toHaveBeenCalled();
+    });
+
+    it('still reports the delete as done when a calendar event fails to go', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      (deleteCalendarEvent as any).mockRejectedValueOnce(new Error('token expired'));
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_sync_status') return makeChain({ data: [{ user_id: 'u-1', google_event_id: 'ev-1' }], error: null });
+        if (table === 'gigs') return makeChain({ data: [{ id: 'gig-1' }], error: null });
+        return makeChain({ data: [], error: null });
+      });
+
+      await expect(deleteGig('gig-1')).resolves.toEqual({ success: true });
     });
   });
 
@@ -1013,6 +1057,7 @@ describe('gig.service', () => {
     it("copies only the primary org's staff slots and kit assignments (#61)", async () => {
       const originalGig = {
         id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-a',
         participants: [
           { organization_id: 'org-a', role: 'Venue' },
           { organization_id: 'org-b', role: 'Sound' },
@@ -1071,6 +1116,48 @@ describe('gig.service', () => {
       expect(rpcArgs.p_staff_slots).toEqual([
         { role: 'Audio Engineer', organization_id: 'org-a', required_count: 2, notes: 'Bring headset' },
       ]);
+    });
+
+    // #175: the copy belongs to the owner organization, not the Venue.
+    it("copies the gig for its owner organization, with only the owner's financials, slots and kits", async () => {
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-owner',
+        participants: [
+          { organization_id: 'org-venue', role: 'Venue' },
+          { organization_id: 'org-owner', role: 'Production' },
+        ],
+        staff_slots: [
+          { role: 'Audio', organization_id: 'org-venue', required_count: 1 },
+          { role: 'Audio', organization_id: 'org-owner', required_count: 1 },
+        ],
+        kit_assignments: [
+          { kit_id: 'kit-v', organization_id: 'org-venue' },
+          { kit_id: 'kit-o', organization_id: 'org-owner' },
+        ],
+        financials: [
+          { organization_id: 'org-venue', amount: 100, direction: 'out', stage: 'accepted' },
+          { organization_id: 'org-owner', amount: 200, direction: 'in', stage: 'accepted' },
+        ],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      const finChain = makeChain({ data: [], error: null });
+      const kitChain = makeChain({ data: [], error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gigs') return makeChain({ data: originalGig, error: null });
+        if (table === 'gig_financials') return finChain;
+        if (table === 'gig_kit_assignments') return kitChain;
+        return makeChain({ data: [], error: null });
+      });
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new' }], error: null });
+
+      await duplicateGig('g');
+
+      const rpcArgs = mockSupabase.rpc.mock.calls.find((c: any[]) => c[0] === 'create_gig_complex')[1];
+      expect(rpcArgs.p_gig_data.primary_organization_id).toBe('org-owner');
+      expect(rpcArgs.p_staff_slots.map((s: any) => s.organization_id)).toEqual(['org-owner']);
+      expect(finChain.insert).toHaveBeenCalledWith([expect.objectContaining({ organization_id: 'org-owner', amount: 200 })]);
+      expect(kitChain.insert).toHaveBeenCalledWith([expect.objectContaining({ kit_id: 'kit-o' })]);
     });
   });
 });

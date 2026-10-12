@@ -256,6 +256,44 @@ describe('googleCalendar.service', () => {
       expect(removedUpsertCall).toBeDefined();
       expect(removedUpsertCall![0].sync_error).toBeNull();
     });
+    // #175: after a gig is deleted its sync row is gone too, so the event is
+    // removed by its id, with nothing written back.
+    describe('deleteCalendarEvent', () => {
+      it('removes the event by id and writes no sync status', async () => {
+        const service = await import('./googleCalendar.service');
+        mockSupabase.maybeSingle.mockResolvedValueOnce({ data: mockSettings, error: null });
+        mockSupabase.functions.invoke.mockResolvedValue({ data: { success: true }, error: null });
+
+        await service.deleteCalendarEvent('user-123', 'ev-9');
+
+        expect(mockSupabase.functions.invoke).toHaveBeenCalledWith(
+          'server/integrations/google-calendar/events',
+          expect.objectContaining({ method: 'DELETE', body: expect.objectContaining({ calendar_id: 'cal-123', event_id: 'ev-9' }) }),
+        );
+        expect(mockSupabase.upsert).not.toHaveBeenCalled();
+      });
+
+      it('treats an event that is already gone as removed', async () => {
+        const service = await import('./googleCalendar.service');
+        mockSupabase.maybeSingle.mockResolvedValueOnce({ data: mockSettings, error: null });
+        mockSupabase.functions.invoke.mockResolvedValue({
+          data: null, error: makeFunctionsHttpError({ error: 'Failed to delete event', details: 'Not Found (404)' }, 404),
+        });
+
+        await expect(service.deleteCalendarEvent('user-123', 'ev-9')).resolves.toBeUndefined();
+      });
+
+      it("reports Google's reason when the event can't be removed", async () => {
+        const service = await import('./googleCalendar.service');
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        mockSupabase.maybeSingle.mockResolvedValueOnce({ data: mockSettings, error: null });
+        mockSupabase.functions.invoke.mockResolvedValue({
+          data: null, error: makeFunctionsHttpError({ error: 'Failed to delete event', details: 'Forbidden' }, 403),
+        });
+
+        await expect(service.deleteCalendarEvent('user-123', 'ev-9')).rejects.toThrow('Forbidden');
+      });
+    });
   });
 
   describe('bulkSyncAllGigsServerSide', () => {
