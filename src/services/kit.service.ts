@@ -82,9 +82,19 @@ export async function getKitOptions(organizationId: string): Promise<{ id: strin
 /** Put a new equipment record (all of its quantity) into kits. */
 export async function addAssetToKits(assetId: string, kitIds: string[], quantity: number): Promise<void> {
   if (!kitIds.length) return;
+  return addKitAssetLines(kitIds.map(kit_id => ({ kit_id, asset_id: assetId, quantity })));
+}
+
+/**
+ * Add kit lines for specific units or lots (an `asset_id` line each, as the kit editor
+ * writes them): a unit with quantity 1, a lot with its quantity. Used by the CSV import
+ * (#183 D) for the units and lots it has just made.
+ */
+export async function addKitAssetLines(lines: { kit_id: string; asset_id: string; quantity: number }[]): Promise<void> {
+  if (!lines.length) return;
   const supabase = getSupabase();
   try {
-    const rows = kitIds.map(kit_id => ({ kit_id, asset_id: assetId, quantity: Math.max(1, Math.round(quantity || 1)) }));
+    const rows = lines.map(l => ({ kit_id: l.kit_id, asset_id: l.asset_id, quantity: Math.max(1, Math.round(l.quantity || 1)) }));
     // A plain insert: the (kit_id, asset_id) unique index is partial, which
     // PostgREST's on-conflict can't target. Callers pass only new records.
     const { error } = await (supabase.from('kit_components') as any).insert(rows);

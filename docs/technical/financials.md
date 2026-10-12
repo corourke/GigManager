@@ -73,7 +73,7 @@ flowchart LR
 
 **Cost allocation.** The invoice total includes tax and shipping, but the printed lines don't, so the difference is spread across the lines and the lines' `line_cost` adds up to the header's `total_inv_amount`:
 - **Review dialog** (scan, manual, edit): when a price, quantity or the total changes, every line is scaled by `total_inv_amount ÷ Σ(basis × quantity)`. The basis is the line's printed price, or its stored cost if it has no price (CSV imports). Opening a saved purchase changes nothing (#128).
-- **CSV import:** lines that give a cost keep it; the rest are scaled to make up the remainder, and the last line absorbs the rounding.
+- **CSV import:** lines that give a cost keep it; the rest are scaled to make up the remainder, and the last line absorbs the rounding. A purchase with an invalid row isn't allocated (or imported) until it's fixed, so its total never lands on the other lines.
 - **Worked example:** a $100 cable and a $300 amp on a $448 invoice ($32 tax, $16 shipping). The factor is 448 ÷ 400 = 1.12, so the cable costs $112 and the amp $336.
 
 **Returns and refunds.**
@@ -205,12 +205,12 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 **How the rules are enforced** (migration `20261006000000`, tests in `supabase/tests/rls/40_tax_treatment.test.sql`):
 - **Check constraints** on the values and on "lines only".
 - **Default trigger:** a line written without a treatment is an expense. A row written with the old `row_type` `item` / `asset` (an app from before 10-07) is stored as `line`, taking its treatment from the old type when none is given (`asset` → depreciate, `item` → expense).
-- **Deferred constraint trigger** for "depreciate has equipment". `create_purchase_transaction_v1` inserts a line before linking its asset, so the check waits for the end of the transaction.
+- **Deferred constraint trigger** for "depreciate has equipment". The purchase functions (`create_purchase_transaction_v2`, and the older v1) insert a line before linking its units, so the check waits for the end of the transaction.
 - **Triggers on both tables** for "never a gig expense": one on `gig_financials` (insert, or a change of `purchase_id`), and one on `purchases` (a change to depreciate).
 
 **Writers** (migration `20261007000000`, tests in `41_tax_treatment_writers.test.sql`):
 - `create_purchase_transaction_v1` stores each line's `tax_treatment` when given (and, since #125, an equipment entry's `recovery_period`; see below), and writes every line as `row_type = 'line'`. A line sent with `track: true` gets the next entry of `p_assets` as its equipment record (the old `row_type: 'asset'` still works).
-- `track_purchase_line_as_equipment(line)` (Admins and Managers) creates the equipment record from the line and links it. It changes nothing else, so it works on lines in a locked year.
+- `track_purchase_line_as_equipment(line)` (Admins and Managers) creates the equipment record from the line and links it. It changes nothing else, so it works on lines in a locked year. Since #183 D the app's **Track as equipment** makes the same lot through `add_purchase_line_units` instead (also fine in a locked year), so neither this function nor v1 has a caller in the app; both are dropped in a later migration.
 
 **Choosing the treatment** (UI, #133 step 2: `ReviewScannedDataDialog`, `src/utils/taxTreatment.ts`). Each line on the review screen has a **Track as equipment** checkbox (column "Equip") and an **Expense | Depreciate** switch with a (?) that shows:
 
@@ -255,12 +255,12 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 
 | Where (UI) | Writes | Notes |
 |---|---|---|
-| Financials → Purchases → **Scan invoices** (title-row button) | Header + lines; an `assets` row per line marked as equipment; the file as `purchase` attachment | Several files at once, read in the background two at a time, reviewed one at a time. RPC `create_purchase_transaction_v1`. |
+| Financials → Purchases → **Scan invoices** (title-row button) | Header + lines; the units or lot of each line marked as equipment; the file as `purchase` attachment | Several files at once, read in the background two at a time, reviewed one at a time. RPC `create_purchase_transaction_v2` (#183). |
 | Financials → Purchases → **Add purchase** (title-row button) | Same, without a file | Attach the file afterwards with **Attach Doc** on the report. |
 | Gig → Financials → **Upload Receipt** | Same, then each **expensed** line gets the gig's `gig_id` and its own money-out row (`createLedgerEntryForPurchaseLine`) | Scans one file. Depreciated lines are not the gig's cost (#130, fixed 10-06). |
 | Assets list → **Upload Invoice** | Same as Scan invoices, for one file | Opens manual entry if the file can't be scanned. |
 | Purchases report → **Attach Doc** | A `purchase` attachment on the header | No scan. |
-| Import → **CSV Import** | Headers, lines and assets from rows | No gig links, no attachments. `source` 0 = header, 1 = equipment line + asset, 2 = expense line. See `purchases-field-mapping.md`. |
+| Import → **CSV Import** | Headers, lines, and each equipment line's units or lot; kit lines for rows that name a kit | One `create_purchase_transaction_v2` call per purchase, then the kit lines (#183 D). No gig links, no attachments. `source` 0 = header, 1 = equipment line (units or a lot), 2 = expense line. See `purchases-field-mapping.md`. |
 | Assets → new asset | An `assets` row only | No purchase. |
 | Gig → **Booking** / **Payment received** / **Other** | Money-in or money-out rows | Payment received on a gig with an open booking pays that booking off by default (same as its Record Payment); "Separate payment (no booking)" adds a paid row |
 | Gig → **Expense / Mileage** | One money-out row | Mileage = miles × the IRS rate for the date (`src/utils/financials.utils.ts`; 2025–26 rates wrong, #125 F1). A simple expense can carry a receipt (`gig_financial`). |
