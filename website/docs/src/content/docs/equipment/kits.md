@@ -11,6 +11,8 @@ A kit is a named package of gear that goes out together, such as "Main PA: 4 Top
 
 The list shows each kit's **Category**, **Tag #**, **Items** (its pieces), **Total Value**, **Rental Value** and **Tags**, and where it is: **Tracking Status**, **Last Location** and **Active Gig**. Admins and Managers can change a kit's category, tag number, rental value, tags and description right in the list.
 
+When a kit is out on a gig, **Tracking Status** shows the status most of its pieces have, such as **Checked Out**, and how many, such as "6 of 29". Hover over the count to see all of them, for example "Pieces at Harvest Gala Dinner & Dance: Checked Out 6 · Not packed 23". The count matches the kit page's **Pieces to check off**: nested kits and "any" lines are included, a lot counts its pieces, and a case counts as one. A kit at home, and a container, show only the status.
+
 ## What goes in a kit
 
 Each line of a kit is one of three things:
@@ -37,7 +39,7 @@ An *item* is what a thing is (the model). A *unit* is one physical piece you own
 
 If **Kit Name** is empty or the kit has no lines, you'll see "Please fix the errors before submitting", and the field shows what's missing.
 
-![Edit Kit for Main PA: 4 Top / 2 Sub: Basic Information on the left, Tracking Type (Items or Container) and Kit Summary on the right](../../../assets/screenshots/equipment/kits-editor.png)
+![Edit Kit for Main PA: 4 Top / 2 Sub: Basic Information on the left, Tracking Type (Items or Container) and Kit Summary on the right, and Kit Contents below with its lines](../../../assets/screenshots/equipment/kits-editor.png)
 
 ## Adding lines
 
