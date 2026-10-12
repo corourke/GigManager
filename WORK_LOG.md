@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #281** (Equipment Lead, merged 10-12 with Cameron's OK after two independent reviews): #175 PR 1 of 3. Every gig has an owner organization; delete, status, owner and parent-gig changes are owner-only; participations can be marked Inactive (read-only on shared details, the schedule and other organizations' contacts). Participant saves now fail clearly when a change is refused. The legacy gig-delete server route is removed. Migration `20261020000000` applied to dev 10-12 (17/17 gigs owned); prod needs it plus a `server` deploy. Prod backfill dry run: 99/99.
+
 - **PRs #282, #283** (coordinator's helper, merged 10-12 with Cameron's OK): fix #278 (the kit list's Tracking Status count was meaningless; it now uses the gig packing-list count, the badge plus "N of M") and #279 (Kit Contents cells wrap so Total Value and the X fit). Failing tests first; no migrations. **PR #280** (Docs Lead): Kits page.
 
 - **PR #268** (Equipment Lead, merged 10-12 with Cameron's OK after three independent reviews): Locations Item filter, piece counts, "2 of 10" rows, the where-is-it card, Move N of a lot in Manual Tracking Override (fixes #160; the target row is written after the closing return; one stale rule; capped at the lot), and parts of a lot leaving a case get a warning. **PR #277** (Docs Lead): user-guide pages for the 10-12 deploy.

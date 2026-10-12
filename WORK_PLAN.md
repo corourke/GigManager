@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 21:55 UTC (coordinator: #281 (#175 PR 1) re-reviewed clean at d95dcdd, applied to dev; waiting on Cameron's merge OK)
+- **Last updated:** 2026-10-12 22:55 UTC (coordinator: #281 merged with Cameron's OK; prod needs migration 20261020000000 + a `server` deploy)
 
 ---
 
@@ -64,7 +64,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 
 **Status 10-12 21:15 UTC:**
-- **#281 (#175 PR 1, database):** CI green; an independent review says fix first (the details went to Cameron privately). **10-12: re-reviewed clean at d95dcdd (CI green). Applied to dev 10-12: migration `20261020000000` (17/17 dev gigs owned) and all three edge functions. Waiting on Cameron's merge OK. Prod needs the migration and a `server` deploy. Prod backfill dry run (read-only): 99/99 resolve, no child gigs.** Also folded into this PR: the participant-change path in the app (delete + insert with error checks), removal of the legacy delete route (needs an edge-function deploy), the demo-seed owner, and more RLS 62 cases. **Cameron 10-12:** an Inactive organization is also read-only on the gig schedule and on other organizations' contacts. The migration goes to dev only after re-review.
+- **#281 (#175 PR 1, database):** CI green; an independent review says fix first (the details went to Cameron privately). **10-12: re-reviewed clean at d95dcdd (CI green). Applied to dev 10-12: migration `20261020000000` (17/17 dev gigs owned) and all three edge functions. **Merged 10-12 (13a78ce, Cameron's OK).** Prod needs the migration and a `server` deploy. Prod backfill dry run (read-only): 99/99 resolve, no child gigs.** Also folded into this PR: the participant-change path in the app (delete + insert with error checks), removal of the legacy delete route (needs an edge-function deploy), the demo-seed owner, and more RLS 62 cases. **Cameron 10-12:** an Inactive organization is also read-only on the gig schedule and on other organizations' contacts. The migration goes to dev only after re-review.
 
 **Status 10-12 18:45 UTC:**
 - **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card). Fixed by a coordinator helper and merged 10-12 with Cameron's OK: #282 (Tracking Status reads the badge plus "N of M" at the active gig) and #283 (Kit Contents fits its card). Not yet in prod.
@@ -87,8 +87,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 **Status 10-12 22:45 UTC:**
 - **In prod (Cameron's deploy 10-12):** #263, #264, #267, #269, #270, #271, #272, #273, #276.
-- **Merged, not yet in prod:** #268 (#186 Locations step; fixes #160), #282 (#278), #283 (#279). No migrations. The Docs Lead holds the Locations and Kits pages for them until the deploy.
-- **#281 (#175 PR 1):** re-reviewed clean at d95dcdd and applied to dev; waiting on Cameron's merge OK. The Equipment Lead started PR 2 (services) on a branch stacked on it (no PR until #281 merges). The Docs Lead is drafting the #175 rules, held until prod.
+- **Merged, not yet in prod:** #268 (#186 Locations step; fixes #160), #282 (#278), #283 (#279), and #281 (#175 PR 1, merged 10-12 as 13a78ce): **migration `20261020000000` and an edge-function deploy (`server`)**. The prod backfill dry run (read-only) resolves 99/99 gigs. The Docs Lead holds the Locations and Kits pages for them until the deploy.
+- **#281 (#175 PR 1):** merged 10-12 with Cameron's OK (dev has it). The Equipment Lead is building PR 2 (services) from main. The Docs Lead is drafting the #175 rules, held until prod.
 - Open question for Cameron later: should #265's warning also cover a case *added* at pack-out?
 
 **Released by Cameron 10-11 (answers recorded on each issue):**
