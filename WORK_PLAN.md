@@ -145,6 +145,14 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **#268 Locations draft (held):** on `claude/docs-locations-268` (fd0d10d), checked on dev. It covers the Item filter and card, the "2 of 10" lot lines, pieces counts, Move N with its After line, the Move N button and the leave-the-case warning. A save split the T58s 2 and 2 as expected. No PR until prod has #268.
   - **Small wording issue (not filed):** a place with one piece reads "1 pieces" in Locations' place headings (the old "1 items" note).
   - **Locations** is untouched until #268.
+- **Docs Lead status, 10-12 22:40 UTC:** #175 PR 1 (#281) draft held on `claude/docs-175-owner` (e39a858). No PR until #281 is in prod.
+  - **`participating-organizations.md`:** new sections The gig's owner, Taking an organization off a gig, and Inactive organizations.
+  - **`overview.md` and `the-gig-list.md`:** delete and status are now owner-only.
+  - **Rules only:** the draft names no Inactive or owner controls, since that UI is #175 PR 3, and screenshots wait for PR 3.
+  - **For the coordinator:**
+    - If #281 ships before PR 3, the guide will describe Inactive with no way to set it. Hold the Inactive section until PR 3, or publish it with a "coming soon" note?
+    - Parent gigs have no UI, so the draft mentions them in one clause only.
+    - The gig menu still offers **Delete Gig** to any Admin until PR 3. Per #281's dev check, a delete that isn't allowed "does nothing", so users get no feedback until PR 3.
 - **Docs Lead status, 10-12 01:40 UTC.**
   - **Published (PRs, ready for review):**
     - **PR #274:** Equipment → Locations (prod since 10-11), with a screenshot.
@@ -292,11 +300,11 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `gigs/conflict-detection.md` | published | 2026-10-12 (Docs Lead, PRs #235, #277; matches prod 10-12) | per-item conflicts, Equipment needed table, same-unit rule after #238, lot short/missing notes (#270) |
 | `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
 | `gigs/documents-and-notes.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
-| `gigs/overview.md` | published | 2026-10-12 (Docs Lead, PR #277) | Delete is Admin-only (#271) |
-| `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
+| `gigs/overview.md` | published | 2026-10-12 (Docs Lead, PR #277) | Delete is Admin-only (#271); #175 PR 1 (#281) owner rules held on `claude/docs-175-owner` (e39a858) until prod; screenshots wait for #175 PR 3 |
+| `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | The gig's owner, Taking an organization off a gig, Inactive organizations: #175 PR 1 (#281) owner rules held on `claude/docs-175-owner` (e39a858) until prod; screenshots wait for #175 PR 3 |
 | `gigs/schedule.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/staffing-and-participants.md` | published (PR #222) | 2026-10-09 (Docs Lead, PR #224) | — |
-| `gigs/the-gig-list.md` | published (PRs #222, #277) | 2026-10-12 (Docs Lead) | Delete is Admin-only (#271) |
+| `gigs/the-gig-list.md` | published (PRs #222, #277) | 2026-10-12 (Docs Lead) | Delete is Admin-only (#271); #175 PR 1 (#281) owner rules held on `claude/docs-175-owner` (e39a858) until prod; screenshots wait for #175 PR 3 |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
 | `mobile/adding-at-pack-out.md` | published (PR #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | scan or + Add, conflict check, Added at pack-out, offline; 1 phone shot |
