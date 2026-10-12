@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PRs #282, #283** (coordinator's helper, merged 10-12 with Cameron's OK): fix #278 (the kit list's Tracking Status count was meaningless; it now uses the gig packing-list count, the badge plus "N of M") and #279 (Kit Contents cells wrap so Total Value and the X fit). Failing tests first; no migrations. **PR #280** (Docs Lead): Kits page.
+
 - **PR #268** (Equipment Lead, merged 10-12 with Cameron's OK after three independent reviews): Locations Item filter, piece counts, "2 of 10" rows, the where-is-it card, Move N of a lot in Manual Tracking Override (fixes #160; the target row is written after the closing return; one stale rule; capped at the lot), and parts of a lot leaving a case get a warning. **PR #277** (Docs Lead): user-guide pages for the 10-12 deploy.
 
 - **Prod deploy, 10-12** (Cameron): #263, #264, #267, #269, #270, #271, #272, #273, #276 (no migrations). The coordinator verified the served build's strings read-only; migrations are unchanged at 20261019000000. The Blue Valley duplicate payment was cleaned up by Cameron in the app.

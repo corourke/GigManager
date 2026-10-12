@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 18:45 UTC (coordinator: #280 merged; Cameron answered the #175 design questions; the Equipment Lead is building #175 PR 1)
+- **Last updated:** 2026-10-12 20:40 UTC (coordinator: #282 and #283 merged with Cameron's OK; waiting for prod deploy: #268, #282, #283)
 
 ---
 
@@ -64,7 +64,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 
 **Status 10-12 18:45 UTC:**
-- **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card). **Released to a coordinator helper (Cameron, 10-12)**, one PR each.
+- **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card). Fixed by a coordinator helper and merged 10-12 with Cameron's OK: #282 (Tracking Status reads the badge plus "N of M" at the active gig) and #283 (Kit Contents fits its card). Not yet in prod.
 - **#175 PR 1 design approved (Cameron, 10-12; answers on #175):** RESTRICT on owner delete; any participating Admin/Manager may remove an unclaimed venue or act; the owner can't Leave or go Inactive; **an Inactive organization is read-only on the shared gig details**; the backfill fails loudly. Coordinator prod check (read-only): 99/99 gigs resolve, 0 unresolved, no children. The Equipment Lead is building the migration and PR 1; the coordinator applies it to dev after review.
 
 **Status 10-12 15:00 UTC:**
