@@ -46,6 +46,7 @@ vi.mock('../services/equipmentItem.service', () => ({
 
 vi.mock('../services/inventoryManagement.service', () => ({
   getAssetTrackingSummary: vi.fn().mockResolvedValue(new Map([['k12-4', { status: 'In Warehouse', location: 'Repair Bench' }]])),
+  getItemWhereabouts: vi.fn().mockResolvedValue([]),
 }))
 
 const props = {
@@ -100,6 +101,23 @@ describe('ItemDetailScreen (#182)', () => {
     expect(within(inventory).getByText('2 missing')).toBeInTheDocument()
     expect(screen.getByText('Lot of 2 · Missing')).toBeInTheDocument()
     expect(screen.getAllByText('Missing').length).toBeGreaterThan(0)
+  })
+
+  // #186 (Cameron, 10-11): each place's pieces, a lot split across places included; home pieces
+  // are "Not checked out" unless they all came back on a return scan.
+  it('says where the pieces are, place by place', async () => {
+    const { getItemWhereabouts } = await import('../services/inventoryManagement.service')
+    vi.mocked(getItemWhereabouts).mockResolvedValueOnce([
+      { gig_id: 'g1', gig_title: 'Harvest Gala', location: 'Stage', quantity: 3 },
+      { gig_id: null, gig_title: null, location: 'Bay 2', quantity: 2 },
+      { gig_id: null, gig_title: null, location: null, quantity: 1 },
+    ])
+    render(<ItemDetailScreen {...props} />)
+    const where = (await screen.findByText('Where they are')).parentElement!
+    expect(within(where).getByText('3 · Harvest Gala (Stage)')).toBeInTheDocument()
+    expect(within(where).getByText('2 · Bay 2')).toBeInTheDocument()
+    expect(within(where).getByText('1 · Not checked out')).toBeInTheDocument()
+    expect(getItemWhereabouts).toHaveBeenCalledWith('org-1', expect.arrayContaining([expect.objectContaining({ id: 'k12-1' })]))
   })
 
   it('lists the units with tag, serial, status and replacement value, and opens one', async () => {

@@ -17,8 +17,8 @@ import {
   getItem, getContainerPieces, getItemKitLines, updateItem,
   type EquipmentItemWithRecords, type ItemFields, type ItemKitLine,
 } from '../services/equipmentItem.service';
-import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
-import { recordKind, summarizeItem, isInService } from '../utils/equipmentItems';
+import { getAssetTrackingSummary, getItemWhereabouts, type ItemWhereabout } from '../services/inventoryManagement.service';
+import { recordKind, summarizeItem } from '../utils/equipmentItems';
 import { useAutoSave } from '../utils/hooks/useAutoSave';
 import { canManage } from '../utils/permissions';
 import type { Organization, User, UserRole, DbAsset } from '../utils/supabase/types';
@@ -82,6 +82,7 @@ export default function ItemDetailScreen({
 }: ItemDetailScreenProps) {
   const [item, setItem] = useState<EquipmentItemWithRecords | null>(null);
   const [tracking, setTracking] = useState<Tracking>(new Map());
+  const [places, setPlaces] = useState<ItemWhereabout[]>([]);
   const [inContainers, setInContainers] = useState<[number, number]>([0, 0]);
   const [kitLines, setKitLines] = useState<ItemKitLine[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -95,12 +96,14 @@ export default function ItemDetailScreen({
       const loaded = await getItem(itemId);
       setItem(loaded);
       const recordIds = loaded.records.map((r) => r.id);
-      const [summary, containers, lines] = await Promise.all([
+      const [summary, containers, lines, where] = await Promise.all([
         getAssetTrackingSummary(organization.id),
         getContainerPieces(organization.id, [loaded]),
         getItemKitLines(loaded.id, recordIds),
+        getItemWhereabouts(organization.id, loaded.records),
       ]);
       setTracking(summary);
+      setPlaces(where);
       setInContainers([containers.all.get(loaded.id) ?? 0, containers.active.get(loaded.id) ?? 0]);
       setKitLines(lines);
     } catch (err: any) {
@@ -164,16 +167,12 @@ export default function ItemDetailScreen({
   const records = useMemo(() => [...(item?.records ?? [])].sort((a, b) =>
     recordKind(a).localeCompare(recordKind(b)) || unitLabel(a).localeCompare(unitLabel(b))), [item]);
 
-  // Where the item's in-service pieces are, from the latest scans.
-  const whereTheyAre = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const r of item?.records ?? []) {
-      if (!isInService(r.status)) continue;
-      const place = tracking.get(r.id)?.location ?? 'Not tracked';
-      counts.set(place, (counts.get(place) ?? 0) + (r.quantity ?? 1));
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [item, tracking]);
+  // Where the pieces are, place by place (#186, Cameron 10-11): a lot split across places
+  // shows each; home pieces are "Not checked out" unless all came back on a return scan.
+  const whereTheyAre = useMemo(() => places.map((p): [string, number] => [
+    p.gig_id ? `${p.gig_title ?? 'A gig'}${p.location ? ` (${p.location})` : ''}` : p.location ?? 'Not checked out',
+    p.quantity,
+  ]), [places]);
 
   const header = (
     <AppHeader
@@ -305,7 +304,7 @@ export default function ItemDetailScreen({
                 <div className="flex justify-between gap-4">
                   <span className="text-gray-600">Where they are</span>
                   <span className="text-right text-xs leading-5">
-                    {whereTheyAre.map(([place, n]) => <div key={place}>{`${n} · ${place}`}</div>)}
+                    {whereTheyAre.map(([place, n], i) => <div key={i}>{`${n} · ${place}`}</div>)}
                   </span>
                 </div>
               )}
