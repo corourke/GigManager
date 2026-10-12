@@ -726,6 +726,42 @@ export const shots = [
       return { x: 0, y: filters.y - 16, width: 1200, height: next.y - 12 - (filters.y - 16) };
     },
   },
+  // Kits: the kit page and the kit editor, for Main PA: 4 Top / 2 Sub.
+  {
+    id: 'equipment/kits-kit-page',
+    page: 'equipment/kits.md',
+    user: 'admin',
+    sources: ['src/components/KitDetailScreen.tsx'],
+    viewport: { width: 1200, height: 1700 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/kits/de000000-0000-4000-8000-000500000002`);
+      await page.getByText('Equipment in Kit', { exact: true }).waitFor();
+      await page.getByText('Halden HS-18 Powered Subwoofer').first().waitFor();
+    },
+    // From the kit's name through Kit Structure, above Change History.
+    clip: async (page) => {
+      const end = await box(page.getByText('Change History', { exact: true }).first());
+      return { x: 0, y: 56, width: 1200, height: end.y - 32 - 56 };
+    },
+  },
+  {
+    id: 'equipment/kits-editor',
+    page: 'equipment/kits.md',
+    user: 'admin',
+    sources: ['src/components/KitScreen.tsx'],
+    viewport: { width: 1200, height: 1400 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/kits/de000000-0000-4000-8000-000500000002/edit`);
+      await page.getByText('Kit Contents', { exact: true }).waitFor();
+      await page.getByText('4 units owned').first().waitFor();
+    },
+    // The form above Kit Contents: Basic Information, Tracking Type and Kit Summary. (Kit
+    // Contents is left out until its table fits its card, #279.)
+    clip: async (page) => {
+      const contents = await box(cardOf(page, 'Kit Contents'));
+      return { x: 0, y: 56, width: 1200, height: contents.y - 12 - 56 };
+    },
+  },
   // The phone's Scanning screen (phone layout below 768 px wide).
   {
     id: 'mobile/field-inventory-pack-out',
