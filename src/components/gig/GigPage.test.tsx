@@ -122,6 +122,25 @@ describe('GigPage (#12)', () => {
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Gig title' })).not.toBeInTheDocument());
   });
 
+  // #175: deleting a gig is Admin-only on the server, so Managers aren't offered it.
+  describe('Delete Gig in the More actions menu (#175)', () => {
+    it('is offered to Admins', async () => {
+      const user = userEvent.setup();
+      render(<GigPage {...baseProps} userRole="Admin" />);
+      await user.click(await screen.findByRole('button', { name: 'More actions' }));
+      expect(await screen.findByRole('menuitem', { name: /Duplicate Gig/ })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: /Delete Gig/ })).toBeInTheDocument();
+    });
+
+    it('is not offered to Managers, who can still duplicate', async () => {
+      const user = userEvent.setup();
+      render(<GigPage {...baseProps} userRole="Manager" />);
+      await user.click(await screen.findByRole('button', { name: 'More actions' }));
+      expect(await screen.findByRole('menuitem', { name: /Duplicate Gig/ })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: /Delete Gig/ })).not.toBeInTheDocument();
+    });
+  });
+
   describe('page header (#39)', () => {
     it('puts Back in the header slot, named for where it goes', async () => {
       const onBack = vi.fn();
