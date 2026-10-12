@@ -61,7 +61,7 @@ Use an "any" line when any unit of a model will do. Most kits are built this way
 2. Select it and enter the number you need in **Qty**.
 3. Select **Add Selected**.
 
-In **Kit Contents**, the line shows the item name with "any unit" under it, and the **Kind** is **Any**. The **Availability** column shows the count again, such as "4 units owned · 4 available". You can change **Quantity** at any time.
+In **Kit Contents**, the line shows the item name with "any unit" under it, and the **Kind** is **Any**. The **Availability** column shows the count again, such as "4 units owned · 4 available". For an item kept in lots, it counts pieces instead, such as "12 pieces owned · 10 available". You can change **Quantity** at any time.
 
 *Available* means in working order and not packed in a container kit. Units in maintenance, inactive units and pieces inside a container kit don't count. It doesn't look at other gigs. To check a gig's dates for clashes, see [Assigning equipment to a gig](/equipment/assigning-to-a-gig/).
 
@@ -82,7 +82,8 @@ You can still save the kit. Lower the quantity, or fix the gear, before the gig.
 
 A specific line names one unit or one lot. Its **Kind** is **Unit** or **Lot**, and **Availability** says **Specific unit** or **Specific lot**.
 
-- A unit line is always 1. A lot line can be up to the lot's count; the picker shows it as "… in stock".
+- A unit line is always 1. A lot line can be up to the lot's count; the picker shows it as "… in stock". In the kit, it reads "Specific lot · 6 pieces".
+- If a kit asks a lot for more pieces than it holds, for example after a write-off, an amber note says so, such as "asks for 6, lot has 4". The gig's **Equipment needed** table shows the same note.
 - A unit in maintenance or inactive shows in amber, such as "In maintenance: not available now".
 - A unit that's no longer owned shows in red: "Retired: no longer owned. Remove it from the kit." (or **Disposed**, **Returned** or **Missing**, for a unit [written off at a gig](/equipment/assigning-to-a-gig/#writing-off-missing-equipment)).
 - The same unit or lot can't be in a kit twice, even through a nested kit. The picker says "Already in this kit via FOH Console Package", for example.
@@ -92,6 +93,8 @@ A specific line names one unit or one lot. Its **Kind** is **Unit** or **Lot**, 
 - Use **any** for interchangeable gear: speakers, wedges, moving heads. If one unit goes in for repair, the kit still works with another.
 - Use a **specific unit** when it must be that one: the console with your show file, a rack built around one stage box.
 - Use a **lot** for counted gear without tags: cables, stands, DI boxes.
+
+An "any" line and a specific unit of the same item add up. "4 × any Halden HX-12P" plus one specific HX-12P means the kit takes five speakers.
 
 ## Nesting kits
 
@@ -113,7 +116,7 @@ A container is a kit for a case, box or tote that travels as one piece, such as 
 - **Items**: "Each line is confirmed when packed". The usual choice.
 - **Container**: "Checked off as one, by its tag". Give it a **Tag Number** that matches the label on the case.
 
-On a parent kit's page, **Inventory Items** counts a container as one piece. The gear inside it is committed to the case, so other kits' "any" lines don't count it as available.
+On a parent kit's page, **Pieces to check off** counts a container as one piece. The gear inside it is committed to the case, so other kits' "any" lines don't count it as available.
 
 <!-- TODO: #185 packing lists and #186 scanning and locations: describe how containers and nested kits appear on the packing list and when scanning, once those ship. -->
 
@@ -133,16 +136,16 @@ Open a kit from the list to see its page. The header shows the name, its categor
 
 The cards across the top count everything in the kit, through every nested kit:
 
-- **Total Assets**: how many different units, lots and items.
-- **Total Items**: every piece.
-- **Inventory Items**: what you'd pick up, with "Containers count as one".
+- **Lines**: each unit, lot or item once.
+- **Pieces**: every piece. A lot counts its pieces.
+- **Pieces to check off**: what you'd pick up, with "Containers count as one".
 - **Total Value** of the contents, and the kit's own **Rental Value**.
 
-<!-- 📸 The Full Band Sound Package page: summary cards, Assets in Kit and Kit Structure. -->
+<!-- 📸 The Full Band Sound Package page: summary cards, Equipment in Kit and Kit Structure. -->
 
-### Assets in Kit
+### Equipment in Kit
 
-**Assets in Kit** lists every unit, lot and item in the kit and everything nested in it, with **Quantity**, **Unit Value** and **Total Value**. If two nested kits ask for the same thing, it's one row with the total. An "any" line shows **Any** in **Serial Number**.
+**Equipment in Kit** lists every unit, lot and item in the kit and everything nested in it, with **Quantity**, **Unit Value** and **Total Value**. If two nested kits ask for the same thing, it's one row with the total. An "any" line shows **Any** in **Serial Number**.
 
 ### Kit Structure
 
@@ -157,7 +160,7 @@ A container's contents are hidden at first. Turn on **Show container contents** 
 ## Editing, duplicating and deleting
 
 - **Edit** opens the kit editor. Change what you need and select **Update Kit**. It's grayed out until you change something.
-- **Duplicate** makes a copy named "… (Copy)" with the same lines. It doesn't copy the **Tag Number**. You're taken back to the kit list.
+- **Duplicate** makes a copy named "… (Copy)" with the same lines and opens it in the kit editor. The **Tag Number** is left blank: "Kit duplicated. Give the copy its own Tag Number." Enter one and select **Update Kit**.
 - **Delete** asks "Are you sure you want to delete "…"?". Admins only.
 
 From the kit list, the row menu has the same actions: **View**, **Edit Configuration**, **Duplicate** and **Delete**.
