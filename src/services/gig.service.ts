@@ -48,8 +48,6 @@ export type { GigFinancialInput, GigFinancialPatch, GigMoneySummary } from './gi
 export {
   getGigParticipants,
   updateGigParticipants,
-  updateGigVenue,
-  updateGigAct,
 } from './gigParticipant.service';
 
 // Staff-slot / assignment operations live in gigStaff.service.ts.
@@ -391,12 +389,16 @@ export async function createGig(gigData: any, options?: { skipActivityLog?: bool
           description: 'Payment from import'
         });
       } catch (finError) {
-        // If financial creation fails, delete the gig to maintain consistency
+        // If financial creation fails, delete the gig to maintain consistency. Only an Admin of
+        // the owner can delete a gig (#175); when the rollback can't run, say plainly that the
+        // gig was created without its payment.
         console.error('Financial creation failed, rolling back gig creation:', finError);
         try {
           await deleteGig(newGigId);
         } catch (deleteError) {
           console.error('Failed to rollback gig creation:', deleteError);
+          const reason = (finError as any)?.message || 'unknown error';
+          throw new Error(`The gig was created, but its payment couldn't be saved (${reason}). Add the payment on the gig's Financials.`);
         }
         // Re-throw the original financial error
         throw finError;

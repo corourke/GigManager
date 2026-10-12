@@ -74,9 +74,13 @@ export async function updateGigParticipants(
       .map(p => p.id!));
     const idsToDelete = existingIds.filter(id => (loadedIds.includes(id) && !incomingIds.includes(id)) || moved.has(id));
 
+    // .select() so a removal the database refuses (no rows, no error) isn't taken as done.
     if (idsToDelete.length > 0) {
-      const { error: deleteError } = await supabase.from('gig_participants').delete().in('id', idsToDelete);
+      const { data: deleted, error: deleteError } = await supabase.from('gig_participants').delete().in('id', idsToDelete).select('id');
       if (deleteError) throw deleteError;
+      if ((deleted ?? []).length !== idsToDelete.length) {
+        throw new Error('An organization could not be removed from this gig: you do not have permission to remove it.');
+      }
     }
 
     // Logged once the rows are gone.
@@ -119,8 +123,11 @@ export async function updateGigParticipants(
       };
 
       if (isDbId && existingIds.includes(participant.id!) && !moved.has(participant.id!)) {
-        const { error: updateError } = await supabase.from('gig_participants').update(changes).eq('id', participant.id!);
+        const { data: updated, error: updateError } = await supabase.from('gig_participants').update(changes).eq('id', participant.id!).select('id');
         if (updateError) throw updateError;
+        if (!updated || updated.length === 0) {
+          throw new Error('A participant could not be changed: you do not have permission to change it.');
+        }
         ids.push(participant.id);
       } else if (participant.organization_id && participant.role) {
         const { data: inserted, error: insertError } = await (supabase.from('gig_participants') as any)
@@ -161,39 +168,7 @@ export async function updateGigParticipants(
 }
 
 /**
- * Sets which organization holds a single-holder role (Venue, Act) on a gig. A participation's
- * organization never changes in place (#175): a new one replaces the old by removing and adding.
- * Every write is checked.
- */
-async function setGigRoleOrganization(gigId: string, role: 'Venue' | 'Act', organizationId: string | null) {
-  const supabase = getSupabase();
-  const { data: existing, error: fetchError } = await supabase.from('gig_participants')
-    .select('id, organization_id').eq('gig_id', gigId).eq('role', role).maybeSingle();
-  if (fetchError) throw fetchError;
-  if (existing && existing.organization_id === organizationId) return;
-  if (existing) {
-    const { error } = await supabase.from('gig_participants').delete().eq('id', existing.id);
-    if (error) throw error;
-  }
-  if (organizationId) {
-    const { error } = await supabase.from('gig_participants').insert({ gig_id: gigId, organization_id: organizationId, role });
-    if (error) throw error;
-  }
-}
-
-/**
- * Update the venue for a gig
- */
-export async function updateGigVenue(gigId: string, organizationId: string | null) {
-  try {
-    await setGigRoleOrganization(gigId, 'Venue', organizationId);
-  } catch (err) {
-    return handleApiError(err, 'update gig venue');
-  }
-}
-
-/**
- * Update the act for a gig
+ * The gig's participants with their organizations.
  */
 export async function getGigParticipants(gigId: string) {
   const supabase = getSupabase();
@@ -207,13 +182,5 @@ export async function getGigParticipants(gigId: string) {
     return data || [];
   } catch (err) {
     return handleApiError(err, 'fetch gig participants') as never;
-  }
-}
-
-export async function updateGigAct(gigId: string, organizationId: string | null) {
-  try {
-    await setGigRoleOrganization(gigId, 'Act', organizationId);
-  } catch (err) {
-    return handleApiError(err, 'update gig act');
   }
 }
