@@ -545,3 +545,67 @@ describe('KitScreen: "any" lines and availability (#184)', () => {
     expect(screen.getByText('Checked off as one, by its tag')).toBeInTheDocument()
   })
 })
+
+// #266: lots read as pieces, and icon-only buttons have names.
+describe('KitScreen: kit page follow-ups (#266)', () => {
+  const lot = (id: string, quantity: number, over: Record<string, any> = {}) => ({
+    id, equipment_item_id: 'item-cable', manufacturer_model: 'XLR Cable, 25 ft', category: 'Cables', quantity,
+    tag_number: null, serial_number: null, status: 'Active', replacement_value: 30, ...over,
+  })
+  const unit = (id: string) => lot(id, 1, { tag_number: id.toUpperCase() })
+  const cableItem = (records: any[]) => ({ id: 'item-cable', manufacturer_model: 'XLR Cable, 25 ft', category: 'Cables', type: null, records })
+  const anyCable = {
+    id: 'kit-1', name: 'Cable Trunk',
+    kit_components: [{ id: 'kc-1', asset_id: null, child_kit_id: null, equipment_item_id: 'item-cable', quantity: 4, item: { id: 'item-cable', manufacturer_model: 'XLR Cable, 25 ft', category: 'Cables' } }],
+  }
+  const reset = (records: any[]) => {
+    vi.mocked(getItems).mockResolvedValue([cableItem(records)] as any)
+    vi.mocked(getContainerPieces).mockResolvedValue({ all: new Map(), active: new Map() })
+    vi.mocked(getAssets).mockResolvedValue([])
+    vi.mocked(getKits).mockResolvedValue([])
+    vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map())
+  }
+
+  it('an "any" line of an item held as a lot counts pieces, not units', async () => {
+    reset([lot('l1', 10)])
+    vi.mocked(getKit).mockResolvedValue(anyCable as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const row = (await screen.findByText('XLR Cable, 25 ft')).closest('tr')!
+    expect(await within(row).findByText('10 pieces owned · 10 available')).toBeInTheDocument()
+    expect(within(row).queryByText(/units owned/)).not.toBeInTheDocument()
+  })
+
+  it('an item with both units and a lot counts pieces too', async () => {
+    reset([unit('c1'), unit('c2'), lot('l1', 10)])
+    vi.mocked(getKit).mockResolvedValue(anyCable as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const row = (await screen.findByText('XLR Cable, 25 ft')).closest('tr')!
+    expect(await within(row).findByText('12 pieces owned · 12 available')).toBeInTheDocument()
+  })
+
+  it('a specific lot in the kit shows its piece count', async () => {
+    reset([lot('l1', 10)])
+    vi.mocked(getKit).mockResolvedValue({
+      id: 'kit-1', name: 'Cable Trunk',
+      kit_components: [{ id: 'kc-1', asset_id: 'l1', child_kit_id: null, equipment_item_id: null, quantity: 6, asset: lot('l1', 10) }],
+    } as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const row = (await screen.findByText('XLR Cable, 25 ft')).closest('tr')!
+    expect(within(row).getByText('Lot')).toBeInTheDocument()
+    expect(within(row).getByText('Specific lot · 10 pieces')).toBeInTheDocument()
+  })
+
+  it('icon-only buttons have accessible names', async () => {
+    reset([lot('l1', 10)])
+    vi.mocked(getKit).mockResolvedValue(anyCable as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    await screen.findByText('XLR Cable, 25 ft')
+
+    expect(screen.getByRole('button', { name: 'Remove XLR Cable, 25 ft from kit' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Tags'), { target: { value: 'Wedding' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add tag' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove tag Wedding' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove tag Wedding' })).not.toBeInTheDocument())
+  })
+})

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import KitDetailScreen from './KitDetailScreen'
-import { getKit, getKitComponentTree, getKitFlattenedItems } from '../services/kit.service'
+import { toast } from 'sonner'
+import { getKit, getKitComponentTree, getKitFlattenedItems, duplicateKit } from '../services/kit.service'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
 
@@ -64,6 +65,8 @@ vi.mock('../services/kit.service', async (importOriginal) => {
   }
 })
 
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
+
 vi.mock('../services/activityLog.service', () => ({
   getEntityActivity: vi.fn().mockResolvedValue([]),
 }))
@@ -104,19 +107,19 @@ describe('KitDetailScreen', () => {
     expect(screen.getByText('Road Case')).toBeInTheDocument()
   })
 
-  it('distinguishes fully-flattened Total Items from container-aware Inventory Items', async () => {
+  it('distinguishes fully-flattened Pieces from container-aware Pieces to check off', async () => {
     render(<KitDetailScreen {...mockProps} />)
     await waitFor(() => expect(screen.getByText('Full Rack')).toBeInTheDocument())
 
-    // Total Items: fully flattened, ignores container boundaries — 2 + 5 = 7.
-    const totalItemsCard = screen.getByText('Total Items').closest('[data-slot="card"]')!
-    expect(totalItemsCard.textContent).toContain('7')
+    // Pieces: fully flattened, ignores container boundaries — 2 + 5 = 7.
+    const piecesCard = screen.getByText('Pieces').closest('[data-slot="card"]')!
+    expect(piecesCard.textContent).toContain('7')
 
-    // Inventory Items: Lighting Kit is transparent (not a container) so its
+    // Pieces to check off: Lighting Kit is transparent (not a container) so its
     // 2 LED Par Lights count individually; Road Case IS a container so it
     // counts as one and its 5 Cable Snakes are not drilled into — 2 + 1 = 3.
-    const inventoryItemsCard = screen.getByText('Inventory Items').closest('[data-slot="card"]')!
-    expect(inventoryItemsCard.textContent).toContain('3')
+    const checkOffCard = screen.getByText('Pieces to check off').closest('[data-slot="card"]')!
+    expect(checkOffCard.textContent).toContain('3')
   })
 
   it('hides a container sub-kit\'s contents by default, and reveals them via the toggle', async () => {
@@ -124,7 +127,7 @@ describe('KitDetailScreen', () => {
     await waitFor(() => expect(screen.getByText('Road Case')).toBeInTheDocument())
 
     // Road Case's own asset (Cable Snake) appears once already, from the
-    // flattened "Assets in Kit" table — but not a second time from the tree,
+    // flattened "Equipment in Kit" table — but not a second time from the tree,
     // since the tree hides a container's contents by default.
     expect(screen.getAllByText('Cable Snake')).toHaveLength(1)
     // Lighting Kit is NOT a container, so its contents show regardless —
@@ -170,7 +173,43 @@ describe('KitDetailScreen: "any" lines (#184)', () => {
     await waitFor(() => expect(card).toHaveTextContent('Any2 ×QSC K12.2of 3 owned'))
     expect(card).not.toHaveTextContent('Unknown Kit')
     // 7 flattened pieces from the assets, plus 2; value 2×150 + 5×20 + 2×1100.
-    expect(screen.getAllByText('Total Items')[0].nextElementSibling).toHaveTextContent('9')
+    expect(screen.getAllByText('Pieces')[0].nextElementSibling).toHaveTextContent('9')
     expect(screen.getAllByText('Total Value')[0].nextElementSibling).toHaveTextContent('$2,600.00')
+  })
+})
+
+// #266: kit page follow-ups.
+describe('KitDetailScreen: kit page follow-ups (#266)', () => {
+  it('Duplicate opens the copy for editing, and says the copy has no Tag Number yet', async () => {
+    const onBack = vi.fn()
+    const onEdit = vi.fn()
+    vi.mocked(getKit).mockResolvedValueOnce({
+      id: 'kit-1', name: 'Full Rack', category: 'Production', rental_value: 0, is_container: false, tag_number: 'KIT-07',
+    } as any)
+    vi.mocked(duplicateKit).mockResolvedValueOnce({ id: 'kit-copy', name: 'Full Rack (Copy)' } as any)
+    render(<KitDetailScreen {...mockProps} onBack={onBack} onEdit={onEdit} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Duplicate/ }))
+
+    await waitFor(() => expect(onEdit).toHaveBeenCalledWith('kit-copy'))
+    expect(onBack).not.toHaveBeenCalled()
+    // Tags are scanned, so two kits can't share one: the copy's is left blank, and the user is told.
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Tag Number'))
+  })
+
+  it('uses Lines, Pieces and Equipment wording, not "assets"', async () => {
+    render(<KitDetailScreen {...mockProps} />)
+    await screen.findByRole('heading', { level: 1, name: 'Full Rack' })
+
+    expect(screen.queryByText('Total Assets')).not.toBeInTheDocument()
+    expect(screen.queryByText('Assets in Kit')).not.toBeInTheDocument()
+    expect(screen.queryByText('Total Items')).not.toBeInTheDocument()
+    expect(screen.queryByText('Inventory Items')).not.toBeInTheDocument()
+
+    // 2 distinct lines (LED Par Light, Cable Snake).
+    expect(screen.getByText('Lines').closest('[data-slot="card"]')!.textContent).toContain('2')
+    expect(screen.getByRole('heading', { name: 'Equipment in Kit' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Item' })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Asset' })).not.toBeInTheDocument()
+    expect(screen.getByText('Pieces:')).toBeInTheDocument()
   })
 })
