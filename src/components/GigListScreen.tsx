@@ -57,7 +57,7 @@ import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/
 import { isGigPast } from '../utils/gigTimeframe';
 import { GIG_STATUS_CONFIG, TAG_CONFIG } from '../utils/supabase/constants';
 import { formatDateTimeDisplay, formatTimeDisplay, isNoonUTC } from '../utils/dateUtils';
-import { canManage } from '../utils/permissions';
+import { canDeleteGig, canManage } from '../utils/permissions';
 import { PageHeader } from './layout/PageHeader';
 import { checkAllConflictsForGigs, Conflict } from '../services/conflictDetection.service';
 
@@ -152,6 +152,8 @@ export default function GigListScreen({
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
 
   const canEdit = canManage(userRole);
+  // Deleting a gig is Admin-only on the server (#175).
+  const canDelete = canDeleteGig(userRole);
   // Money columns are Admin/Manager only: gig_financials RLS hides the figures
   // from Staff/Viewers, and they can't see staff pay either (#168).
   const showFinancials = canManage(userRole);
@@ -474,13 +476,15 @@ export default function GigListScreen({
         label: 'Duplicate',
         onClick: (row: Gig) => handleGigDuplicate(row.id),
       },
+    ] satisfies RowAction<Gig>[]) : []),
+    ...(canDelete ? ([
       {
         id: 'delete',
         label: 'Delete',
         onClick: (row: Gig) => handleGigDelete(row.id),
       },
     ] satisfies RowAction<Gig>[]) : []),
-  ], [canEdit, onViewGig, onEditGig, handleGigDuplicate, handleGigDelete]);
+  ], [canEdit, canDelete, onViewGig, onEditGig, handleGigDuplicate, handleGigDelete]);
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return filteredGigs.map(gig => {

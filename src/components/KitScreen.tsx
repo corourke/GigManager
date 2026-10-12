@@ -627,7 +627,9 @@ export default function KitScreen({
       const item = items.get(row.equipment_item_id);
       if (!item) return null;
       const s = summarizeItem(item.records, containerPieces.all.get(item.id) ?? 0, containerPieces.active.get(item.id) ?? 0);
-      const text = `${s.owned} ${s.owned === 1 ? 'unit' : 'units'} owned · ${s.available} available`;
+      // Units are one piece each; once a lot is in the count, it's pieces (#266).
+      const noun = s.lots ? (s.owned === 1 ? 'piece' : 'pieces') : (s.owned === 1 ? 'unit' : 'units');
+      const text = `${s.owned} ${noun} owned · ${s.available} available`;
       if (row.quantity <= s.available) return { text, tone: 'muted' };
       const inactive = item.records.filter((r) => !isRetired(r) && r.status === 'Inactive')
         .reduce((n, r) => n + (r.quantity == null ? 1 : Number(r.quantity)), 0);
@@ -640,12 +642,16 @@ export default function KitScreen({
     }
     if (row.asset) {
       const a = row.asset as ItemRecord;
-      const what = recordKind(a) === 'unit' ? 'Specific unit' : 'Specific lot';
+      const lotPieces = a.quantity == null ? 1 : Number(a.quantity);
+      const what = recordKind(a) === 'unit' ? 'Specific unit' : `Specific lot · ${lotPieces} ${lotPieces === 1 ? 'piece' : 'pieces'}`;
       if (isRetired(a)) {
         const status = a.retired_on && isAvailable({ status: a.status }) ? 'Retired' : a.status;
         return { text: `${status}: no longer owned. Remove it from the kit.`, tone: 'red' };
       }
       if (!isAvailable(a)) return { text: what, note: `${STATUS_LABEL[a.status ?? ''] ?? a.status}: not available now`, tone: 'amber' };
+      // A lot shrunk by a partial write-off can hold fewer than the line asks for (#242).
+      const has = Number(a.quantity ?? 1);
+      if (recordKind(a) === 'lot' && row.quantity > has) return { text: what, note: `asks for ${row.quantity}, lot has ${has}`, tone: 'amber' };
       return { text: what, tone: 'muted' };
     }
     return null;
@@ -757,8 +763,8 @@ export default function KitScreen({
                       }}
                       placeholder="Add tags (press Enter)"
                     />
-                    <Button type="button" onClick={handleAddTag} variant="outline">
-                      <Plus className="w-4 h-4" />
+                    <Button type="button" onClick={handleAddTag} variant="outline" aria-label="Add tag">
+                      <Plus className="w-4 h-4" aria-hidden />
                     </Button>
                   </div>
                   {formData.tags.length > 0 && (
@@ -767,10 +773,12 @@ export default function KitScreen({
                         <Badge key={tag} variant="outline" className="pl-2 pr-1">
                           {tag}
                           <button
+                            type="button"
                             onClick={() => handleRemoveTag(tag)}
                             className="ml-1 hover:text-red-600"
+                            aria-label={`Remove tag ${tag}`}
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3 h-3" aria-hidden />
                           </button>
                         </Badge>
                       ))}
@@ -872,15 +880,14 @@ export default function KitScreen({
                         const unitValue = componentUnitValue(row);
                         const avail = availability(row);
                         const kind = isKit ? 'Kit' : isAny ? 'Any' : row.asset && recordKind(row.asset as ItemRecord) === 'lot' ? 'Lot' : 'Unit';
+                        const lineName = isKit ? (row.childKit?.name || 'Unknown Kit')
+                          : isAny ? (row.item?.manufacturer_model || items.get(row.equipment_item_id!)?.manufacturer_model || 'Unknown item')
+                          : (row.asset?.manufacturer_model || 'Unknown Asset');
                         return (
                           <TableRow key={rowId}>
                             <TableCell>
                               <div>
-                                <div className="text-sm text-gray-900">
-                                  {isKit ? (row.childKit?.name || 'Unknown Kit')
-                                    : isAny ? (row.item?.manufacturer_model || items.get(row.equipment_item_id!)?.manufacturer_model || 'Unknown item')
-                                    : (row.asset?.manufacturer_model || 'Unknown Asset')}
-                                </div>
+                                <div className="text-sm text-gray-900">{lineName}</div>
                                 {isAny && <div className="text-xs text-gray-500">any unit</div>}
                                 {!isKit && !isAny && row.asset?.tag_number && (
                                   <div className="text-xs text-gray-500 font-mono">{row.asset.tag_number}</div>
@@ -940,8 +947,9 @@ export default function KitScreen({
                                 size="sm"
                                 onClick={() => handleRemoveComponent(rowId)}
                                 className="text-red-600 hover:text-red-700"
+                                aria-label={`Remove ${lineName} from kit`}
                               >
-                                <X className="w-4 h-4" />
+                                <X className="w-4 h-4" aria-hidden />
                               </Button>
                             </TableCell>
                           </TableRow>

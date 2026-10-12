@@ -79,7 +79,7 @@ const toOption = (i: { id: string; manufacturer_model: string; category: string;
   id: i.id, manufacturer_model: i.manufacturer_model, category: i.category,
   type: i.type ?? null, insurance_class: i.insurance_class ?? null, description: i.description ?? null,
 });
-const MISSING_NOTE = 'Written off as missing. To bring it back, use Undo in the gig\'s Not returned list.';
+const MISSING_NOTE = 'Written off as missing. To bring it back, use Undo write-off on this equipment\'s page, or Undo in the gig\'s Not returned list.';
 /** What write_off_pieces sets on a record; only Undo changes these again (#242). */
 const WRITE_OFF_LOCKED_FIELDS = ['status', 'retired_on', 'liquidation_amt'] as const;
 const num = (v: string) => (v.trim() === '' ? null : parseFloat(v));

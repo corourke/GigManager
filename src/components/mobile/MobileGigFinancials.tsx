@@ -5,7 +5,8 @@ import {
   getGigProfitabilitySummary 
 } from '../../services/gig.service';
 import { UserRole } from '../../utils/supabase/types';
-import { stageLabel, settledAmount } from '../../utils/moneyFlow';
+import { settledAmount } from '../../utils/moneyFlow';
+import { rowName, stageText } from '../gig/financials/format';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
@@ -20,6 +21,8 @@ interface MobileGigFinancialsProps {
   userRole?: UserRole;
   isEditing?: boolean;
   gigStartDate?: string;
+  /** When the gig ends; an unpaid booking with no due date is due after it. */
+  gigEnd?: string | null;
 }
 
 export default function MobileGigFinancials({
@@ -28,6 +31,7 @@ export default function MobileGigFinancials({
   userRole,
   isEditing,
   gigStartDate,
+  gigEnd,
 }: MobileGigFinancialsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
@@ -115,6 +119,7 @@ export default function MobileGigFinancials({
                 organizationId={organizationId}
                 onSuccess={loadData}
                 gigStartDate={gigStartDate}
+                financials={financials}
                 userRole={userRole}
               />
             </div>
@@ -174,7 +179,7 @@ export default function MobileGigFinancials({
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[11px] text-muted-foreground">{selectedTransaction.direction === 'out' ? 'Money out' : 'Money in'}</span>
-                    <span className="text-[11px] font-medium">{stageLabel(selectedTransaction.direction, selectedTransaction.stage)}</span>
+                    <span className="text-[11px] font-medium">{stageText(selectedTransaction, gigEnd)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[11px] text-muted-foreground">Date</span>
@@ -250,9 +255,9 @@ export default function MobileGigFinancials({
                           {isRevenue ? <DollarSign className="w-3 h-3" /> : isCost ? <Receipt className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[11px] font-semibold truncate">{fin.description || (isRevenue ? 'Money in' : 'Money out')}</p>
+                          <p className="text-[11px] font-semibold truncate">{rowName(fin)}</p>
                           <p className="text-[10px] text-muted-foreground">
-                            {stageLabel(fin.direction, fin.stage)} · {fin.date ? format(parseISO(fin.date), 'MMM d, yyyy') : '—'}
+                            {stageText(fin, gigEnd)} · {fin.date ? format(parseISO(fin.date), 'MMM d, yyyy') : '—'}
                           </p>
                         </div>
                       </div>

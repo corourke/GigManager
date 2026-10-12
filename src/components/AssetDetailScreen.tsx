@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Edit2, Trash2, Copy, Loader2, History, CreditCard, ExternalLink } from 'lucide-react';
+import { Edit2, Trash2, Copy, Loader2, History, CreditCard, ExternalLink, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
@@ -19,6 +19,9 @@ import ActivityFeed from './ActivityFeed';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { KindPill } from './equipment/ItemsTable';
 import { recordKind } from '../utils/equipmentItems';
+import { undoWriteOff } from '../services/writeOff.service';
+import { getLockedTaxYears } from '../services/taxYear.service';
+import { WRITE_OFF_LOCKED_MESSAGE } from '../utils/writeOffMessages';
 
 interface AssetDetailScreenProps {
   organization: Organization;
@@ -54,6 +57,34 @@ export default function AssetDetailScreen({
   const [assetActivity, setAssetActivity] = useState<ActivityLogEntry[]>([]);
   const [inventoryTracking, setInventoryTracking] = useState<DbInventoryTracking[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  // A Missing record (#242): Undo right here, unless its tax year is filed.
+  const [lockedYears, setLockedYears] = useState<Set<number>>(new Set());
+  const [undoing, setUndoing] = useState(false);
+  const isMissing = asset?.status === 'Missing' && canManage(userRole);
+  const writeOffYear = asset?.retired_on ? Number(String(asset.retired_on).slice(0, 4)) : null;
+  const undoLocked = writeOffYear != null && lockedYears.has(writeOffYear);
+
+  useEffect(() => {
+    if (!isMissing) return;
+    let live = true;
+    getLockedTaxYears(organization.id).then((y) => { if (live) setLockedYears(y); }).catch(() => {});
+    return () => { live = false; };
+  }, [isMissing, organization.id]);
+
+  const handleUndoWriteOff = async () => {
+    setUndoing(true);
+    try {
+      const back = await undoWriteOff(assetId);
+      toast.success('Write-off undone');
+      // Pieces split off a lot go back into it: this record is gone, so go to the item.
+      if (back && back !== assetId && asset?.equipment_item_id && onBackToItem) onBackToItem(asset.equipment_item_id);
+      else await loadAsset();
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : 'Could not undo the write-off');
+    } finally {
+      setUndoing(false);
+    }
+  };
 
   useEffect(() => {
     loadAsset();
@@ -181,6 +212,12 @@ export default function AssetDetailScreen({
         }
         actions={
           <>
+            {isMissing && (
+              <Button variant="outline" onClick={handleUndoWriteOff} disabled={undoing || undoLocked}>
+                <Undo2 className="w-4 h-4 mr-2" />
+                Undo write-off
+              </Button>
+            )}
             {canManage(userRole) && (
               <Button
                 variant="outline"
@@ -212,6 +249,10 @@ export default function AssetDetailScreen({
           </>
         }
       />
+
+      {isMissing && undoLocked && (
+        <p className="px-6 pt-2 text-sm text-amber-700">{WRITE_OFF_LOCKED_MESSAGE}</p>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 

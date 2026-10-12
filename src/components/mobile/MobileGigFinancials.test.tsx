@@ -10,8 +10,8 @@ vi.mock('../../services/gig.service', () => ({
 
 // Mock QuickActionButtons to simplify testing
 vi.mock('../gig/QuickActionButtons', () => ({
-  default: ({ onSuccess }: any) => (
-    <div data-testid="quick-actions">
+  default: ({ onSuccess, financials }: any) => (
+    <div data-testid="quick-actions" data-financials={(financials ?? []).map((f: any) => f.id).join(',')}>
       <button onClick={onSuccess}>Add Mock Record</button>
     </div>
   ),
@@ -95,6 +95,30 @@ describe('MobileGigFinancials', () => {
 
     rerender(<MobileGigFinancials {...defaultProps} isEditing={true} />);
     expect(screen.getByTestId('quick-actions')).toBeInTheDocument();
+  });
+
+  it("gives the quick actions the gig's rows, so Payment received can pay off a booking", async () => {
+    render(<MobileGigFinancials {...defaultProps} isEditing={true} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-actions')).toHaveAttribute('data-financials', 'fin-1');
+    });
+  });
+
+  it('names and stages rows the way the desktop Financials tab does', async () => {
+    (gigService.getGigFinancials as any).mockResolvedValue([
+      { id: 'fin-b', date: '2026-01-06', amount: 250, amount_settled: null, direction: 'in', stage: 'accepted', description: null, due_date: null },
+      { id: 'fin-p', date: '2026-10-09', amount: 100, amount_settled: 100, direction: 'in', stage: 'paid', description: '', paid_at: '2026-10-11T00:00:00+00:00' },
+      { id: 'fin-e', date: '2026-10-09', amount: 20, amount_settled: null, direction: 'out', stage: 'invoiced', description: null },
+    ]);
+    render(<MobileGigFinancials {...defaultProps} gigEnd="2026-10-10T06:00:00Z" />);
+    const button = await screen.findByRole('button', { name: /View 3 Transactions/ });
+    fireEvent.click(button);
+
+    expect(await screen.findByText(/Accepted, payment due/)).toBeInTheDocument();
+    expect(screen.getAllByText('Booking')).toHaveLength(2);
+    expect(screen.getByText('Expense')).toBeInTheDocument();
+    expect(screen.getByText(/Paid Oct 11/)).toBeInTheDocument();
+    expect(screen.queryByText('Money in')).not.toBeInTheDocument();
   });
 
   it('opens transactions modal when tiles are clicked', async () => {
