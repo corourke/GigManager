@@ -707,6 +707,25 @@ export const shots = [
     target: (page) => page.getByRole('alertdialog'),
     pad: 8,
   },
+  // Equipment → Locations: the filters and the first status groups.
+  {
+    id: 'equipment/location-explorer-overview',
+    page: 'equipment/location-explorer.md',
+    user: 'admin',
+    sources: ['src/components/inventory/LocationExplorer.tsx', 'src/utils/locations.ts', 'src/services/inventoryManagement.service.ts'],
+    viewport: { width: 1200, height: 1600 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/equipment/locations`);
+      await page.getByText('Location Explorer Filters').waitFor();
+      await page.getByRole('heading', { name: 'Checked Out' }).waitFor();
+    },
+    // From the filters through the Checked Out group.
+    clip: async (page) => {
+      const filters = await box(cardOf(page, 'Location Explorer Filters'));
+      const next = await box(page.getByRole('heading', { name: 'In Warehouse' }));
+      return { x: 0, y: filters.y - 16, width: 1200, height: next.y - 12 - (filters.y - 16) };
+    },
+  },
   // The phone's Scanning screen (phone layout below 768 px wide).
   {
     id: 'mobile/field-inventory-pack-out',

@@ -25,7 +25,7 @@ or choose **Print → Packing list** on the gig.
 
 - **Items** — your items, with their units and lots: search, filter, add, edit.
 - **Kits** — logical vs. container kits, and nested kits.
-- **Location Explorer** — where gear lives (the **Locations** tab).
+- **[Locations](/equipment/location-explorer/)** — where gear is right now, and correcting a record.
 - **[Inventory reports](/equipment/inventory-reports/)** — the packing list.
 - **Barcode & QR scanning** — tags and the mobile
   scanner.
