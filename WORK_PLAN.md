@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 15:00 UTC (coordinator: #268 and #277 merged with Cameron's OK; #280 needs a conflict fix; #175 full plan released to the Equipment Lead)
+- **Last updated:** 2026-10-12 18:45 UTC (coordinator: #280 merged; Cameron answered the #175 design questions; the Equipment Lead is building #175 PR 1)
 
 ---
 
@@ -62,6 +62,10 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. ~~**Item 5, $0 invoice total.**~~ **Done: PR #248 (in prod 10-10), follow-up fix PR #251.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
+
+**Status 10-12 18:45 UTC:**
+- **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card); both are unreleased.
+- **#175 PR 1 design approved (Cameron, 10-12; answers on #175):** RESTRICT on owner delete; any participating Admin/Manager may remove an unclaimed venue or act; the owner can't Leave or go Inactive; **an Inactive organization is read-only on the shared gig details**; the backfill fails loudly. Coordinator prod check (read-only): 99/99 gigs resolve, 0 unresolved, no children. The Equipment Lead is building the migration and PR 1; the coordinator applies it to dev after review.
 
 **Status 10-12 15:00 UTC:**
 - **Merged (not yet in prod):** #268 (#186 Locations step: Item filter, piece counts, "2 of 10", the where-is-it card, Move N of a lot with the case-split warning; fixes #160). No migration. The Docs Lead is drafting the Locations update and holding it for the deploy.
