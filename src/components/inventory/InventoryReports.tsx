@@ -29,6 +29,7 @@ import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
 import { packedPieces } from '../../utils/packingSummary';
+import { loadPackingColumns, savePackingColumns, type PackingColumn } from '../../utils/packingColumns';
 import {
   getGigsForReportPicker,
   getManifestReport,
@@ -395,7 +396,7 @@ function ManifestTab({
   );
 }
 
-type PackingColumn = 'status' | 'scanned_at' | 'location' | 'scanned_by' | 'notes';
+
 const PACKING_COLUMNS: { key: PackingColumn; label: string }[] = [
   { key: 'status', label: 'Status' },
   { key: 'scanned_at', label: 'Last Scanned' },
@@ -442,7 +443,8 @@ function PackingLineDetail({ row }: { row: PackingListRow }) {
       )}
       {row.kind === 'lot' && row.lot_of != null && <div className="pl-6 text-xs text-muted-foreground">{`from a lot of ${row.lot_of}`}</div>}
       {row.kind === 'container' && (row.contents?.length ?? 0) > 0 && (
-        <div className="text-xs text-muted-foreground">{row.contents!.join(' · ')}</div>
+        // Wraps (#249): one long unbroken line would set the whole Name column's width.
+        <div className="whitespace-normal pl-6 text-xs text-muted-foreground">{row.contents!.join(' · ')}</div>
       )}
       {scanned && (
         <div className="print-only hidden pl-6">
@@ -465,9 +467,14 @@ function PackingListTab({
   conflictFlags,
   hidePrintButton,
   onLoaded,
+  columns,
+  onColumnsChange,
 }: {
   organizationId: string;
   organizationName: string;
+  /** The columns to show, when the page keeps the choice (#245: the printout matches the screen). */
+  columns?: ReadonlySet<PackingColumn>;
+  onColumnsChange?: (columns: Set<PackingColumn>) => void;
   /** The gig to list (#39: the packing list lives on the gig page). */
   gig: GigOption;
   conflictFlags: Set<string>;
@@ -480,9 +487,8 @@ function PackingListTab({
   const [rows, setRows] = useState<PackingListRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState<Set<PackingColumn>>(
-    new Set(['status', 'scanned_at', 'location', 'scanned_by', 'notes'])
-  );
+  const [ownColumns, setOwnColumns] = useState<ReadonlySet<PackingColumn>>(loadPackingColumns);
+  const visibleColumns = columns ?? ownColumns;
   // Lets a worker physically verify items as they pack, tap to check off
   // and tap again to undo. Not persisted: a scratchpad for one pass,
   // cleared whenever the underlying report changes.
@@ -497,12 +503,14 @@ function PackingListTab({
   };
 
   const toggleColumn = (col: PackingColumn) => {
-    setVisibleColumns((prev) => {
-      const next = new Set(prev);
-      if (next.has(col)) next.delete(col);
-      else next.add(col);
-      return next;
-    });
+    const next = new Set(visibleColumns);
+    if (next.has(col)) next.delete(col);
+    else next.add(col);
+    if (onColumnsChange) onColumnsChange(next);
+    else {
+      setOwnColumns(next);
+      savePackingColumns(next);
+    }
   };
 
   const fetchPackingList = useCallback(async () => {
@@ -587,7 +595,8 @@ function PackingListTab({
             )}
           </div>
           <div className="text-right text-[8.5pt]">
-            {packingLines.filter((l) => l.depth === 0).length} kits · {packingLines.length} lines
+            {/* Kits and pieces (#245, Cameron 10-11): the pack-out group isn't a kit. */}
+            {new Set(rows.filter((r) => !r.group_is_loose).map((r) => r.group_kit_id)).size} kits · {pieces.total} pieces
             <br />Printed {format(new Date(), 'MMM d, yyyy')}
           </div>
         </div>
@@ -703,7 +712,13 @@ function PackingListTab({
                           {!row ? blankCell : row.kind === 'any' ? (
                             <span className="text-xs">{anyProgress(row)}</span>
                           ) : row.status ? (
-                            <TrackingStatusBadge status={row.status} />
+                            <span className="flex items-center gap-1.5">
+                              <TrackingStatusBadge status={row.status} />
+                              {/* A partly packed lot says how many (#245), as "any" lines do. */}
+                              {row.kind === 'lot' && packedPieces(row) > 0 && packedPieces(row) < row.quantity && (
+                                <span className="text-xs whitespace-nowrap">{`${packedPieces(row)} of ${row.quantity}`}</span>
+                              )}
+                            </span>
                           ) : (
                             <span className="text-xs text-muted-foreground">Not scanned</span>
                           )}
@@ -894,7 +909,15 @@ export function PackingList({
   gig,
   hidePrintButton,
   onLoaded,
-}: InventoryReportsProps & { gig: GigOption; hidePrintButton?: boolean; onLoaded?: () => void }) {
+  columns,
+  onColumnsChange,
+}: InventoryReportsProps & {
+  gig: GigOption;
+  hidePrintButton?: boolean;
+  onLoaded?: () => void;
+  columns?: ReadonlySet<PackingColumn>;
+  onColumnsChange?: (columns: Set<PackingColumn>) => void;
+}) {
   const conflictFlags = useConflictFlags(organizationId);
   return (
     <PackingListTab
@@ -904,6 +927,8 @@ export function PackingList({
       conflictFlags={conflictFlags}
       hidePrintButton={hidePrintButton}
       onLoaded={onLoaded}
+      columns={columns}
+      onColumnsChange={onColumnsChange}
     />
   );
 }
