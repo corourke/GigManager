@@ -64,7 +64,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 
 **Status 10-12 18:45 UTC:**
-- **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card); both are unreleased.
+- **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card). **Released to a coordinator helper (Cameron, 10-12)**, one PR each.
 - **#175 PR 1 design approved (Cameron, 10-12; answers on #175):** RESTRICT on owner delete; any participating Admin/Manager may remove an unclaimed venue or act; the owner can't Leave or go Inactive; **an Inactive organization is read-only on the shared gig details**; the backfill fails loudly. Coordinator prod check (read-only): 99/99 gigs resolve, 0 unresolved, no children. The Equipment Lead is building the migration and PR 1; the coordinator applies it to dev after review.
 
 **Status 10-12 15:00 UTC:**
