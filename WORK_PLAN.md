@@ -129,7 +129,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
     - **Branch `claude/docs-kits-draft` (2c3e6b0):** #273 kit page labels, Duplicate opening the copy, lots counting pieces, the #270 kit-editor note, and "4 × any + a specific unit = 5".
   - **For the coordinator:** #267 doesn't change tick printing; the agent found no such change in the code. The printout's ✓ column has always printed empty boxes, as the published page says, so I didn't document a change.
   - **#276 (CSV import, 10-12 03:00):** the draft page `equipment/csv-asset-import.md` (Importing equipment from a spreadsheet) is on `claude/docs-held-10-12`. It covers the example, the file's three column groups, units and lots by `;` lists, kits, and held purchases with Retry. Held until the deploy.
-  - **PR #275 merged.** PR #274 (Locations) has the review fixes in and waits on Cameron's OK.
+  - **PR #275 merged.** PR #274 (Locations) merged 10-12 05:04.
 - **Locations guide draft (Docs Lead, 10-11 10:40 UTC):** on branch `claude/docs-locations-draft` (402905d), not a PR. Held until #258/#260 are in prod.
   - **What it covers:** reading the page, cases and Contents, untagged items (in a case vs loose), the three filters, and Override for Admins and Managers. The Equipment overview links to it.
   - **App notes, not filed:**
@@ -242,7 +242,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/csv-asset-import.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/inventory-reports.md` | published (PRs #250, #259), packing list only | 2026-10-11 (Docs Lead; matches prod 10-11) | Added at pack-out group; packing-list shot held for #249; manifest and maintenance queue to come |
 | `equipment/kits.md` | draft, written (branch `claude/docs-kits-draft`) | 2026-10-09 (Docs Lead) | held until #185/#186; N × any lines, kit editor, kit page |
-| `equipment/location-explorer.md` | draft, written (branch `claude/docs-locations-draft`) | 2026-10-11 (Docs Lead; matches main with #258/#260) | publish after #258/#260 reach prod |
+| `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; update after #268 (Item filter, where-is-it card, Move N) |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
