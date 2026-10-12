@@ -73,8 +73,9 @@ An "any" line asks for a number of any units of an item, such as
 ## Before you pack
 
 In **Pack-Out**, GigWrangler asks before you pack something that's in Maintenance,
-Inactive, or still out at another gig. The message names the item and the gig.
-Tap **Pack anyway** to pack it, or **Cancel**.
+Inactive, or still out at another gig. That includes a case, such as the "Mic Case",
+that never came back: "Mic Case is still out at Cedar Hall Fall Songwriter Showcase
+(Checked Out, Oct 10)." Tap **Pack anyway** to pack it, or **Cancel**.
 
 ## Bringing equipment back
 
