@@ -343,14 +343,16 @@ export async function checkParticipantConflicts(gigId: string, startTime: string
   try {
     const { data: currentParticipants, error: currentError } = await supabase
       .from('gig_participants')
-      .select('organization_id, role')
+      .select('organization_id, role, inactive')
       .eq('gig_id', gigId)
       .in('role', PARTICIPANT_CONFLICT_ROLES);
 
     if (currentError) throw currentError;
-    if (!currentParticipants || currentParticipants.length === 0) return { conflicts: [], warnings: [] };
+    // A gig an organization is Inactive on is left out of its conflict checks (#175).
+    const activeParticipants = (currentParticipants || []).filter((p: any) => !p.inactive);
+    if (activeParticipants.length === 0) return { conflicts: [], warnings: [] };
 
-    const orgIds = currentParticipants.map((p: any) => p.organization_id);
+    const orgIds = activeParticipants.map((p: any) => p.organization_id);
 
     const { effectiveStart: currentStart, effectiveEnd: currentEnd } = getEffectiveRange(startTime, endTime, timezone);
     const { queryStart, queryEnd } = widenedQueryRange(currentStart, currentEnd);
@@ -359,7 +361,7 @@ export async function checkParticipantConflicts(gigId: string, startTime: string
       .from('gigs')
       .select(`
         id, title, start, end, timezone,
-        participants:gig_participants(role, organization:organization_id(id, name))
+        participants:gig_participants(role, inactive, organization:organization_id(id, name))
       `)
       .neq('id', gigId)
       .neq('status', 'Cancelled')
@@ -377,7 +379,7 @@ export async function checkParticipantConflicts(gigId: string, startTime: string
       if (!level) continue;
 
       const matchingParticipants = (gig.participants || []).filter((p: any) =>
-        PARTICIPANT_CONFLICT_ROLES.includes(p.role) && orgIds.includes(p.organization?.id)
+        PARTICIPANT_CONFLICT_ROLES.includes(p.role) && !p.inactive && orgIds.includes(p.organization?.id)
       );
       if (matchingParticipants.length === 0) continue;
 
@@ -689,7 +691,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
         .in('gig_id', gigIds),
       supabase
         .from('gig_participants')
-        .select('gig_id, role, organization:organization_id(id, name)')
+        .select('gig_id, role, inactive, organization:organization_id(id, name)')
         .in('gig_id', gigIds)
         .in('role', PARTICIPANT_CONFLICT_ROLES),
       supabase
@@ -743,6 +745,7 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
 
     const participantsByGig = new Map<string, { org_id: string; name: string; role: string }[]>();
     for (const p of participantData.data || []) {
+      if ((p as any).inactive) continue; // left out of its conflict checks (#175)
       const list = participantsByGig.get(p.gig_id) || [];
       list.push({
         org_id: (p.organization as any)?.id,

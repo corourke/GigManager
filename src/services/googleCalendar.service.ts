@@ -548,7 +548,7 @@ export async function syncAllGigsForUser(
 
   const { data: participatingGigs, error: partError } = await supabase
     .from('gig_participants')
-    .select('gig_id')
+    .select('gig_id, inactive')
     .eq('organization_id', organizationId);
 
   if (partError) throw handleApiError(partError, 'fetch gigs for sync');
@@ -556,7 +556,9 @@ export async function syncAllGigsForUser(
     return { synced: 0, failed: 0, total: 0 };
   }
 
-  const gigIds = participatingGigs.map(g => g.gig_id);
+  const gigIds = [...new Set(participatingGigs.map(g => g.gig_id))];
+  // A gig the organization is Inactive on is left out of its calendar sync (#175).
+  const inactiveGigIds = new Set(participatingGigs.filter(g => g.inactive).map(g => g.gig_id));
 
   const { data: gigs, error: gigsError } = await supabase
     .from('gigs')
@@ -574,8 +576,9 @@ export async function syncAllGigsForUser(
     return { synced: 0, failed: 0, total: 0 };
   }
 
-  const gigsToSync = gigs.filter(g => allowedStatuses.has(g.status));
-  const gigsToRemove = gigs.filter(g => !allowedStatuses.has(g.status));
+  const included = (g: { id: string; status: string }) => allowedStatuses.has(g.status) && !inactiveGigIds.has(g.id);
+  const gigsToSync = gigs.filter(included);
+  const gigsToRemove = gigs.filter(g => !included(g));
 
   const totalOps = gigsToSync.length + gigsToRemove.length;
   let synced = 0;

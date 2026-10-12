@@ -129,3 +129,12 @@ export function buildCalendarEvent(
     location,
   };
 }
+
+/**
+ * The organizations whose members get a gig on their calendars: those active
+ * on it. A gig is left out of the calendar sync of an organization that is
+ * Inactive on it (#175).
+ */
+export function calendarAudienceOrgIds(participants: Array<{ organization_id: string; inactive?: boolean | null }>): string[] {
+  return [...new Set(participants.filter(p => !p.inactive).map(p => p.organization_id))];
+}
