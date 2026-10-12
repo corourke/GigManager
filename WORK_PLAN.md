@@ -134,6 +134,11 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
     - **#279:** the kit editor's Kit Contents table overflows its card (Total Value and the remove X are cut off).
 - **Docs Lead status, 10-12 15:35 UTC:**
   - **PR #280 merged 10-12 18:46 UTC:** Kits is published.
+- **Docs Lead status, 10-12 20:40 UTC:** Kits update for #282/#283 is held on `claude/docs-kits-282-283` (0d36506), checked on dev @ 1be842f.
+  - Full Band at Harvest Gala reads Checked Out · "6 of 29", with the tooltip "Pieces at Harvest Gala Dinner & Dance: Checked Out 6 · Not packed 23". That matches the kit page's Pieces to check off (29; its Mic Case and XLR Cable Box count as one each).
+  - Other kits show the badge only.
+  - The editor shot now includes Kit Contents, and Total Value and the remove X fit.
+  - No PR until prod has #282/#283. The Locations draft for #268 is still held as well.
   - **#268 Locations draft (held):** on `claude/docs-locations-268` (fd0d10d), checked on dev. It covers the Item filter and card, the "2 of 10" lot lines, pieces counts, Move N with its After line, the Move N button and the leave-the-case warning. A save split the T58s 2 and 2 as expected. No PR until prod has #268.
   - **Small wording issue (not filed):** a place with one piece reads "1 pieces" in Locations' place headings (the old "1 items" note).
   - **Locations** is untouched until #268.
@@ -264,7 +269,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | published (PR #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Importing equipment from a spreadsheet (#276): example/template, invoice rows, units vs lots, kits by name, fix and retry |
 | `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come |
-| `equipment/kits.md` | published (PR #280) | 2026-10-12 (Docs Lead; audited against prod) | kit page (#273), editor, any lines, nesting, containers; 2 shots; kit-list and Kit Contents shots wait on #278/#279 |
+| `equipment/kits.md` | published (PR #280) | 2026-10-12 (Docs Lead; audited against prod) | kit page (#273), editor, any lines, nesting, containers; 2 shots. #282/#283 update (Tracking Status "6 of 29" and tooltip; full editor shot with Kit Contents) held on `claude/docs-kits-282-283` (0d36506) until prod |
 | `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 update drafted and checked on dev, held on branch `claude/docs-locations-268` (fd0d10d) until #268 is in prod; overview shot to retake then (place headings now read "N pieces") |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
