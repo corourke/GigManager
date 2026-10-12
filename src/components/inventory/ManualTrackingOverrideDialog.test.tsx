@@ -97,6 +97,30 @@ describe('ManualTrackingOverrideDialog', () => {
       expect(screen.queryByLabelText('How many to move')).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Save Override' })).toBeInTheDocument();
     });
+
+    // Coordinator review (10-12): what's written is Maintenance at this gig, not a trip home.
+    it('Mark for Maintenance with In Warehouse is the whole lot here, in Maintenance: no count', async () => {
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={lot} />);
+      fireEvent.click(screen.getByRole('option', { name: 'In Warehouse' }));
+      fireEvent.click(screen.getByLabelText('Mark for Maintenance'));
+      expect(screen.queryByLabelText('How many to move')).not.toBeInTheDocument();
+      expect(screen.queryByText(/back home/)).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Save Override' }));
+      await waitFor(() => expect(moveLotPieces).toHaveBeenCalledWith(expect.objectContaining({
+        here: 6, n: 6, toGigId: 'gig-1', toStatus: 'Maintenance',
+      })));
+    });
+
+    it('from home, no more than the pieces at home can go', async () => {
+      const home = { here: 1, of: 6, status: 'In Warehouse', location: 'Bay 2', place: 'Bay 2' };
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={home} />);
+      fireEvent.click(screen.getByRole('option', { name: 'Checked Out' }));
+      const n = screen.getByLabelText('How many to move') as HTMLInputElement;
+      expect(n.max).toBe('1');
+      fireEvent.change(n, { target: { value: '6' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Move 1' }));
+      await waitFor(() => expect(moveLotPieces).toHaveBeenCalledWith(expect.objectContaining({ here: 1, n: 1, lotOf: 6 })));
+    });
   });
 
   it('a unit has no count to move', () => {

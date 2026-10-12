@@ -355,4 +355,31 @@ describe('whereabouts (#186)', () => {
   it('leaves out retired records', () => {
     expect(whereabouts([], [{ ...unit, status: 'Disposed' }])).toEqual([]);
   });
+
+  // Coordinator review (10-12): the card and the Item page follow the Locations rule (currentRows),
+  // so they agree with the Locations lines.
+  it('a lot in a case is one place per case: T58\'s stale Cedar Hall place isn\'t counted (#260 rows)', () => {
+    const t58 = { id: 't58', quantity: 6, status: 'Active' };
+    const rows = [
+      row({ id: 'fest', asset_id: 't58', gig_id: 'festival', kit_id: 'band', status: 'On Site', location: 'Stage', quantity: 1, scanned_at: '2026-09-27T20:00:00Z' }),
+      row({ id: 'cedar', asset_id: 't58', gig_id: 'cedar', kit_id: 'case', status: 'Checked Out', location: 'Staging Area', quantity: 4, scanned_at: '2026-10-10T22:30:00Z' }),
+      row({ id: 'pl-out', asset_id: 't58', gig_id: 'paper-lanterns', kit_id: 'case', status: 'Checked Out', location: 'Staging Area', quantity: 4, scanned_at: '2026-10-10T22:40:00Z' }),
+      row({ id: 'pl-back', asset_id: 't58', gig_id: 'paper-lanterns', kit_id: 'case', status: RETURNED_STATUS, location: 'Warehouse', quantity: 4, scanned_at: '2026-10-10T22:50:00Z' }),
+      row({ id: 'hb', asset_id: 't58', gig_id: 'halloween', kit_id: 'case', status: 'Checked Out', location: 'Staging Area', quantity: 4, scanned_at: '2026-10-10T23:10:00Z' }),
+    ];
+    expect(whereabouts(rows, [t58], (kitId) => kitId === 'case')).toEqual([
+      { gig_id: 'halloween', location: 'Staging Area', quantity: 4 },
+      { gig_id: 'festival', location: 'Stage', quantity: 1 },
+      { gig_id: null, location: null, quantity: 1 },
+    ]);
+  });
+
+  it('a one-piece lot is at its newest row only, not also at an older gig\'s stale row', () => {
+    const one = { id: 'snake', quantity: 1, status: 'Active' };
+    const rows = [
+      row({ asset_id: 'snake', gig_id: 'gig-a', status: 'Checked Out', location: 'Dock', scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ asset_id: 'snake', gig_id: 'gig-b', status: 'On Site', location: 'Stage', scanned_at: '2026-10-05T10:00:00Z' }),
+    ];
+    expect(whereabouts(rows, [one])).toEqual([{ gig_id: 'gig-b', location: 'Stage', quantity: 1 }]);
+  });
 });
