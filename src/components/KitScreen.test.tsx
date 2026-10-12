@@ -468,6 +468,29 @@ describe('KitScreen: "any" lines and availability (#184)', () => {
     expect(vi.mocked(getContainerPieces).mock.calls.at(-1)![2]).toBe('kit-1')
   })
 
+  // #279: every cell was nowrap, so the long Component and Availability text pushed Total Value
+  // and the remove X out of the card. Those two wrap now; the numbers and the X stay on one line.
+  it('Kit Contents fits its card: Component and Availability wrap, every column renders (#279)', async () => {
+    reset()
+    vi.mocked(getKit).mockResolvedValue(anyLine(2) as any)
+    render(<KitScreen {...mockProps} kitId="kit-1" />)
+    const row = (await screen.findByText('QSC K12.2')).closest('tr')!
+    const table = row.closest('table')!
+    const headers = within(table).getAllByRole('columnheader').map((th) => th.textContent)
+    expect(headers).toEqual(['Component', 'Kind', 'Quantity', 'Availability', 'Unit Value', 'Total Value', 'Actions'])
+
+    const cells = within(row).getAllByRole('cell')
+    expect(cells).toHaveLength(7)
+    const [component, , , availability, unitValue, totalValue, actions] = cells
+    expect(component).toHaveClass('whitespace-normal')
+    expect(availability).toHaveClass('whitespace-normal')
+    for (const cell of [unitValue, totalValue, actions]) expect(cell).not.toHaveClass('whitespace-normal')
+    expect(totalValue).toHaveTextContent('$2,000.00')
+    expect(within(actions).getByRole('button', { name: 'Remove QSC K12.2 from kit' })).toBeInTheDocument()
+    // A narrow screen still scrolls the table inside its card, not the page.
+    expect(table.closest('.overflow-x-auto')).not.toBeNull()
+  })
+
   it('warns when a line asks for more than are available, saying why', async () => {
     reset()
     vi.mocked(getContainerPieces).mockResolvedValue({ all: new Map([['item-k12', 1]]), active: new Map([['item-k12', 1]]) })
