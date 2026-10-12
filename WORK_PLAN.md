@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 01:40 UTC (coordinator: merged #267, #270, #271, #272, #273 with Cameron's OK; #268 and #269 back to the Equipment Lead for review fixes; #183 D1 review fixes in progress)
+- **Last updated:** 2026-10-12 03:00 UTC (coordinator: merged #269, #275, #276 with Cameron's OK; #268 fixes being re-verified; #274 needs two sentences fixed)
 
 ---
 
@@ -64,6 +64,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. ~~**Item 5, $0 invoice total.**~~ **Done: PR #248 (in prod 10-10), follow-up fix PR #251.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
+
+**Status 10-12 03:00 UTC:**
+- **Merged since (not yet in prod):** #276 (#183 D: CSV import makes units, lots and kit lines through the v2 save; kit column kept; no status / retired_on / liquidation_amt; template regrouped; Download Example mic-kit file; held purchases; Retry failed; the app no longer calls v1), #269 (#265: container still out at another gig), #275 (docs: Payment received → Apply to). No migrations.
+- **In review:** #268 (#186 Locations step): Equipment Lead pushed fixes for every finding; an independent re-check is running. #274 (docs: Locations page): two sentences contradict the 10-10 rule (contents keep their own records); the Docs Lead is fixing them.
+- **#183 D2 (not started, not released):** mockup 11's summary cards and the grouped column guide on the import screen. The v1 purchase RPCs can be dropped in the next migration.
 
 **Status 10-12 01:40 UTC:**
 - **Merged (not yet in prod):** #263, #264, #267 (#245/#249), #270 (#242 items 5, 7; #242 closed), #271 (#175 stopgap: Delete gig Admin-only), #272 (#256), #273 (#266 items 1–4; #266 closed). No migrations.
