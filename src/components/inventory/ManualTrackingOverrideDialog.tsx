@@ -73,12 +73,15 @@ export function ManualTrackingOverrideDialog({
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [moveCount, setMoveCount] = useState<number>(lot?.here ?? 1);
 
-  // A lot (#186): how many go, unless it's a new status for all of it at the same gig.
+  // A lot (#186): how many go, unless it's a new status for all of it at the same gig. Decided
+  // by the status written: Mark for Maintenance keeps the pieces at the gig, in Maintenance.
+  // From home, `here` is the pieces home, so no more than those go.
+  const written = markForMaintenance && assetId ? 'Maintenance' : status;
   const fromHome = lot?.status === RETURNED_STATUS;
-  const goingHome = status === RETURNED_STATUS;
+  const goingHome = written === RETURNED_STATUS;
   const wholeBucket = !!lot && !!status && !goingHome && !fromHome && selectedGigId === gigId;
   const choosesCount = !!lot && !!assetId && !wholeBucket;
-  const n = Math.max(1, Math.min(Math.floor(moveCount) || 1, fromHome ? Number.MAX_SAFE_INTEGER : lot?.here ?? 1));
+  const n = Math.max(1, Math.min(Math.floor(moveCount) || 1, lot?.here ?? 1));
   const destination = goingHome ? 'back home' : `to ${gigs?.find((g) => g.id === selectedGigId)?.title ?? 'the gig'}`;
   const after = lot && status && choosesCount
     ? `After: ${[!fromHome && lot.here - n > 0 ? `${lot.here - n} stay at ${lot.place}` : null, `${n} ${destination}`].filter(Boolean).join(' · ')}`
@@ -108,10 +111,11 @@ export function ManualTrackingOverrideDialog({
           fromStatus: lot.status,
           fromLocation: lot.location,
           here: lot.here,
+          lotOf: lot.of,
           n: wholeBucket ? lot.here : n,
           toGigId: selectedGigId,
           // Unchanged in this step (Cameron, 10-11): the row's status, as for a unit.
-          toStatus: markForMaintenance ? 'Maintenance' : status,
+          toStatus: written,
           toLocation: location || null,
           notes: notes || null,
           createdBy: userId,
@@ -229,7 +233,7 @@ export function ManualTrackingOverrideDialog({
                   aria-label="How many to move"
                   className="h-9 w-20"
                   min={1}
-                  max={fromHome ? lot.of : lot.here}
+                  max={lot.here}
                   value={moveCount}
                   onChange={(e) => setMoveCount(Number(e.target.value))}
                 />

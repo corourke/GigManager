@@ -1141,10 +1141,15 @@ Tracks equipment check-in/check-out status at gigs.
   - **Move N of the M (Manual Tracking Override, #186; fixes #160)** writes by the same rules (`moveLotPieces`):
     - **N of M home:** the bucket's own row at M − N, with its status and place. All M home is a return row, which closes the bucket.
     - **To another gig:** this bucket keeps M − N (or closes when it's all of it), and the target bucket becomes what it holds plus N.
-    - **From home:** only the target bucket changes.
-    - **A new status at the same gig** applies to the whole bucket.
+      - "What it holds" counts only if that bucket is one of the lot's current places (`currentRows`). A stale older row there counts 0; for a lot in a container, an older row at another gig is always stale.
+      - The result is never more than the lot.
+      - A bucket closed this way gets a return row with no location: the pieces didn't go home.
+    - **From home:** only the target bucket changes, and no more than the pieces at home go.
+    - **A new status at the same gig** applies to the whole bucket. "Mark for Maintenance" is one of these: the pieces stay at the gig, in Maintenance.
     - Moves between two home places (with no gig) aren't possible yet; they come with the Maintenance step.
-  - **Where an item is (#186, Cameron 10-11):** `whereabouts` sums each place's pieces across the item's units and lots (`placementOf`). This is used by the Locations "where is it" card and the Item page's "Where they are".
+  - **Where an item is (#186, Cameron 10-11):** `whereabouts` sums each place's pieces across the item's units and lots. This is used by the Locations "where is it" card and the Item page's "Where they are".
+    - It follows the Locations rule (`currentRows`), so it agrees with the Locations lines. A lot in a container is one place per container.
+    - A lot's pieces at its current places come from `lotPieces`: newest place first, each holding no more than the lot has left; the rest are home. The Locations lot lines use the same counts, so a home line reads the lot less what's out.
     - Pieces at home are "Not checked out".
     - When everything in a record came back on a return scan, they're at that scan's location instead.
     - Locations headers count pieces, and a lot line reads "2 of 10".
