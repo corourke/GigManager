@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-11 21:30 UTC (coordinator: Cameron answered every open question; #264 merged; Equipment Lead queue and four helper tasks released; see §3c)
+- **Last updated:** 2026-10-12 01:40 UTC (coordinator: merged #267, #270, #271, #272, #273 with Cameron's OK; #268 and #269 back to the Equipment Lead for review fixes; #183 D1 review fixes in progress)
 
 ---
 
@@ -64,6 +64,12 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. ~~**Item 5, $0 invoice total.**~~ **Done: PR #248 (in prod 10-10), follow-up fix PR #251.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
+
+**Status 10-12 01:40 UTC:**
+- **Merged (not yet in prod):** #263, #264, #267 (#245/#249), #270 (#242 items 5, 7; #242 closed), #271 (#175 stopgap: Delete gig Admin-only), #272 (#256), #273 (#266 items 1–4; #266 closed). No migrations.
+- **Back to the Equipment Lead for fixes (coordinator review 10-12):** #268 (#186 Locations step): the where-is-it card and Item page don't use the `currentRows` rule (T58 regression), Move N can exceed the lot via a stale bucket, the Maintenance + In Warehouse mismatch, home lot count/cap, and the closing row's location. #269 (#265): the warning repeats after the case is packed here (reads only server `last_records`).
+- **#183 D (CSV import), branch `claude/183d-csv-import`:** D1 built; review fixes in progress: group all rows so lines keep their invoice, hold purchases with invalid rows, Retry failed, guard the preview. **Cameron 10-12: the `status` column is removed (import seeds a new account; every unit is Active)**; the kit column stays; retired_on/liquidation_amt dropped; template regrouped; example mic-kit file. No migration.
+- Open question for Cameron later: should #265's warning also cover a case *added* at pack-out?
 
 **Released by Cameron 10-11 (answers recorded on each issue):**
 - **Equipment Lead, in order, one PR each:** (1) #245 + #249: ticks don't print (blank boxes); the Columns choice is remembered per browser; print header "N kits · M pieces". (2) #186 next Locations step: home pieces show "Not checked out"; gig ↔ home moves only; desktop Mark for Maintenance waits; Item filter, piece counts, "2 of 10", where-is-it card, Move N of a lot (fixes #160), Item page "Where they are". (3) #265 container still out warning. (4) #242 items 5 (Undo write-off on the equipment page) and 7 (amber "asks for 6, lot has 4"); item 6 is kept as is and documented.
@@ -261,6 +267,8 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 
 ## 5. Future considerations (not open work)
 
+- *From #266 / the #225 review:* concurrent kit edits can leave partial writes; nested-container availability isn't shown; the kit editor's item query isn't paged.
+- *From the #183 D1 review:* Track as equipment can double-track across two sessions (client-side check); the import's item/kit lookups load full records and are subject to the ~1000-row PostgREST cap.
 - *Parked from #226 (Cameron 10-09; #226 closed 10-11):* 1 multi-step purchase save isn't atomic (needs an RPC migration); 2 Mark Inactive takes two requests; 4 removing a purchase line unlinks its units silently; 7 no duplicate tag/serial warning; 9 Purchase column on hand-added units; 10 differences from mockups 3 and 4; 11 `kit-null` duplicate-key warning (unverified still present); 12 Track as equipment still uses the v1 RPC (with #183 D).
 - *Docs Lead's #246 phone notes 3–7 (from #185, closed 10-11):* Gigs vs Dashboard wording; Pack-Out wording in Load Truck; "any" line wording; Admins can't Remove a kit someone else added; no Note button on additions and "any" lines.
 - *#186 docs notes (Docs Lead):* "Unknown Kit" heading for loose items; Override pencil buttons have no labels.
