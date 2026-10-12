@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 21:10 UTC (coordinator: #281 (#175 PR 1) re-reviewed: no blockers; one small round back with the Equipment Lead)
+- **Last updated:** 2026-10-12 21:55 UTC (coordinator: #281 (#175 PR 1) re-reviewed clean at d95dcdd, applied to dev; waiting on Cameron's merge OK)
 
 ---
 
@@ -64,7 +64,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 
 **Status 10-12 21:15 UTC:**
-- **#281 (#175 PR 1, database):** CI green; an independent review says fix first (the details went to Cameron privately). **10-12: re-review of 9fd9607 found no blockers; one small round back with the Lead (app error checks, the createGig rollback, more RLS 62 cases). Prod backfill dry run (read-only): 99/99 resolve, no child gigs.** Also folded into this PR: the participant-change path in the app (delete + insert with error checks), removal of the legacy delete route (needs an edge-function deploy), the demo-seed owner, and more RLS 62 cases. **Cameron 10-12:** an Inactive organization is also read-only on the gig schedule and on other organizations' contacts. The migration goes to dev only after re-review.
+- **#281 (#175 PR 1, database):** CI green; an independent review says fix first (the details went to Cameron privately). **10-12: re-reviewed clean at d95dcdd (CI green). Applied to dev 10-12: migration `20261020000000` (17/17 dev gigs owned) and all three edge functions. Waiting on Cameron's merge OK. Prod needs the migration and a `server` deploy. Prod backfill dry run (read-only): 99/99 resolve, no child gigs.** Also folded into this PR: the participant-change path in the app (delete + insert with error checks), removal of the legacy delete route (needs an edge-function deploy), the demo-seed owner, and more RLS 62 cases. **Cameron 10-12:** an Inactive organization is also read-only on the gig schedule and on other organizations' contacts. The migration goes to dev only after re-review.
 
 **Status 10-12 18:45 UTC:**
 - **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card). Fixed by a coordinator helper and merged 10-12 with Cameron's OK: #282 (Tracking Status reads the badge plus "N of M" at the active gig) and #283 (Kit Contents fits its card). Not yet in prod.
@@ -319,6 +319,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 
 ## 5. Future considerations (not open work)
 
+- *From the #281 re-review (10-12):* saving a gig's edit on mobile resets every participant's notes and client flag (MobileGigDetail sends only id, organization and role; `updateGigParticipants` writes `notes || null` and `is_client ?? false`). Prod today: 0 participant notes and 1 client flag, so little is at risk yet. Raised with Cameron; a fit for #175 PR 3 (UI).
 - *From the #268 checks:* Locations' stale rule assumes a consistent history; a raw lot scan that sends out more than is home (#185 lot scans) can make an older place read stale and over-report home. Rows written by the pre-fix Move N on dev can tie on time. The stale check is O(rows × history) per lot (fine now, slow for very long histories). `getItemsByLocation` reads tracking rows unpaged (1000-row cap) and doesn't batch `.in('id')`.
 - *From #266 / the #225 review:* concurrent kit edits can leave partial writes; nested-container availability isn't shown; the kit editor's item query isn't paged.
 - *From the #183 D1 review:* Track as equipment can double-track across two sessions (client-side check); the import's item/kit lookups load full records and are subject to the ~1000-row PostgREST cap.
