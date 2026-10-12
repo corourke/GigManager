@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 03:00 UTC (coordinator: merged #269, #275, #276 with Cameron's OK; #268 fixes being re-verified; #274 needs two sentences fixed)
+- **Last updated:** 2026-10-12 05:15 UTC (coordinator: #274 merged; #268 passed its third independent check and waits only on the case-split warning Cameron chose, then his merge OK)
 
 ---
 
@@ -64,6 +64,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. ~~**Item 5, $0 invoice total.**~~ **Done: PR #248 (in prod 10-10), follow-up fix PR #251.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
+
+**Status 10-12 05:15 UTC:**
+- **#274 merged** (docs: Locations page, live behaviour).
+- **#268 (#186 Locations step, fixes #160):** the third independent check passed. Move N reads back correctly (the target row is written 1 ms after the closing return); there's one stale rule (an out place is stale when other places later held more pieces at once than the lot leaves; returns hold none); a lot home in two cases splits correctly; a move from home with none home is refused. **Cameron 10-12: moving part of a lot in a case to another gig is allowed, with a warning** ("These N leave <case>. The case stays at <gig>."). The Equipment Lead is adding it; then the merge waits on Cameron's OK.
+- **Ready for Cameron's prod deploy (no migrations):** #263, #264, #267, #269, #270, #271, #272, #273, #276; docs #274 and #275 are already live on the docs site.
 
 **Status 10-12 03:00 UTC:**
 - **Merged since (not yet in prod):** #276 (#183 D: CSV import makes units, lots and kit lines through the v2 save; kit column kept; no status / retired_on / liquidation_amt; template regrouped; Download Example mic-kit file; held purchases; Retry failed; the app no longer calls v1), #269 (#265: container still out at another gig), #275 (docs: Payment received → Apply to). No migrations.
@@ -288,6 +293,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 
 ## 5. Future considerations (not open work)
 
+- *From the #268 checks:* Locations' stale rule assumes a consistent history; a raw lot scan that sends out more than is home (#185 lot scans) can make an older place read stale and over-report home. Rows written by the pre-fix Move N on dev can tie on time. The stale check is O(rows × history) per lot (fine now, slow for very long histories). `getItemsByLocation` reads tracking rows unpaged (1000-row cap) and doesn't batch `.in('id')`.
 - *From #266 / the #225 review:* concurrent kit edits can leave partial writes; nested-container availability isn't shown; the kit editor's item query isn't paged.
 - *From the #183 D1 review:* Track as equipment can double-track across two sessions (client-side check); the import's item/kit lookups load full records and are subject to the ~1000-row PostgREST cap.
 - *Parked from #226 (Cameron 10-09; #226 closed 10-11):* 1 multi-step purchase save isn't atomic (needs an RPC migration); 2 Mark Inactive takes two requests; 4 removing a purchase line unlinks its units silently; 7 no duplicate tag/serial warning; 9 Purchase column on hand-added units; 10 differences from mockups 3 and 4; 11 `kit-null` duplicate-key warning (unverified still present); 12 Track as equipment still uses the v1 RPC (with #183 D).
