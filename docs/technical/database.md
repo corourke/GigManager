@@ -534,7 +534,7 @@ Organizations participating in a gig (venue, act, production, etc.)
 - Composite unique constraint on (gig_id, organization_id, role)
 - `is_client` is orthogonal to `role` and deliberately has no uniqueness constraint (split billing / co-promotion)
 - RLS is **ENABLED** on this table. Users can view participants for accessible gigs. Admins/Managers of an active participant can add participants and change role, notes and `is_client`. A participation's gig and organization never change (remove it and add another).
-- **Inactive** (#175): the role is kept; the organization still manages its own staffing, financials and kits on the gig, but is read-only on the gig's shared details and on its own role, notes and client flag. The owner's Admins and Managers, or the organization's own, mark it Inactive or reactivate it. The owner is never Inactive, and a participation can't be added already Inactive.
+- **Inactive** (#175): the role is kept; the organization still manages its own staffing, financials, kits and contacts on the gig, but is read-only on the gig's shared details, its own role, notes and client flag, the gig's schedule (`gig_schedule_entries`) and other organizations' contacts for the gig (Cameron, 10-12). The owner's Admins and Managers, or the organization's own, mark it Inactive or reactivate it. The owner is never Inactive, and a participation can't be added already Inactive.
   - Inactive is per organization: if any of its roles on the gig is Inactive, it's Inactive on the gig (`user_can_manage_gig_active`). The app marks and reactivates all of an organization's rows together.
 - The helper functions behind these rules (`user_can_manage_gig_active`, `user_manages_gig_owner`, `org_is_claimed`, `user_can_delete_gig`) can be called only by signed-in users.
 - **Removing an organization** (#175): by the owner's Admins and Managers or the organization's own; an unclaimed record (a venue or act nobody has claimed) by any active participant's Admin or Manager. Dropping one of an organization's roles is always allowed; when its last role goes (`gig_participants_after_remove`):
@@ -587,7 +587,7 @@ Run-of-show / multi-act schedule entries for a gig (migrations 20260616000000, 2
 **Notes:**
 - The original `end_time > start_time` check (`schedule_entry_time_order`) was dropped in 20260617000000; an entry may have only a start time.
 - No `update_updated_at_column` trigger is attached; `updated_at` must be set by the writer.
-- RLS is **ENABLED**. SELECT for any member of a participating org; INSERT/UPDATE/DELETE for Admin/Manager of a participating org (inline `gig_participants` ⨝ `organization_members` checks).
+- RLS is **ENABLED**. SELECT for any member of a participating org; INSERT/UPDATE/DELETE for Admin/Manager of an *active* participating org (`user_can_manage_gig_active`, #175).
 
 ---
 

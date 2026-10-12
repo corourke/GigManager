@@ -17,6 +17,8 @@
 --     have no financials, kit assignments or staff slots there, and its scans and contacts for the
 --     gig are deleted and its purchases unlinked. The owner's participation can't be removed.
 --   * Marking Inactive or reactivating: the owner's Admins and Managers, or the organization's own.
+--   * An Inactive organization is also read-only on the gig's schedule and on other
+--     organizations' contacts for the gig (Cameron, 10-12).
 --   * create_gig_complex stores the owner and requires it among the participants.
 --
 -- Tested by supabase/tests/rls/62_gig_owner.test.sql and supabase/tests/conversion/20261020000000.*.
@@ -285,6 +287,35 @@ END $$;
 CREATE TRIGGER gig_participants_after_remove
   AFTER DELETE ON public.gig_participants
   FOR EACH ROW EXECUTE FUNCTION public.gig_participants_after_remove();
+
+-- ── Inactive: the gig's schedule and other organizations' contacts ─────────
+-- An Inactive organization is read-only on the gig's schedule and on other organizations'
+-- contacts for the gig (Cameron, 10-12). Its own contacts it still manages.
+DROP POLICY IF EXISTS "schedule_entries_modify" ON public.gig_schedule_entries;
+CREATE POLICY "schedule_entries_modify" ON public.gig_schedule_entries
+  FOR ALL USING (public.user_can_manage_gig_active(gig_id, auth.uid()))
+  WITH CHECK (public.user_can_manage_gig_active(gig_id, auth.uid()));
+
+-- Contacts are written by SECURITY DEFINER RPCs; this checks the signed-in user on each row
+-- they write. Rows written by the removal cleanup or by cascades (nested) aren't checked here.
+CREATE OR REPLACE FUNCTION public.gig_participant_contacts_inactive_rule()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r record;
+BEGIN
+  IF TG_OP = 'DELETE' THEN r := OLD; ELSE r := NEW; END IF;
+  IF auth.uid() IS NULL OR pg_trigger_depth() > 1 THEN
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  END IF;
+  IF NOT public.user_is_admin_or_manager_of_org(r.organization_id, auth.uid())
+     AND NOT public.user_can_manage_gig_active(r.gig_id, auth.uid()) THEN
+    RAISE EXCEPTION 'An Inactive organization can''t change other organizations'' contacts on the gig.' USING ERRCODE = '42501';
+  END IF;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END $$;
+
+CREATE TRIGGER gig_participant_contacts_inactive_rule
+  BEFORE INSERT OR UPDATE OR DELETE ON public.gig_participant_contacts
+  FOR EACH ROW EXECUTE FUNCTION public.gig_participant_contacts_inactive_rule();
 
 -- The owner always has a participation on its gig, and none of its rows is Inactive. Checked
 -- at commit, so a gig and its participants can be written in either order.
