@@ -111,6 +111,10 @@ function makeDb(rows: {
   organization_members?: any[];
   organizations?: Record<string, string>;
   gigsError?: any;
+  /** Fail this write on gig_participants, as the database would (#175). */
+  writeError?: { method: 'insert' | 'update' | 'delete'; error: any };
+  /** RLS refuses this write silently: no error, no rows (#175). */
+  refuse?: 'update' | 'delete';
 }) {
   const calls: Array<{ table: string; ops: Op[] }> = [];
   const answer = (table: string, ops: Op[]) => {
@@ -124,6 +128,10 @@ function makeDb(rows: {
       return { data: rows.gigs ?? null, error: null };
     }
     if (table === 'gig_participants') {
+      if (rows.writeError && has(rows.writeError.method)) return { data: null, error: rows.writeError.error };
+      if (rows.refuse && has(rows.refuse)) return { data: [], error: null };
+      if (has('delete')) return { data: (has('in')?.args[1] ?? []).map((id: string) => ({ id })), error: null };
+      if (has('update')) return { data: [{ id: has('eq')?.args[1] }], error: null };
       if (has('insert')) return { data: { id: 'p-new' }, error: null };
       return { data: rows.gig_participants ?? [], error: null };
     }
@@ -146,6 +154,10 @@ function makeDb(rows: {
       chain[m] = vi.fn((...args: any[]) => { ops.push({ method: m, args }); return chain; });
     });
     chain.single = vi.fn(() => Promise.resolve(answer(table, ops)));
+    chain.maybeSingle = vi.fn(() => {
+      const r = answer(table, ops);
+      return Promise.resolve(Array.isArray(r.data) ? { ...r, data: r.data[0] ?? null } : r);
+    });
     chain.then = (resolve: any, reject: any) => Promise.resolve(answer(table, ops)).then(resolve, reject);
     return chain;
   });
@@ -295,6 +307,74 @@ describe('updateGigParticipants deletes only rows the caller loaded and removed 
 
     await expect(updateGigParticipants('gig-1', [mine], ctx, [MINE, REMOVED])).rejects.toThrow('Not authenticated');
     expect(db.from).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+});
+
+// #175: a participation's organization can't change in place (the database refuses it), so a
+// new organization is a delete and an insert. Every write is checked, and the log follows success.
+describe('participant writes (#175)', () => {
+  const ROW = '77777777-7777-4777-8777-777777777777';
+  const ctx = { organization_id: 'org-1', actor_display_name: 'Jane', actor_org_name: 'Org 1', gig_title: 'Gig' };
+  const writes = (db: ReturnType<typeof makeDb>, method: string) => db.calls
+    .filter(c => c.table === 'gig_participants' && c.ops.some(o => o.method === method));
+  const setup = (over: Parameters<typeof makeDb>[0] = {}) => {
+    vi.clearAllMocks();
+    const db = makeDb({ gig_participants: [{ id: ROW, organization_id: 'org-2', role: 'Venue' }], organizations: { 'org-2': 'Old Venue', 'org-3': 'New Venue' }, ...over });
+    signIn({ from: db.from }, { id: 'user-1', user_metadata: {} });
+    return db;
+  };
+
+  it('a row moved to another organization is removed and added, never changed in place', async () => {
+    const db = setup();
+    const result = await updateGigParticipants('gig-1', [{ id: ROW, organization_id: 'org-3', role: 'Venue' }], ctx, [ROW]);
+    expect(writes(db, 'update').flatMap(c => c.ops.filter(o => o.method === 'update').map(o => o.args[0])))
+      .not.toContainEqual(expect.objectContaining({ organization_id: expect.anything() }));
+    expect(writes(db, 'delete')).toHaveLength(1);
+    expect(writes(db, 'insert')[0].ops.find(o => o.method === 'insert')?.args[0]).toMatchObject({ gig_id: 'gig-1', organization_id: 'org-3', role: 'Venue' });
+    expect(result.ids).toEqual(['p-new']);
+  });
+
+  it('an update never sends the organization', async () => {
+    const db = setup();
+    await updateGigParticipants('gig-1', [{ id: ROW, organization_id: 'org-2', role: 'Venue', notes: 'n' }], ctx, [ROW]);
+    const sent = writes(db, 'update')[0].ops.find(o => o.method === 'update')?.args[0];
+    expect(sent).toEqual({ role: 'Venue', notes: 'n', is_client: false });
+  });
+
+  it.each(['delete', 'update', 'insert'] as const)('a refused %s is reported, not ignored', async (method) => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    setup({ writeError: { method, error: { code: '42501', message: 'refused' } } });
+    const participants = method === 'insert' ? [{ organization_id: 'org-3', role: 'Act' as const }]
+      : method === 'update' ? [{ id: ROW, organization_id: 'org-2', role: 'Venue' as const, notes: 'n' }] : [];
+    await expect(updateGigParticipants('gig-1', participants, ctx, [ROW])).rejects.toMatchObject({ message: 'refused' });
+    consoleError.mockRestore();
+  });
+
+  it('logs a removal only after it succeeded', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    setup({ writeError: { method: 'delete', error: { code: '23503', message: 'has kits' } } });
+    await expect(updateGigParticipants('gig-1', [], ctx, [ROW])).rejects.toBeTruthy();
+    expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({ event_type: 'participant.removed' }));
+    consoleError.mockRestore();
+  });
+
+  it.each(['delete', 'update'] as const)('a %s the database silently refuses is reported, not taken as done', async (method) => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = setup({ refuse: method });
+    const participants = method === 'update' ? [{ id: ROW, organization_id: 'org-2', role: 'Venue' as const, notes: 'n' }] : [];
+    await expect(updateGigParticipants('gig-1', participants, ctx, [ROW])).rejects.toThrow(/permission/i);
+    expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({ event_type: 'participant.removed' }));
+    expect(writes(db, 'insert')).toHaveLength(0);
+    consoleError.mockRestore();
+  });
+
+  it('a move the database refuses to remove doesn\'t add the new organization', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = setup({ refuse: 'delete' });
+    await expect(updateGigParticipants('gig-1', [{ id: ROW, organization_id: 'org-3', role: 'Venue' }], ctx, [ROW])).rejects.toThrow(/permission/i);
+    expect(writes(db, 'insert')).toHaveLength(0);
+    expect(logActivity).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
 });

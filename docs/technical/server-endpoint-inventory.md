@@ -50,7 +50,7 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | 20 | GET | `/gigs/:id` | 🏢 of any participant org | `requireGigAccess()` | Intersection model. |
 | 21 | POST | `/gigs` | — | — | **Removed 09-29 (PR #95).** Unused: the app creates gigs with the `create_gig_complex` RPC. |
 | 22 | PUT | `/gigs/:id` | — | — | **Removed 09-29 (PR #95).** Unused: the app edits gigs through RLS-guarded table writes. |
-| 23 | DELETE | `/gigs/:id` | 👑 of a participant org | `requireGigAccess(['Admin'])` | Admin only, narrower than the 🛡️ the original spec listed. |
+| 23 | DELETE | `/gigs/:id` | — | — | **Removed 10-12 (#175).** Unused: the app deletes gigs through the RLS delete rule (an Admin of the owner organization). |
 | 24 | GET | `/organizations/:id/dashboard` | 🏢 except Viewer | `requireOrgRole({ roles: ['Admin', 'Manager', 'Staff'] })` | Staff allowed (read-only dashboard). |
 
 ## Integrations — Google Places (API-key proxy)
