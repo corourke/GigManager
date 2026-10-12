@@ -7,7 +7,7 @@ import {
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { requireAuth } from '../utils/supabase/auth-utils';
-import { deleteGigFromCalendar } from './googleCalendar.service';
+import { deleteCalendarEvent } from './googleCalendar.service';
 // createGig calls createGigFinancial internally (financial record on import).
 import { createGigFinancial } from './gigFinancial.service';
 // updateGig calls updateGigParticipants internally.
@@ -109,44 +109,36 @@ async function syncGigToAllCalendars(gigId: string): Promise<void> {
 }
 
 /**
- * Delete gig from all Google Calendars
- * This is called after gig delete operations
+ * The Google Calendar events synced for a gig. Read before the gig is
+ * deleted: its sync rows are deleted with it (#175).
  */
-async function deleteGigFromAllCalendars(gigId: string): Promise<void> {
+async function getGigCalendarEvents(gigId: string): Promise<Array<{ user_id: string; google_event_id: string }>> {
   try {
-    const supabase = getSupabase();
-
-    // Get all users who have this gig synced
-    const { data: syncStatuses, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('gig_sync_status')
-      .select('user_id')
+      .select('user_id, google_event_id')
       .eq('gig_id', gigId)
       .not('google_event_id', 'is', null);
-
-    if (error) {
-      console.error('Error fetching sync statuses for deletion:', error);
-      return;
-    }
-
-    if (!syncStatuses || syncStatuses.length === 0) {
-      return; // No synced events to delete
-    }
-
-    // Delete from each user's calendar
-    const deletePromises = syncStatuses.map(async (syncStatus) => {
-      try {
-        await deleteGigFromCalendar(syncStatus.user_id, gigId);
-      } catch (deleteError) {
-        console.error(`Failed to delete gig ${gigId} from user ${syncStatus.user_id}'s calendar:`, deleteError);
-        // Continue with other users even if one fails
-      }
-    });
-
-    await Promise.allSettled(deletePromises);
+    if (error) throw error;
+    return (data ?? []) as Array<{ user_id: string; google_event_id: string }>;
   } catch (error) {
-    console.error('Error in deleteGigFromAllCalendars:', error);
-    // Don't throw - sync failures shouldn't break gig operations
+    console.error('Error fetching sync statuses for deletion:', error);
+    return [];
   }
+}
+
+/**
+ * Remove a deleted gig's events from each user's Google Calendar. A failure
+ * is logged and doesn't fail the delete, which already happened.
+ */
+async function removeGigCalendarEvents(gigId: string, events: Array<{ user_id: string; google_event_id: string }>): Promise<void> {
+  await Promise.allSettled(events.map(async (event) => {
+    try {
+      await deleteCalendarEvent(event.user_id, event.google_event_id);
+    } catch (deleteError) {
+      console.error(`Failed to delete gig ${gigId} from user ${event.user_id}'s calendar:`, deleteError);
+    }
+  }));
 }
 
 /**
@@ -623,8 +615,9 @@ export async function updateGig(gigId: string, gigData: {
 export async function deleteGig(gigId: string) {
   const supabase = getSupabase();
   try {
-    // Delete from Google Calendar first (before deleting the gig)
-    await deleteGigFromAllCalendars(gigId);
+    // The calendar events are removed only once the gig is gone (#175); their
+    // ids are read first because the sync rows are deleted with the gig.
+    const calendarEvents = await getGigCalendarEvents(gigId);
 
     // .select() so we can tell whether a row was actually removed. RLS denies
     // silently (0 rows, no error), so without this a non-Admin's delete would
@@ -634,6 +627,7 @@ export async function deleteGig(gigId: string) {
     if (!data || data.length === 0) {
       throw new Error('Gig not found, or you do not have permission to delete it.');
     }
+    await removeGigCalendarEvents(gigId, calendarEvents);
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'delete gig');
@@ -659,11 +653,11 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
       notes: gp.notes,
     }));
 
-    const primaryOrgId = participants.find((p: any) => p.role === 'Venue')?.organization_id
-      || participants[0]?.organization_id;
+    // The copy belongs to the gig's owner organization (#175).
+    const primaryOrgId = originalGig.owner_organization_id;
 
-    // Staff slots and kit assignments belong to one org each; copy only the
-    // primary org's. The caller must manage the primary org to create the gig (#61).
+    // Staff slots, kit assignments and financials belong to one org each; copy
+    // only the owner's. The caller must manage the owner to create the gig (#61).
     // create_gig_complex reads the role *name* as `role` and ignores assignments,
     // so the copy (usually on a new date) starts unstaffed (#102).
     const staffSlots = (originalGig.staff_slots || [])
@@ -695,10 +689,12 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
 
     const newGigId = data[0].id;
 
-    if (originalGig.financials && originalGig.financials.length > 0) {
+    const ownFinancials = (originalGig.financials || [])
+      .filter((fin: any) => fin.organization_id === primaryOrgId);
+    if (ownFinancials.length > 0) {
       // The copy is a new deal: carry the agreed terms, not their progress.
       // Rows past acceptance start over at accepted; ended ones are left out.
-      const financials = originalGig.financials
+      const financials = ownFinancials
         .filter((fin: any) => fin.stage !== 'declined' && fin.stage !== 'cancelled')
         .map((fin: any) => ({
         gig_id: newGigId,

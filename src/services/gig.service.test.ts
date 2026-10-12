@@ -1093,6 +1093,7 @@ describe('gig.service', () => {
       // 'required_count' and 'notes'. It never reads staff_role_id or assignments.
       const originalGig = {
         id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-a',
         participants: [{ organization_id: 'org-a', role: 'Venue' }],
         staff_slots: [
           {

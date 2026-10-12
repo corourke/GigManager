@@ -85,32 +85,7 @@ export async function updateGigParticipants(
 
     // Logged once the rows are gone.
     if (idsToDelete.length > 0 && effectiveCtx) {
-      const removedRows = (existingParticipants ?? []).filter(p => idsToDelete.includes(p.id));
-      const orgIds = removedRows.map(r => r.organization_id).filter(Boolean);
-      let orgNameMap: Map<string, string> = new Map();
-      if (orgIds.length > 0) {
-        const { data: orgs } = await (supabase.from('organizations') as any).select('id, name').in('id', orgIds);
-        orgNameMap = new Map((orgs ?? []).map((o: any) => [o.id, o.name]));
-      }
-      for (const row of removedRows) {
-        try {
-          await logActivity({
-            organization_id: effectiveCtx.organization_id,
-            event_type: 'participant.removed',
-            entity_type: 'participant',
-            entity_id: row.id,
-            gig_id: gigId,
-            context: {
-              context_version: 1,
-              actor_display_name: effectiveCtx.actor_display_name,
-              actor_org_name: effectiveCtx.actor_org_name,
-              gig_title: effectiveCtx.gig_title,
-              organization_name: orgNameMap.get(row.organization_id) ?? '',
-              role: row.role
-            }
-          });
-        } catch (e) { console.error('Activity log failed:', e); }
-      }
+      await logRemovals(supabase, gigId, effectiveCtx, (existingParticipants ?? []).filter(p => idsToDelete.includes(p.id)));
     }
 
     const ids: Array<string | undefined> = [];
@@ -164,6 +139,107 @@ export async function updateGigParticipants(
     return { success: true, ids };
   } catch (err) {
     return handleApiError(err, 'update gig participants');
+  }
+}
+
+/** Logs `participant.removed` for each removed row. */
+async function logRemovals(
+  supabase: ReturnType<typeof getSupabase>,
+  gigId: string,
+  ctx: GigActivityCtx,
+  removedRows: Array<{ id: string; organization_id: string; role: string }>,
+) {
+  const orgIds = removedRows.map(r => r.organization_id).filter(Boolean);
+  let orgNameMap: Map<string, string> = new Map();
+  if (orgIds.length > 0) {
+    const { data: orgs } = await (supabase.from('organizations') as any).select('id, name').in('id', orgIds);
+    orgNameMap = new Map((orgs ?? []).map((o: any) => [o.id, o.name]));
+  }
+  for (const row of removedRows) {
+    try {
+      await logActivity({
+        organization_id: ctx.organization_id,
+        event_type: 'participant.removed',
+        entity_type: 'participant',
+        entity_id: row.id,
+        gig_id: gigId,
+        context: {
+          context_version: 1,
+          actor_display_name: ctx.actor_display_name,
+          actor_org_name: ctx.actor_org_name,
+          gig_title: ctx.gig_title,
+          organization_name: orgNameMap.get(row.organization_id) ?? '',
+          role: row.role
+        }
+      });
+    } catch (e) { console.error('Activity log failed:', e); }
+  }
+}
+
+/**
+ * Remove an organization from a gig: all of its roles there (#175). The
+ * database allows it only while the organization has no financials, kits or
+ * staff slots on the gig, and never for the owner; its reason is passed on.
+ */
+export async function removeGigParticipant(gigId: string, organizationId: string, activityCtx?: GigActivityCtxInput) {
+  try {
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
+
+    const { data: rows, error: fetchError } = await supabase
+      .from('gig_participants')
+      .select('id, organization_id, role')
+      .eq('gig_id', gigId)
+      .eq('organization_id', organizationId);
+    if (fetchError) throw fetchError;
+    if (!rows || rows.length === 0) throw new Error('This organization is not on this gig.');
+
+    let ctx: GigActivityCtx | null = null;
+    try {
+      ctx = await resolveGigActivityCtx(supabase, user, gigId, activityCtx, [organizationId]);
+    } catch (e) { console.error('Activity log context lookup failed:', e); }
+
+    // .select() so a removal the database refuses (no rows, no error) isn't taken as done.
+    const { data: deleted, error: deleteError } = await supabase
+      .from('gig_participants')
+      .delete()
+      .eq('gig_id', gigId)
+      .eq('organization_id', organizationId)
+      .select('id');
+    if (deleteError) throw deleteError;
+    if ((deleted ?? []).length !== rows.length) {
+      throw new Error('This organization could not be removed from the gig: you do not have permission to remove it.');
+    }
+
+    if (ctx) await logRemovals(supabase, gigId, ctx, rows);
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, 'remove organization from gig');
+  }
+}
+
+/**
+ * Mark an organization Inactive on a gig, or reactivate it (#175). It's a flag
+ * on each of its roles there. The owner, or the organization itself, may do it.
+ */
+export async function setGigParticipantInactive(gigId: string, organizationId: string, inactive: boolean) {
+  try {
+    await getCurrentUser();
+    const supabase = getSupabase();
+
+    const { data: updated, error } = await supabase
+      .from('gig_participants')
+      .update({ inactive })
+      .eq('gig_id', gigId)
+      .eq('organization_id', organizationId)
+      .select('id');
+    if (error) throw error;
+    if (!updated || updated.length === 0) {
+      throw new Error(`This organization could not be ${inactive ? 'marked Inactive' : 'reactivated'}: you do not have permission to change it.`);
+    }
+    return { success: true };
+  } catch (err) {
+    return handleApiError(err, inactive ? 'mark organization Inactive' : 'reactivate organization');
   }
 }
 

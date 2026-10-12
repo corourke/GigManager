@@ -146,8 +146,11 @@ function makeDb(rows: {
       return { data: (rows.organization_members ?? []).filter(m => ids.includes(m.organization_id)), error: null };
     }
     if (table === 'organizations') {
-      const id = has('eq')?.args[1];
       const names = rows.organizations ?? {};
+      if (has('in')) {
+        return { data: (has('in')!.args[1] as string[]).filter(id => id in names).map(id => ({ id, name: names[id] })), error: null };
+      }
+      const id = has('eq')?.args[1];
       return { data: id in names ? { name: names[id] } : null, error: null };
     }
     return { data: [], error: null };
