@@ -296,6 +296,48 @@ describe('googleCalendar.service', () => {
     });
   });
 
+  // #175: a gig the organization is Inactive on is left out of its calendar sync.
+  describe('syncAllGigsForUser', () => {
+    it('removes a gig the organization is Inactive on instead of syncing it', async () => {
+      const service = await import('./googleCalendar.service');
+      const settings = {
+        id: 's-1', user_id: 'user-123', calendar_id: 'cal-123', access_token: 'token-abc', refresh_token: 'r',
+        token_expires_at: new Date(Date.now() + 3600000).toISOString(), is_enabled: true, sync_filters: {},
+      };
+      const gigs = [
+        { id: 'gig-on', title: 'On', start: '2026-10-03T20:00:00.000Z', end: '2026-10-03T23:00:00.000Z', timezone: 'UTC', status: 'Booked', participants: [] },
+        { id: 'gig-off', title: 'Off', start: '2026-10-04T20:00:00.000Z', end: '2026-10-04T23:00:00.000Z', timezone: 'UTC', status: 'Booked', participants: [] },
+      ];
+      const answers: Record<string, any> = {
+        user_google_calendar_settings: { data: settings, error: null },
+        gig_participants: {
+          data: [{ gig_id: 'gig-on', inactive: false }, { gig_id: 'gig-off', inactive: true }], error: null,
+        },
+        gigs: { data: gigs, error: null },
+        gig_sync_status: { data: { google_event_id: 'ev-off' }, error: null },
+      };
+      mockSupabase.from = vi.fn((table: string) => {
+        const b: any = {};
+        ['select', 'eq', 'in', 'not', 'upsert', 'update', 'order', 'limit'].forEach((m) => { b[m] = vi.fn(() => b); });
+        const answer = answers[table] ?? { data: null, error: null };
+        b.maybeSingle = vi.fn(() => Promise.resolve(answer));
+        b.single = vi.fn(() => Promise.resolve(answer));
+        b.then = (res: any, rej: any) => Promise.resolve(answer).then(res, rej);
+        return b;
+      });
+      mockSupabase.functions.invoke.mockResolvedValue({ data: { eventId: 'ev-new', success: true }, error: null });
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const result = await service.syncAllGigsForUser('user-123', 'org-1');
+
+      expect(result.total).toBe(1);
+      expect(mockSupabase.functions.invoke).toHaveBeenCalledWith(
+        'server/integrations/google-calendar/events',
+        expect.objectContaining({ method: 'DELETE', body: expect.objectContaining({ event_id: 'ev-off' }) }),
+      );
+    });
+  });
+
   describe('bulkSyncAllGigsServerSide', () => {
     it('successfully queries all gigs and invokes sync-gig-all-users for each', async () => {
       const service = await import('./googleCalendar.service');

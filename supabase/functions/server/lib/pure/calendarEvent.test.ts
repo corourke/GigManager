@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCalendarEvent } from './calendarEvent';
+import { buildCalendarEvent, calendarAudienceOrgIds } from './calendarEvent';
 
 // Issue #117: every synced gig is an all-day Google Calendar event in the
 // gig's local dates, with the times and venue at the top of the description.
@@ -169,5 +169,17 @@ describe('buildCalendarEvent', () => {
 
     expect(Object.keys(event.start)).toEqual(['date']);
     expect(Object.keys(event.end)).toEqual(['date']);
+  });
+});
+
+// #175: a gig is left out of the calendar sync of an organization that is Inactive on it.
+describe('calendarAudienceOrgIds', () => {
+  it("takes the organizations active on the gig, once each", () => {
+    expect(calendarAudienceOrgIds([
+      { organization_id: 'org-a', inactive: false },
+      { organization_id: 'org-a', inactive: false },
+      { organization_id: 'org-b', inactive: true },
+      { organization_id: 'org-c' },
+    ])).toEqual(['org-a', 'org-c']);
   });
 });
