@@ -26,7 +26,7 @@ over. Admins and Managers also see **New Gig** and **Import**.
 
 To open a gig, select its title, or open the row's **⋯** menu and choose **View**.
 Admins and Managers also get **Edit** (opens the gig in edit mode) and **Duplicate**.
-Only Admins can delete a gig.
+Only an Admin of the gig's [owner](/gigs/participating-organizations/#the-gigs-owner), the organization it was created in, can delete it.
 
 ![The Gigs list on the Upcoming tab, with the date and status filters, Columns, and New Gig, Import and Export buttons above gigs showing their start, status, venue, act and tags](../../../assets/screenshots/gigs/overview-gig-list.png)
 
@@ -66,5 +66,6 @@ Staff and Viewers see the gig read-only, without the Financials tab or staff pay
 ## Status
 
 A gig is **Date Hold**, **Proposed**, **Booked**, **Completed**, **Settled** or
-**Cancelled**. New gigs start as Date Hold. You can set any status at any time;
-GigWrangler doesn't enforce an order.
+**Cancelled**. New gigs start as Date Hold. Only Admins and Managers of the gig's
+[owner](/gigs/participating-organizations/#the-gigs-owner) can change it. They can set
+any status at any time; GigWrangler doesn't enforce an order.
