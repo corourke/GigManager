@@ -66,7 +66,6 @@ Select a gig's title to open it. You can also open the **⋯** menu at the end o
 row and choose **View**. Admins and Managers also see **Edit** (opens the gig in edit
 mode) and **Duplicate** in that menu, and Admins see **Delete**, which asks you to
 confirm before it removes the gig.
-<!-- TODO: #175 — Managers currently see Delete too, and get an error. -->
 
 ![A gig row's ⋯ menu open, showing View, Edit, Duplicate and Delete](../../../assets/screenshots/gigs/the-gig-list-row-menu.png)
 

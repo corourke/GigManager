@@ -741,8 +741,24 @@ export const shots = [
     },
     clip: { x: 0, y: 0, width: 390, height: 844 },
   },
-  // Held: equipment/inventory-reports-packing-list waits for #249 (the Name column
-  // pushes the other columns off-screen).
+  {
+    id: 'equipment/inventory-reports-packing-list',
+    page: 'equipment/inventory-reports.md',
+    user: 'admin',
+    sources: ['src/components/inventory/InventoryReports.tsx', 'src/utils/packingColumns.ts', 'src/components/gig/GigPage.tsx'],
+    viewport: { width: 1200, height: 2400 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${HARVEST_GALA}/equipment`);
+      await gigSection(page, /^Packing list/).getByText('Full Band Sound Package').first().waitFor();
+    },
+    // The card's top through the Mic Case: the Columns button, the summary, the first kit's
+    // lines and a container with its contents.
+    clip: async (page) => {
+      const card = await box(gigSection(page, /^Packing list/));
+      const mic = await box(gigSection(page, /^Packing list/).getByRole('row').filter({ hasText: 'CASE-01' }).first());
+      return { x: card.x - 6, y: card.y - 6, width: card.width + 12, height: mic.y + mic.height + 6 - (card.y - 6) };
+    },
+  },
   // Supplied by hand (Cameron, 10-08): these screens open only from a link in an
   // email, which the script can't follow, so they aren't taken here. Retake them by
   // hand from a dev email (Mailtrap) when the screen changes.

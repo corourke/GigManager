@@ -13,6 +13,10 @@ To open it, go to the gig and select **Packing List**, or tap **Scanning** in th
 bottom bar. The screen lists the gig's kits with everything in them. Its header
 shows how many pieces are done, such as "12 / 89 pieces".
 
+On a computer, open **Equipment → Out on gigs** and select **Track a gig**: the same
+screen opens in a window. Without a camera, type the tag under **Scan** and press Enter
+or select **Submit**. Esc closes the scanner and leaves the window open.
+
 ![The Scanning screen in Pack-Out: the step buttons, the location, and a kit with its lines](../../../assets/screenshots/mobile/field-inventory-pack-out.png)
 
 ## Choosing the step

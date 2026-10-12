@@ -48,6 +48,12 @@ and **Sign Out**.
 
 ![The Edit Your Profile dialog with name, email (which can't be changed), phone, timezone, avatar URL and an optional address](../../../assets/screenshots/getting-started/onboarding-edit-profile.png)
 
+## Keeping up to date
+
+GigWrangler updates itself in the background. When a new version is ready, you'll see
+"A new version of GigWrangler is ready." Select **Reload** when it suits you. Nothing
+reloads until you do, so you won't lose anything you're typing.
+
 ## Forgot your password?
 
 On the **Sign In** tab, choose **Forgot password?**, enter your email and select

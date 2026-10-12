@@ -17,12 +17,12 @@ Source: Plan §4, Prompt 7. Commits `Inventory reports` (2026-05-31) + 2026-08-2
 
 ## Packing list
 
-<!-- TODO: #249 — add the packing-list screenshot once the Name column no longer pushes the other columns off-screen. -->
-
 The packing list shows every piece of your organization's equipment a gig needs, kit
 by kit, and how much of it is packed. To open it, open the gig and select the
 **Equipment** tab. The **Packing list** card is at the bottom, below the gig's
 equipment table, **Equipment needed** and **Not returned**.
+
+![A gig's packing list: Columns, "54 pieces · 6 packed", then each kit's lines with Tag #, Qty, Status and the last scan, including Any lines at "0 of 2" and the Mic Case with its contents](../../../assets/screenshots/equipment/inventory-reports-packing-list.png)
 
 Above the list, a line counts the pieces and how many are packed, such as
 "54 pieces · 6 packed". A piece is one thing you pick up: a unit, one cable from a
@@ -55,8 +55,8 @@ The columns are:
   newest scan at this gig. A line that hasn't been scanned shows "Not scanned" under
   **Status**.
 
-Select **Columns** to hide or show the last five columns. Your choice lasts until you
-leave the page.
+Select **Columns** to hide or show the last five columns. This browser remembers your
+choice for every packing list, and the printout uses the same columns.
 
 A kit that's also on another gig at overlapping times shows a **Conflict** badge. See
 [Conflict detection](/gigs/conflict-detection/).
@@ -68,7 +68,8 @@ Console" with tag `DSL-0041`. Its **Qty** is 1.
 
 A lot is a counted group of pieces with no tag. Its line shows how many the kit needs
 under **Qty**, and the size of the lot you're taking them from underneath, such as
-"XLR Cable, 50 ft", **Qty** 2, "from a lot of 10".
+"XLR Cable, 50 ft", **Qty** 2, "from a lot of 10". While a lot is partly packed,
+**Status** shows how many are packed so far, such as "4 of 6".
 
 ### "Any" lines
 
@@ -87,8 +88,8 @@ A unit that's on its own line elsewhere in the same kit doesn't fill an "any" li
 
 A container, such as the "Mic Case" or the "XLR Cable Box", is one line, because it
 travels as one sealed case. It has a **Container** badge and its tag, and you scan the
-case, not what's in it. Underneath, it lists what the case holds, such as
-"16 × XLR Cable, 25 ft · 4 × XLR Cable, 50 ft".
+case, not what's in it. Underneath, indented, it lists what the case holds, such as
+"16 × XLR Cable, 25 ft · 4 × XLR Cable, 50 ft". A long list wraps onto more lines.
 
 A container inside a kit is indented under that kit. A container assigned to the gig on
 its own is a heading of its own.
@@ -116,9 +117,9 @@ reload the page or the list refreshes. To record that something is packed, scan 
 **Done** first.
 
 The printout starts with "Packing list" and your organization's name, then the gig's
-title and date. On the right, it shows how many kits and lines there are, such as
-"2 kits · 21 lines", and the date it was printed. Below that is the pieces line, such
-as "54 pieces · 6 packed", and the full list with every column.
+title and date. On the right, it shows how many kits and pieces there are, such as
+"2 kits · 54 pieces", and the date it was printed. Below that is the list, with the
+columns you chose under **Columns**.
 
 To fill in by hand:
 

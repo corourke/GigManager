@@ -183,15 +183,17 @@ it." See [Filed years are locked](/financials/tax-treatment/#filed-years-are-loc
 
 ## Undoing a write-off
 
-If missing gear turns up, an Admin or Manager can undo the write-off from the gig where
-it was written off.
+If missing gear turns up, an Admin or Manager can undo the write-off, either from the
+gig where it was written off or from the equipment's own page.
 
 1. On the gig's **Equipment** tab, find the item under **Written off at this gig**. Each
    entry shows how many are missing and the date, such as "written off Oct 11, 2026".
 2. Select **Undo**.
 
-You'll see "Write-off undone", and the entry leaves the list. Undo is only on the gig
-where the equipment was written off.
+You'll see "Write-off undone", and the entry leaves the list.
+
+From the equipment's page, a unit or lot marked **Missing** has **Undo write-off** at the
+top. It does the same thing, with no gig to find first.
 
 - **A unit or a whole lot** gets back the status it had before. It's still out at the
   gig, so it returns to the **Not returned** list. Select **Returned** or scan it in.
@@ -200,7 +202,7 @@ where the equipment was written off.
 
 
 :::caution[Filed years]
-Once the year of the write-off is locked, **Undo** is turned off. You'll see "This
+Once the year of the write-off is locked, **Undo** and **Undo write-off** are turned off. You'll see "This
 write-off is in a filed tax year, so it can't be undone. If the equipment turns up, add
 it again as new equipment."
 :::

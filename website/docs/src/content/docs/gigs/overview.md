@@ -27,7 +27,6 @@ over. Admins and Managers also see **New Gig** and **Import**.
 To open a gig, select its title, or open the row's **⋯** menu and choose **View**.
 Admins and Managers also get **Edit** (opens the gig in edit mode) and **Duplicate**.
 Only Admins can delete a gig.
-<!-- TODO: #175 — Managers currently see Delete too, and get an error. -->
 
 ![The Gigs list on the Upcoming tab, with the date and status filters, Columns, and New Gig, Import and Export buttons above gigs showing their start, status, venue, act and tags](../../../assets/screenshots/gigs/overview-gig-list.png)
 
