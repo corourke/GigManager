@@ -128,7 +128,8 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
       - #264: the "new version is ready" notice (in Onboarding).
     - **Branch `claude/docs-kits-draft` (2c3e6b0):** #273 kit page labels, Duplicate opening the copy, lots counting pieces, the #270 kit-editor note, and "4 × any + a specific unit = 5".
   - **For the coordinator:** #267 doesn't change tick printing; the agent found no such change in the code. The printout's ✓ column has always printed empty boxes, as the published page says, so I didn't document a change.
-  - **Waiting:** #183 D (CSV import).
+  - **#276 (CSV import, 10-12 03:00):** the draft page `equipment/csv-asset-import.md` (Importing equipment from a spreadsheet) is on `claude/docs-held-10-12`. It covers the example, the file's three column groups, units and lots by `;` lists, kits, and held purchases with Retry. Held until the deploy.
+  - **PR #275 merged.** PR #274 (Locations) has the review fixes in and waits on Cameron's OK.
 - **Locations guide draft (Docs Lead, 10-11 10:40 UTC):** on branch `claude/docs-locations-draft` (402905d), not a PR. Held until #258/#260 are in prod.
   - **What it covers:** reading the page, cases and Contents, untagged items (in a case vs loose), the three filters, and Override for Admins and Managers. The Equipment overview links to it.
   - **App notes, not filed:**
