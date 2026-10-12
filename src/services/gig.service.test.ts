@@ -821,6 +821,35 @@ describe('gig.service', () => {
       expect(inserted).toMatchObject({ description: 'Payment from import', date: '2026-03-14' });
     });
 
+    // #175: only an Admin of the owner can delete a gig, so the rollback of a failed import
+    // payment can't always run. Then the error says plainly what happened.
+    describe('when the import payment fails', () => {
+      const gigData = { title: 'Late Show', primary_organization_id: 'org-1', amount: '500', start: '2026-03-15T03:00:00.000Z', timezone: 'UTC' };
+      const setup = (deleted: any[]) => {
+        mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new-gig-1' }], error: null });
+        mockSupabase.from.mockImplementation((table: string) =>
+          table === 'gig_financials' ? makeChain({ data: null, error: { message: 'payment refused' } })
+            : table === 'gigs' ? makeChain({ data: deleted, error: null })
+              : makeChain({ data: null, error: null }));
+        (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+      };
+
+      it('rolls the gig back when it can, and reports the payment error', async () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        setup([{ id: 'new-gig-1' }]);
+        await expect(createGig(gigData, { skipActivityLog: true })).rejects.toMatchObject({ message: 'payment refused' });
+        consoleError.mockRestore();
+      });
+
+      it('says the gig was created without its payment when it can\'t be rolled back', async () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        setup([]);
+        await expect(createGig(gigData, { skipActivityLog: true })).rejects.toThrow(
+          "The gig was created, but its payment couldn't be saved (payment refused). Add the payment on the gig's Financials.");
+        consoleError.mockRestore();
+      });
+    });
+
     it('skips logging when skipActivityLog is true', async () => {
       const gigData = { title: 'New Gig', primary_organization_id: 'org-1' };
       mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new-gig-1' }], error: null });

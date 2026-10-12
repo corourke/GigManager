@@ -121,6 +121,14 @@ SELECT rls_test.expect_state('The owner can''t move its gig under a parent anoth
   rls_test.state('a_admin', rls_test.set_gig('gig', format('parent_gig_id = %s, hierarchy_depth = 1', rls_test.id('gig_of_b')))), '42501');
 SELECT rls_test.expect('...but can under its own gig',
   rls_test.run('a_admin', rls_test.set_gig('gig', format('parent_gig_id = %s, hierarchy_depth = 1', rls_test.id('gig_parent')))), 1);
+SELECT rls_test.expect_state('Another participant can''t move the gig under a parent it owns',
+  rls_test.state('b_admin', rls_test.set_gig('gig', format('parent_gig_id = %s, hierarchy_depth = 1', rls_test.id('gig_of_b')))), '42501');
+INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (rls_test.u('gig_child'), rls_test.u('org_b'), 'Sound');
+SELECT rls_test.expect_state('Another participant can''t detach a child gig from its parent',
+  rls_test.state('b_admin', rls_test.set_gig('gig_child', 'parent_gig_id = NULL, hierarchy_depth = 0')), '42501');
+DELETE FROM gig_participants WHERE gig_id = rls_test.u('gig_child') AND organization_id = rls_test.u('org_b');
+SELECT rls_test.expect('The owner can change its own role on the gig',
+  rls_test.run('a_manager', rls_test.set_part('gig', 'org_a', $$role = 'Rentals'$$)), 1);
 SELECT rls_test.expect_state('A parent can''t be handed to an organization that isn''t on its children',
   rls_test.state('a_admin', format('INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (%s, %s, ''Sound''); ', rls_test.id('gig_parent'), rls_test.id('org_b'))
     || rls_test.set_gig('gig_parent', format('owner_organization_id = %s', rls_test.id('org_b')))), '23514');
@@ -172,6 +180,22 @@ SELECT rls_test.expect('An Inactive organization can''t add another organization
   rls_test.run('b_admin', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_a'), rls_test.id('a_staff'))), -1);
 SELECT rls_test.expect('...but still manages its own contacts',
   rls_test.run('b_admin', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_b'), rls_test.id('b_staff'))), 1);
+SELECT set_config('request.jwt.claim.sub', '', true);
+INSERT INTO rls_test.ids VALUES ('sched', '00000000-0000-0000-0000-000000000ec1');
+INSERT INTO gig_schedule_entries (id, gig_id, activity_type, start_time) VALUES (rls_test.u('sched'), rls_test.u('gig'), 'Doors', now());
+INSERT INTO gig_participant_contacts (gig_id, organization_id, user_id) VALUES (rls_test.u('gig'), rls_test.u('org_a'), rls_test.u('a_viewer'));
+SELECT rls_test.expect('An Inactive organization can''t change a schedule entry',
+  rls_test.run('b_admin', format('UPDATE gig_schedule_entries SET label = ''x'' WHERE id = %s', rls_test.id('sched'))), 0);
+SELECT rls_test.expect('...or delete one',
+  rls_test.run('b_admin', format('DELETE FROM gig_schedule_entries WHERE id = %s', rls_test.id('sched'))), 0);
+SELECT rls_test.expect('An Inactive organization can''t remove another organization''s contact',
+  rls_test.run('b_admin', format('SELECT remove_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_a'), rls_test.id('a_viewer'))), -1);
+SELECT rls_test.expect('...or make it the primary contact',
+  rls_test.run('b_admin', format('SELECT set_gig_participant_contact_primary(%s, %s, %s, true)', rls_test.id('gig'), rls_test.id('org_a'), rls_test.id('a_viewer'))), -1);
+SELECT rls_test.expect('An Inactive organization can''t add a participant',
+  rls_test.run('b_admin', format('INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (%s, %s, ''Lighting'')', rls_test.id('gig'), rls_test.id('org_c'))), -1);
+SELECT rls_test.expect_state('The gig can''t be handed to an Inactive organization',
+  rls_test.state('a_admin', rls_test.set_gig('gig', format('owner_organization_id = %s', rls_test.id('org_b')))), '23514');
 SELECT rls_test.expect('An active participant can add another organization''s contact',
   rls_test.run('a_manager', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_b'), rls_test.id('b_staff'))), 1);
 SELECT rls_test.expect_state('An Inactive organization can''t change its own role or notes',

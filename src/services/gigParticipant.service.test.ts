@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { updateGigParticipants, updateGigVenue, updateGigAct } from './gigParticipant.service';
+import { updateGigParticipants } from './gigParticipant.service';
 import { getCurrentUser, getSupabase } from './base/dataAccess';
 
 vi.mock('./base/dataAccess', () => ({
@@ -113,6 +113,8 @@ function makeDb(rows: {
   gigsError?: any;
   /** Fail this write on gig_participants, as the database would (#175). */
   writeError?: { method: 'insert' | 'update' | 'delete'; error: any };
+  /** RLS refuses this write silently: no error, no rows (#175). */
+  refuse?: 'update' | 'delete';
 }) {
   const calls: Array<{ table: string; ops: Op[] }> = [];
   const answer = (table: string, ops: Op[]) => {
@@ -127,6 +129,9 @@ function makeDb(rows: {
     }
     if (table === 'gig_participants') {
       if (rows.writeError && has(rows.writeError.method)) return { data: null, error: rows.writeError.error };
+      if (rows.refuse && has(rows.refuse)) return { data: [], error: null };
+      if (has('delete')) return { data: (has('in')?.args[1] ?? []).map((id: string) => ({ id })), error: null };
+      if (has('update')) return { data: [{ id: has('eq')?.args[1] }], error: null };
       if (has('insert')) return { data: { id: 'p-new' }, error: null };
       return { data: rows.gig_participants ?? [], error: null };
     }
@@ -354,21 +359,22 @@ describe('participant writes (#175)', () => {
     consoleError.mockRestore();
   });
 
-  it.each([['venue', updateGigVenue, 'Venue'], ['act', updateGigAct, 'Act']] as const)(
-    'a new %s replaces the old one by removing and adding', async (_label, fn, role) => {
-      const db = setup({ gig_participants: [{ id: ROW, organization_id: 'org-2', role }] });
-      db.from.mockClear();
-      await fn('gig-1', 'org-3');
-      const updates = writes(db, 'update');
-      expect(updates).toHaveLength(0);
-      expect(writes(db, 'delete')).toHaveLength(1);
-      expect(writes(db, 'insert')[0].ops.find(o => o.method === 'insert')?.args[0]).toMatchObject({ organization_id: 'org-3', role });
-    });
-
-  it.each([['venue', updateGigVenue], ['act', updateGigAct]] as const)('a refused %s change is reported', async (_label, fn) => {
+  it.each(['delete', 'update'] as const)('a %s the database silently refuses is reported, not taken as done', async (method) => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    setup({ gig_participants: [], writeError: { method: 'insert', error: { code: '42501', message: 'refused' } } });
-    await expect(fn('gig-1', 'org-3')).rejects.toMatchObject({ message: 'refused' });
+    const db = setup({ refuse: method });
+    const participants = method === 'update' ? [{ id: ROW, organization_id: 'org-2', role: 'Venue' as const, notes: 'n' }] : [];
+    await expect(updateGigParticipants('gig-1', participants, ctx, [ROW])).rejects.toThrow(/permission/i);
+    expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({ event_type: 'participant.removed' }));
+    expect(writes(db, 'insert')).toHaveLength(0);
+    consoleError.mockRestore();
+  });
+
+  it('a move the database refuses to remove doesn\'t add the new organization', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = setup({ refuse: 'delete' });
+    await expect(updateGigParticipants('gig-1', [{ id: ROW, organization_id: 'org-3', role: 'Venue' }], ctx, [ROW])).rejects.toThrow(/permission/i);
+    expect(writes(db, 'insert')).toHaveLength(0);
+    expect(logActivity).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
 });
