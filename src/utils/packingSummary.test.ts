@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { kitLocationSummary, kitStatusSummary, packedPieces, summarizeKitPacking } from './packingSummary';
+import { kitLocationSummary, kitStatusLead, kitStatusSummary, packedPieces, summarizeKitPacking } from './packingSummary';
 import type { PackingListRow } from '../services/inventoryManagement.service';
 
 // The gig's Equipment card, per kit (Cameron, 10-09): what of each kit is packed, by status and
@@ -141,5 +141,21 @@ describe('kitLocationSummary', () => {
       ],
     })]);
     expect(kitLocationSummary(s).text).toBe('Mixed');
+  });
+});
+
+describe('kitStatusLead (#278)', () => {
+  it('is the most common status of the packed pieces, out of all the kit asks for', () => {
+    expect(kitStatusLead(summaryOf([...units(3, 'In Transit'), ...units(6, 'On Site'), ...units(6, null)])))
+      .toEqual({ status: 'On Site', count: 6, total: 15 });
+  });
+
+  it('breaks a tie the way the Status cell does, by how far the kit has got', () => {
+    expect(kitStatusLead(summaryOf([...units(2, 'Checked Out'), ...units(2, 'On Site')]))?.status).toBe('On Site');
+  });
+
+  it('is null when nothing is packed', () => {
+    expect(kitStatusLead(summaryOf(units(4, null)))).toBeNull();
+    expect(kitStatusLead(undefined)).toBeNull();
   });
 });

@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 (triage: §1 verified against open issues/PRs; closed rows removed)
+- **Last updated:** 2026-10-12 21:15 UTC (coordinator: #281 (#175 PR 1) reviewed, back to the Equipment Lead; Cameron set the Inactive scope)
 
 ---
 
@@ -22,7 +22,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | [#278](https://github.com/corourke/GigManager/issues/278), [#279](https://github.com/corourke/GigManager/issues/279) | Kit list Tracking Status count reads "6/0"; Kit Contents table wider than its card | Filed by the Docs Lead 10-12, not released | Cameron releases |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
-| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c). Stopgap #271 (Delete gig Admin-only) merged 10-12 and in prod; the 3-PR owner-organization plan is still after #186 |
+| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08. **Released to the Equipment Lead 10-12 (Cameron)**: 3 PRs per the plan; the design comment on #175 comes before the migration; the coordinator applies it to dev, Cameron to prod. Stopgap #271 (Delete gig Admin-only) merged 10-12 and in prod; the 3-PR owner-organization plan is still after #186 |
 
 ## 2. Waiting on Cameron
 
@@ -62,6 +62,18 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. ~~**Item 5, $0 invoice total.**~~ **Done: PR #248 (in prod 10-10), follow-up fix PR #251.** In the purchase review (`ReviewScannedDataDialog.tsx`), when the invoice total is $0 (or empty) and the lines add up to more than $0, Save is blocked with "Enter the invoice total, or set it to match the lines ($X)." and a one-click "Use $X" fix. A total that matches its lines, including all-$0, still saves. Test both.
 4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
+
+**Status 10-12 21:15 UTC:**
+- **#281 (#175 PR 1, database):** CI green; an independent review says fix first (the details went to Cameron privately). Back with the Equipment Lead. Also folded into this PR: the participant-change path in the app (delete + insert with error checks), removal of the legacy delete route (needs an edge-function deploy), the demo-seed owner, and more RLS 62 cases. **Cameron 10-12:** an Inactive organization is also read-only on the gig schedule and on other organizations' contacts. The migration goes to dev only after re-review.
+
+**Status 10-12 18:45 UTC:**
+- **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card). Fixed by a coordinator helper and merged 10-12 with Cameron's OK: #282 (Tracking Status reads the badge plus "N of M" at the active gig) and #283 (Kit Contents fits its card). Not yet in prod.
+- **#175 PR 1 design approved (Cameron, 10-12; answers on #175):** RESTRICT on owner delete; any participating Admin/Manager may remove an unclaimed venue or act; the owner can't Leave or go Inactive; **an Inactive organization is read-only on the shared gig details**; the backfill fails loudly. Coordinator prod check (read-only): 99/99 gigs resolve, 0 unresolved, no children. The Equipment Lead is building the migration and PR 1; the coordinator applies it to dev after review.
+
+**Status 10-12 15:00 UTC:**
+- **Merged (not yet in prod):** #268 (#186 Locations step: Item filter, piece counts, "2 of 10", the where-is-it card, Move N of a lot with the case-split warning; fixes #160). No migration. The Docs Lead is drafting the Locations update and holding it for the deploy.
+- **Docs:** #277 merged (pages for the 10-12 deploy). #280 (Kits page) is approved but conflicts with #277; the Docs Lead is merging main.
+- **Equipment Lead next (Cameron 10-12): #175 full plan** (owner organization; delete, cancel, leave, Inactive), 3 PRs, migration first via a design comment on #175. **Not released:** the rest of #186 (Maintenance), #183 D2. #20 stays paused.
 
 **Status 10-12 05:15 UTC:**
 - **#274 merged** (docs: Locations page, live behaviour).
@@ -123,6 +135,15 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **Filed:**
     - **#278:** the kit list's Tracking Status count reads "6/0" and "7/5".
     - **#279:** the kit editor's Kit Contents table overflows its card (Total Value and the remove X are cut off).
+- **Docs Lead status, 10-12 15:35 UTC:**
+  - **PR #280 merged 10-12 18:46 UTC:** Kits is published.
+- **Docs Lead status, 10-12 20:40 UTC:** Kits update for #282/#283 is held on `claude/docs-kits-282-283` (0d36506), checked on dev @ 1be842f.
+  - Full Band at Harvest Gala reads Checked Out · "6 of 29", with the tooltip "Pieces at Harvest Gala Dinner & Dance: Checked Out 6 · Not packed 23". That matches the kit page's Pieces to check off (29; its Mic Case and XLR Cable Box count as one each).
+  - Other kits show the badge only.
+  - The editor shot now includes Kit Contents, and Total Value and the remove X fit.
+  - No PR until prod has #282/#283. The Locations draft for #268 is still held as well.
+  - **#268 Locations draft (held):** on `claude/docs-locations-268` (fd0d10d), checked on dev. It covers the Item filter and card, the "2 of 10" lot lines, pieces counts, Move N with its After line, the Move N button and the leave-the-case warning. A save split the T58s 2 and 2 as expected. No PR until prod has #268.
+  - **Small wording issue (not filed):** a place with one piece reads "1 pieces" in Locations' place headings (the old "1 items" note).
   - **Locations** is untouched until #268.
 - **Docs Lead status, 10-12 01:40 UTC.**
   - **Published (PRs, ready for review):**
@@ -251,8 +272,8 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | published (PR #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Importing equipment from a spreadsheet (#276): example/template, invoice rows, units vs lots, kits by name, fix and retry |
 | `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come |
-| `equipment/kits.md` | publishing in PR #280 (open) | 2026-10-12 (Docs Lead; audited against prod) | kit page (#273), editor, any lines, nesting, containers; 2 shots; kit-list and Kit Contents shots wait on #278/#279 |
-| `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 merged 10-12, page update drafted once it reaches prod (Item filter, where-is-it card, Move N) |
+| `equipment/kits.md` | published (PR #280) | 2026-10-12 (Docs Lead; audited against prod) | kit page (#273), editor, any lines, nesting, containers; 2 shots. #282/#283 update (Tracking Status "6 of 29" and tooltip; full editor shot with Kit Contents) held on `claude/docs-kits-282-283` (0d36506) until prod |
+| `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 update drafted and checked on dev, held on branch `claude/docs-locations-268` (fd0d10d) until #268 is in prod; overview shot to retake then (place headings now read "N pieces") |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |

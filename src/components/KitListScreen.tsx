@@ -2,7 +2,8 @@ import {useState, useEffect, useMemo } from 'react';
 import {Package, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getKits, deleteKit, duplicateKit, updateKit, getKitsFlattenedSummary, KitFlattenedSummary } from '../services/kit.service';
-import { getKitTrackingSummary, KitTrackingSummary } from '../services/inventoryManagement.service';
+import { getKitTrackingSummary, getPackingListReport, KitTrackingSummary } from '../services/inventoryManagement.service';
+import { kitStatusLead, kitStatusSummary, summarizeKitPacking, type KitPackingSummary } from '../utils/packingSummary';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -32,6 +33,31 @@ interface KitListScreenProps {
   onLogout: () => void;
 }
 
+/**
+ * Each out kit's pieces at its active gig, counted by that gig's packing list (#278), one report
+ * per gig. A kit at home, a container (one piece) or a gig whose report fails gets no count.
+ */
+async function packingAtActiveGigs(organizationId: string, tracking: Map<string, KitTrackingSummary>): Promise<Map<string, KitPackingSummary>> {
+  const kitsByGig = new Map<string, string[]>();
+  for (const t of tracking.values()) {
+    if (t.isContainer || !t.gigId) continue;
+    kitsByGig.set(t.gigId, [...(kitsByGig.get(t.gigId) ?? []), t.kitId]);
+  }
+  const result = new Map<string, KitPackingSummary>();
+  await Promise.all([...kitsByGig].map(async ([gigId, kitIds]) => {
+    try {
+      const byKit = summarizeKitPacking(await getPackingListReport(organizationId, gigId));
+      for (const kitId of kitIds) {
+        const summary = byKit.get(kitId);
+        if (summary) result.set(kitId, summary);
+      }
+    } catch {
+      // No count for this gig's kits; the status still shows.
+    }
+  }));
+  return result;
+}
+
 export default function KitListScreen({
   organization,
   user,
@@ -55,6 +81,7 @@ export default function KitListScreen({
   const [error, setError] = useState<string | null>(null);
   const [kitTrackingSummary, setKitTrackingSummary] = useState<Map<string, KitTrackingSummary>>(new Map());
   const [kitFlattenedSummary, setKitFlattenedSummary] = useState<Map<string, KitFlattenedSummary>>(new Map());
+  const [kitPacking, setKitPacking] = useState<Map<string, KitPackingSummary>>(new Map());
   const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
 
   const refresh = async () => {
@@ -71,7 +98,12 @@ export default function KitListScreen({
       // not just its direct kit_components rows — a sub-kit row carries no
       // asset/quantity of its own, so summing those directly silently drops
       // every nested kit's contribution (see getKitsFlattenedSummary).
-      setKitFlattenedSummary(await getKitsFlattenedSummary(kits.map((k: any) => k.id)));
+      const [flattened, packing] = await Promise.all([
+        getKitsFlattenedSummary(kits.map((k: any) => k.id)),
+        packingAtActiveGigs(organization.id, trackingSummary),
+      ]);
+      setKitFlattenedSummary(flattened);
+      setKitPacking(packing);
     } catch (err: any) {
       setError(err.message || 'Failed to load kits');
     } finally {
@@ -216,14 +248,16 @@ export default function KitListScreen({
       render: (value, row) => {
         const tracking = kitTrackingSummary.get(row.id);
         if (!tracking || !tracking.status) return <span className="text-xs text-muted-foreground">Untracked</span>;
-        if (tracking.isContainer) return <TrackingStatusBadge status={tracking.status} />;
-        const dominant = Object.entries(tracking.statusCounts).sort((a, b) => b[1] - a[1])[0];
-        const dominantStatus = dominant?.[0] ?? tracking.status;
-        const count = dominant?.[1] ?? tracking.scannedAssets;
+        // A count only while the kit is out: its pieces at its gig, as that gig's packing list counts them.
+        const packing = tracking.isContainer ? undefined : kitPacking.get(row.id);
+        const lead = kitStatusLead(packing);
+        if (!lead) return <TrackingStatusBadge status={tracking.status} />;
         return (
           <span className="text-xs">
-            <TrackingStatusBadge status={dominantStatus} />
-            <span className="ml-1 text-muted-foreground">{count}/{tracking.totalAssets}</span>
+            <TrackingStatusBadge status={lead.status} />
+            <span className="ml-1 text-muted-foreground" title={`Pieces at ${tracking.gigTitle ?? 'its gig'}: ${kitStatusSummary(packing).title}`}>
+              {lead.count} of {lead.total}
+            </span>
           </span>
         );
       },
@@ -244,7 +278,7 @@ export default function KitListScreen({
       type: 'text',
       render: (value) => value ? <span className="text-xs">{value}</span> : <span className="text-xs text-muted-foreground">—</span>,
     },
-  ], [categories, TAG_PILL_CONFIG, kitTrackingSummary, kitFlattenedSummary, onViewKit]);
+  ], [categories, TAG_PILL_CONFIG, kitTrackingSummary, kitFlattenedSummary, kitPacking, onViewKit]);
 
   const canEdit = canManage(userRole);
 
