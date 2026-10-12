@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import KitListScreen from './KitListScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getKits, getKitsFlattenedSummary } from '../services/kit.service'
+import { getKitTrackingSummary, getPackingListReport } from '../services/inventoryManagement.service'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -44,6 +45,7 @@ vi.mock('../services/kit.service', () => ({
 
 vi.mock('../services/inventoryManagement.service', () => ({
   getKitTrackingSummary: vi.fn().mockResolvedValue(new Map()),
+  getPackingListReport: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('../contexts/NavigationContext', () => ({
@@ -147,5 +149,60 @@ describe('KitListScreen', () => {
 
     expect(onViewKit).toHaveBeenCalledWith('kit-1')
   })
-})
 
+  // #278: the count read "6/0" and "7/5": the total was only the kit's direct unit/lot lines
+  // (no nested kits, no "any" lines) and the scanned count was every gig's rows for the kit.
+  // It's now the kit's pieces at its active gig, counted as the gig's packing list counts them.
+  describe('Tracking Status count (#278)', () => {
+    const kit = (over: Record<string, unknown> = {}) => ({
+      id: 'kit-band', organization_id: 'org-1', name: 'Full Band Sound Package', category: 'Audio',
+      is_container: false, kit_components: [], ...over,
+    })
+    const packingRow = (i: number, status: string | null) => ({
+      kit_id: 'kit-band', kit_name: 'Full Band Sound Package', is_container: false, kind: 'unit',
+      asset_id: `a-${i}`, quantity: 1, packed: status ? 1 : 0, status, location: null, has_conflict: false,
+      group_kit_id: 'kit-band', group_kit_name: 'Full Band Sound Package', group_is_container: false, group_tag_number: null,
+    })
+
+    it('shows the pieces packed at the active gig as "N of M", not the old "6/0"', async () => {
+      vi.mocked(getKits).mockResolvedValue([kit()] as any)
+      vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map())
+      vi.mocked(getKitTrackingSummary).mockResolvedValueOnce(new Map([['kit-band', {
+        kitId: 'kit-band', isContainer: false, status: 'Checked Out', location: 'Truck',
+        gigTitle: 'Test Gig', gigId: 'gig-1', lastScannedAt: '2026-10-01T00:00:00Z',
+        // What the old computation produced for Full Band on the seeded data.
+        totalAssets: 0, scannedAssets: 6, statusCounts: { 'Checked Out': 6 },
+      }]]) as any)
+      vi.mocked(getPackingListReport).mockResolvedValueOnce([
+        ...[0, 1, 2, 3, 4, 5].map((i) => packingRow(i, 'Checked Out')),
+        ...[6, 7, 8].map((i) => packingRow(i, null)),
+      ] as any)
+
+      render(<KitListScreen {...mockProps} />)
+
+      const count = await screen.findByText('6 of 9')
+      expect(getPackingListReport).toHaveBeenCalledWith(mockProps.organization.id, 'gig-1')
+      expect(count).toHaveAttribute('title', 'Pieces at Test Gig: Checked Out 6 · Not packed 3')
+      expect(screen.queryByText('6/0')).not.toBeInTheDocument()
+    })
+
+    it('shows only the status for a kit back home, never a count like "7/5"', async () => {
+      vi.mocked(getKits).mockResolvedValue([kit({ id: 'kit-light', name: 'Club Lighting Package' })] as any)
+      vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map())
+      vi.mocked(getPackingListReport).mockClear()
+      vi.mocked(getKitTrackingSummary).mockResolvedValueOnce(new Map([['kit-light', {
+        kitId: 'kit-light', isContainer: false, status: 'In Warehouse', location: 'Warehouse',
+        gigTitle: null, gigId: null, lastScannedAt: '2026-10-01T00:00:00Z',
+        totalAssets: 5, scannedAssets: 7, statusCounts: { 'In Warehouse': 7 },
+      }]]) as any)
+
+      render(<KitListScreen {...mockProps} />)
+
+      await screen.findByText('Club Lighting Package')
+      expect(screen.getAllByText('In Warehouse').length).toBeGreaterThan(0)
+      expect(screen.queryByText('7/5')).not.toBeInTheDocument()
+      expect(screen.queryByText(/ of /)).not.toBeInTheDocument()
+      expect(getPackingListReport).not.toHaveBeenCalled()
+    })
+  })
+})
