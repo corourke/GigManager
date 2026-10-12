@@ -288,7 +288,7 @@ describe('Asset CSV Import: Parsing & Allocation', () => {
       expect(result.validRows[4].data.line_cost).toBe('100.00'); // line_cost updated for Source 2
     });
 
-    it('should ignore invalid rows when grouping for allocation', async () => {
+    it('holds back the purchase of an invalid row, without allocating its total over the other lines', async () => {
       const csvContent = [
         'source,acquisition_date,vendor,total_inv_amount,category,manufacturer_model,quantity,item_price',
         '0,2024-01-15,V1,150.00,,,,',
@@ -302,8 +302,9 @@ describe('Asset CSV Import: Parsing & Allocation', () => {
       expect(result.validRows).toHaveLength(2); // Header + 1 Valid Asset
       expect(result.invalidRows).toHaveLength(1);
 
-      // Raw sum of VALID items = 100. Factor = 150 / 100 = 1.5
-      expect(result.validRows[1].data.item_cost).toBe('150.00');
+      // The whole $150 would land on the valid line; it isn't allocated until row 3 is fixed.
+      expect(result.validRows[1].data.line_cost).toBe('');
+      expect(result.validRows[1].data.item_cost).toBe('');
     });
   });
 });
@@ -394,19 +395,24 @@ describe('validateAssetRow: units, lots and kits (#183 D)', () => {
     expect(r.errors).toContainEqual({ field: 'kit', message: 'Only an equipment row (1-Asset) can go in a kit: clear the kit, or make the row 1-Asset.' });
   });
 
-  it('refuses status Missing, which only a write-off sets, and an unknown status', () => {
-    expect(validateAssetRow(equipment({ quantity: '1', status: 'Missing' }), 2).errors).toContainEqual({
-      field: 'status', message: 'Missing is set only by writing equipment off. Use Active, Inactive, Maintenance, Disposed or Returned.',
-    });
-    expect(validateAssetRow(equipment({ quantity: '1', status: 'Lost' }), 2).errors).toContainEqual({
-      field: 'status', message: 'Invalid status "Lost". Use Active, Inactive, Maintenance, Disposed or Returned.',
-    });
+  it('reads no status: every imported unit and lot is Active', () => {
+    for (const status of ['Missing', 'Lost', 'Disposed']) {
+      const r = validateAssetRow(equipment({ quantity: '1', status }), 2);
+      expect(r.errors).toEqual([]);
+      expect(r.data).not.toHaveProperty('status');
+    }
   });
 
-  it('normalizes the case of a status', () => {
-    const r = validateAssetRow(equipment({ quantity: '1', status: 'maintenance' }), 2);
-    expect(r.isValid).toBe(true);
-    expect(r.data.status).toBe('Maintenance');
+  it.each(['3.5', '1e1', '4 units', '-2', '1,000'])('refuses quantity "%s", which isn’t a whole number', (quantity) => {
+    const r = validateAssetRow(equipment({ quantity }), 2);
+    expect(r.isValid).toBe(false);
+    expect(r.errors).toContainEqual({ field: 'quantity', message: `Invalid quantity "${quantity}". Must be a whole number.` });
+  });
+
+  it('reads a quantity with spaces around it', () => {
+    const r = validateAssetRow(equipment({ quantity: ' 4 ' }), 2);
+    expect(r.errors).toEqual([]);
+    expect(r.data.quantity).toBe('4');
   });
 
   it('ignores retired_on and liquidation_amt, even when they are invalid', () => {
@@ -437,8 +443,27 @@ describe('parseAndValidateCSV: file-level checks (#183 D)', () => {
     const result = await parseAndValidateCSV<AssetRow>(createFile(csv, 'old.csv'), 'assets');
     expect(result.validRows).toHaveLength(1);
     expect(result.notices).toEqual([
-      'This file has retired_on and liquidation_amt columns, which aren’t imported any more. Record sales and retirements on the equipment page.',
+      'These columns aren’t imported: retired_on, liquidation_amt. Record sales and retirements on the equipment page.',
     ]);
+  });
+
+  it('notices an old file’s status column in the same notice, without blocking it', async () => {
+    const csv = [
+      'source,acquisition_date,vendor,category,manufacturer_model,quantity,item_price,status,retired_on',
+      '1,2025-11-03,Sweetwater,Audio,Shure SM58,1,99,Missing,2026-01-01',
+    ].join('\n');
+    const result = await parseAndValidateCSV<AssetRow>(createFile(csv, 'old.csv'), 'assets');
+    expect(result.invalidRows).toEqual([]);
+    expect(result.notices).toEqual([
+      'These columns aren’t imported: status, retired_on. Imported equipment is Active. Record sales and retirements on the equipment page.',
+    ]);
+  });
+
+  it('refuses a quantity of 1e1 with one serial, instead of reading it as 1 in one place and 11 in another', async () => {
+    const csv = ['source,acquisition_date,vendor,category,manufacturer_model,quantity,serial_number,item_price', '1,2025-11-03,V,Audio,M,1e1,S1,9'].join('\n');
+    const result = await parseAndValidateCSV<AssetRow>(createFile(csv, 'qty.csv'), 'assets');
+    expect(result.validRows).toEqual([]);
+    expect(result.invalidRows[0].errors).toContainEqual({ field: 'quantity', message: 'Invalid quantity "1e1". Must be a whole number.' });
   });
 
   it('has no notices for a file in the current format', async () => {
@@ -484,6 +509,8 @@ describe('generateAssetTemplate: grouped columns and a kit (#183 D)', () => {
     expect(ASSET_TEMPLATE_COLUMNS.unit).toContain('kit');
     expect(header).not.toContain('retired_on');
     expect(header).not.toContain('liquidation_amt');
+    // Every imported unit and lot is Active (Cameron, 10-12).
+    expect(header).not.toContain('status');
     // The units example lists one serial per unit.
     const units = examples.find((r) => r[header.indexOf('serial_number')].includes(';'))!;
     expect(units[header.indexOf('serial_number')].split(';')).toHaveLength(Number(units[header.indexOf('quantity')]));
