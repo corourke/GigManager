@@ -85,10 +85,10 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 - **In review:** #268 (#186 Locations step): Equipment Lead pushed fixes for every finding; an independent re-check is running. #274 (docs: Locations page): two sentences contradict the 10-10 rule (contents keep their own records); the Docs Lead is fixing them.
 - **#183 D2 (not started, not released):** mockup 11's summary cards and the grouped column guide on the import screen. The v1 purchase RPCs can be dropped in the next migration.
 
-**Status 10-12 01:40 UTC:**
-- **Merged (not yet in prod):** #263, #264, #267 (#245/#249), #270 (#242 items 5, 7; #242 closed), #271 (#175 stopgap: Delete gig Admin-only), #272 (#256), #273 (#266 items 1–4; #266 closed). No migrations.
-- **Back to the Equipment Lead for fixes (coordinator review 10-12):** #268 (#186 Locations step): the where-is-it card and Item page don't use the `currentRows` rule (T58 regression), Move N can exceed the lot via a stale bucket, the Maintenance + In Warehouse mismatch, home lot count/cap, and the closing row's location. #269 (#265): the warning repeats after the case is packed here (reads only server `last_records`).
-- **#183 D (CSV import), branch `claude/183d-csv-import`:** D1 built; review fixes in progress: group all rows so lines keep their invoice, hold purchases with invalid rows, Retry failed, guard the preview. **Cameron 10-12: the `status` column is removed (import seeds a new account; every unit is Active)**; the kit column stays; retired_on/liquidation_amt dropped; template regrouped; example mic-kit file. No migration.
+**Status 10-12 22:45 UTC:**
+- **In prod (Cameron's deploy 10-12):** #263, #264, #267, #269, #270, #271, #272, #273, #276.
+- **Merged, not yet in prod:** #268 (#186 Locations step; fixes #160), #282 (#278), #283 (#279). No migrations. The Docs Lead holds the Locations and Kits pages for them until the deploy.
+- **#281 (#175 PR 1):** re-reviewed clean at d95dcdd and applied to dev; waiting on Cameron's merge OK. The Equipment Lead started PR 2 (services) on a branch stacked on it (no PR until #281 merges). The Docs Lead is drafting the #175 rules, held until prod.
 - Open question for Cameron later: should #265's warning also cover a case *added* at pack-out?
 
 **Released by Cameron 10-11 (answers recorded on each issue):**
