@@ -17,7 +17,7 @@ INSERT INTO organization_members (organization_id, user_id, role) VALUES
 -- 02: no activity entry; the creator manages only A of the participants.
 -- 03: no activity entry; the creator is only Staff of B.
 -- 04: the creator belongs to no participant; C is the only participant.
--- 05: a child of 02 whose only participant is C: it takes its parent's owner.
+-- 05: a child of 02 with A and C on it: it takes its parent's owner, A.
 INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated_by, parent_gig_id, hierarchy_depth)
 SELECT ('00000000-0000-0000-0000-0000000000' || g.n)::uuid, g.title, 'Booked', now(), now() + interval '4 hours', 'UTC',
        ('00000000-0000-0000-0000-0000000000a' || g.creator)::uuid, ('00000000-0000-0000-0000-0000000000a' || g.creator)::uuid,
@@ -32,7 +32,8 @@ INSERT INTO gig_participants (gig_id, organization_id, role) VALUES
   ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-00000000000b', 'Sound'),
   ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-00000000000c', 'Venue'),
   ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-00000000000c', 'Venue'),
-  ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-00000000000c', 'Venue');
+  ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-00000000000c', 'Venue'),
+  ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-00000000000a', 'Production');
 INSERT INTO activity_log (organization_id, actor_id, event_type, entity_type, entity_id, gig_id) VALUES
   ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000a1', 'gig.created', 'gig',
    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001');

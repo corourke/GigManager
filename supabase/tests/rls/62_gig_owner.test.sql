@@ -7,12 +7,12 @@
 --   marked Inactive (by the owner or itself, never the owner). An Inactive organization is
 --   read-only on the gig's shared details until it's reactivated.
 -- Checks read as: rls_test.expect(label, <rows seen or affected, -1 = rejected>, expected).
--- rls_test.try rolls each statement back; rls_test.act keeps it, for checks that read its effect.
+-- rls_test.run rolls each statement back; rls_test.act keeps it, for checks that read its effect.
+-- Both check the deferred (commit-time) constraints right after the statement, as a commit
+-- would. rls_test.state gives the SQLSTATE a statement fails with ('00000' if it doesn't).
 
 CREATE FUNCTION rls_test.id(p text) RETURNS text LANGUAGE sql STABLE AS $$ SELECT quote_literal(rls_test.u(p)) $$;
-CREATE FUNCTION rls_test.run(p_user text, p_sql text) RETURNS int LANGUAGE sql AS
-  $$ SELECT rls_test.try(rls_test.u(p_user), p_sql) $$;
-CREATE FUNCTION rls_test.act(p_user text, p_sql text) RETURNS int LANGUAGE plpgsql AS $$
+CREATE FUNCTION rls_test.exec(p_user text, p_sql text, p_keep boolean) RETURNS text LANGUAGE plpgsql AS $$
 DECLARE n int;
 BEGIN
   BEGIN
@@ -20,11 +20,27 @@ BEGIN
     SET LOCAL ROLE authenticated;
     EXECUTE p_sql;
     GET DIAGNOSTICS n = ROW_COUNT;
+    SET CONSTRAINTS ALL IMMEDIATE;
+    SET CONSTRAINTS ALL DEFERRED;
     RESET ROLE;
-    RETURN n;
-  EXCEPTION WHEN OTHERS THEN RESET ROLE; RETURN -1;
+    IF NOT p_keep THEN RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = n::text; END IF;
+    RETURN 'ok:' || n;
+  EXCEPTION
+    WHEN SQLSTATE 'P0099' THEN RESET ROLE; RETURN 'ok:' || SQLERRM;
+    WHEN OTHERS THEN RESET ROLE; RETURN SQLSTATE;
   END;
 END $$;
+CREATE FUNCTION rls_test.rows(p_result text) RETURNS int LANGUAGE sql IMMUTABLE AS
+  $$ SELECT CASE WHEN p_result LIKE 'ok:%' THEN substr(p_result, 4)::int ELSE -1 END $$;
+CREATE FUNCTION rls_test.run(p_user text, p_sql text) RETURNS int LANGUAGE sql AS
+  $$ SELECT rls_test.rows(rls_test.exec(p_user, p_sql, false)) $$;
+CREATE FUNCTION rls_test.act(p_user text, p_sql text) RETURNS int LANGUAGE sql AS
+  $$ SELECT rls_test.rows(rls_test.exec(p_user, p_sql, true)) $$;
+CREATE FUNCTION rls_test.state(p_user text, p_sql text) RETURNS text LANGUAGE sql AS
+  $$ SELECT CASE WHEN r LIKE 'ok:%' THEN '00000' ELSE r END FROM rls_test.exec(p_user, p_sql, false) r $$;
+-- A check on the SQLSTATE: passes (1) when it matches; the label names the expected state.
+CREATE FUNCTION rls_test.expect_state(p_label text, p_actual text, p_expected text) RETURNS void LANGUAGE sql AS
+  $$ SELECT rls_test.expect(p_label || ' [' || p_expected || ', got ' || p_actual || ']', (p_actual = p_expected)::int, 1) $$;
 CREATE FUNCTION rls_test.n(p_sql text) RETURNS int LANGUAGE plpgsql AS $$
 DECLARE n int; BEGIN EXECUTE 'SELECT count(*)::int FROM ' || p_sql INTO n; RETURN n; END $$;
 
@@ -36,18 +52,24 @@ INSERT INTO rls_test.ids VALUES
   ('gig_solo',   '00000000-0000-0000-0000-0000000000f3'),
   ('gig_parent', '00000000-0000-0000-0000-0000000000f4'),
   ('gig_child',  '00000000-0000-0000-0000-0000000000f5'),
-  ('gig_new',    '00000000-0000-0000-0000-0000000000f6');
+  ('gig_new',    '00000000-0000-0000-0000-0000000000f6'),
+  ('gig_of_b',   '00000000-0000-0000-0000-0000000000f7');
 INSERT INTO organizations (id, name, roles, claimed) VALUES (rls_test.u('org_v'), 'Venue V', '{Venue}', false);
 INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated_by, owner_organization_id, parent_gig_id, hierarchy_depth)
 SELECT rls_test.u(g), g, 'Booked', now(), now() + interval '4 hours', 'UTC', rls_test.u('a_admin'), rls_test.u('a_admin'),
        rls_test.u('org_a'), CASE WHEN g = 'gig_child' THEN rls_test.u('gig_parent') END, CASE WHEN g = 'gig_child' THEN 1 ELSE 0 END
 FROM unnest(ARRAY['gig_solo', 'gig_parent', 'gig_child']) g;
+INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated_by, owner_organization_id)
+VALUES (rls_test.u('gig_of_b'), 'B''s gig', 'Booked', now(), now() + interval '4 hours', 'UTC',
+        rls_test.u('b_admin'), rls_test.u('b_admin'), rls_test.u('org_b'));
 INSERT INTO gig_participants (gig_id, organization_id, role) VALUES
   (rls_test.u('gig_solo'), rls_test.u('org_a'), 'Production'),
   (rls_test.u('gig_solo'), rls_test.u('org_v'), 'Venue'),
   (rls_test.u('gig_parent'), rls_test.u('org_a'), 'Production'),
   (rls_test.u('gig_child'), rls_test.u('org_a'), 'Production'),
-  (rls_test.u('gig'), rls_test.u('org_v'), 'Venue');
+  (rls_test.u('gig'), rls_test.u('org_v'), 'Venue'),
+  (rls_test.u('gig_of_b'), rls_test.u('org_b'), 'Sound'),
+  (rls_test.u('gig_of_b'), rls_test.u('org_a'), 'Production');
 
 CREATE FUNCTION rls_test.del_gig(p_gig text) RETURNS text LANGUAGE sql AS
   $$ SELECT format('DELETE FROM gigs WHERE id = %s', rls_test.id(p_gig)) $$;
@@ -81,8 +103,8 @@ SELECT rls_test.expect('A child gig can be deleted',
 -- 3. Status, owner and parent are the owner's ─────────────────────────────
 SELECT rls_test.expect('The owner''s Manager can cancel the gig',
   rls_test.run('a_manager', rls_test.set_gig('gig', $$status = 'Cancelled'$$)), 1);
-SELECT rls_test.expect('Another participant''s Admin can''t change its status',
-  rls_test.run('b_admin', rls_test.set_gig('gig', $$status = 'Cancelled'$$)), -1);
+SELECT rls_test.expect_state('Another participant''s Admin can''t change its status',
+  rls_test.state('b_admin', rls_test.set_gig('gig', $$status = 'Cancelled'$$)), '42501');
 SELECT rls_test.expect('Another participant''s Admin can still change its title and notes',
   rls_test.run('b_admin', rls_test.set_gig('gig', $$title = 'Renamed', notes = 'n'$$)), 1);
 SELECT rls_test.expect('Another participant''s Admin can''t take ownership',
@@ -93,9 +115,15 @@ SELECT rls_test.expect('...but not to an organization that isn''t on it',
   rls_test.run('a_admin', rls_test.set_gig('gig', format('owner_organization_id = %s', rls_test.id('org_c')))), -1);
 SELECT rls_test.expect('Another participant''s Admin can''t set the parent gig',
   rls_test.run('b_admin', rls_test.set_gig('gig', format('parent_gig_id = %s, hierarchy_depth = 1', rls_test.id('gig_parent')))), -1);
-SELECT rls_test.act('a_admin', rls_test.set_gig('gig_child', format('owner_organization_id = %s', rls_test.id('org_b'))));
-SELECT rls_test.expect('A child gig always has its parent''s owner',
-  rls_test.n(format('gigs WHERE id = %s AND owner_organization_id = %s', rls_test.id('gig_child'), rls_test.id('org_a'))), 1);
+SELECT rls_test.expect('A child gig''s owner can''t be set apart from its parent''s',
+  rls_test.run('a_admin', rls_test.set_gig('gig_child', format('owner_organization_id = %s', rls_test.id('org_b')))), -1);
+SELECT rls_test.expect_state('The owner can''t move its gig under a parent another organization owns',
+  rls_test.state('a_admin', rls_test.set_gig('gig', format('parent_gig_id = %s, hierarchy_depth = 1', rls_test.id('gig_of_b')))), '42501');
+SELECT rls_test.expect('...but can under its own gig',
+  rls_test.run('a_admin', rls_test.set_gig('gig', format('parent_gig_id = %s, hierarchy_depth = 1', rls_test.id('gig_parent')))), 1);
+SELECT rls_test.expect_state('A parent can''t be handed to an organization that isn''t on its children',
+  rls_test.state('a_admin', format('INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (%s, %s, ''Sound''); ', rls_test.id('gig_parent'), rls_test.id('org_b'))
+    || rls_test.set_gig('gig_parent', format('owner_organization_id = %s', rls_test.id('org_b')))), '23514');
 
 -- 4. Inactive ──────────────────────────────────────────────────────────────
 SELECT rls_test.expect('A participant''s Admin can mark its own organization Inactive',
@@ -104,12 +132,26 @@ SELECT rls_test.expect('The owner''s Manager can mark another organization Inact
   rls_test.run('a_manager', rls_test.set_part('gig', 'org_b', 'inactive = true')), 1);
 SELECT rls_test.expect('A participant''s Staff can''t',
   rls_test.run('b_staff', rls_test.set_part('gig', 'org_b', 'inactive = true')), 0);
-SELECT rls_test.expect('A participant can''t mark the owner Inactive',
-  rls_test.run('b_admin', rls_test.set_part('gig', 'org_a', 'inactive = true')), -1);
-SELECT rls_test.expect('The owner can''t mark itself Inactive',
-  rls_test.run('a_admin', rls_test.set_part('gig', 'org_a', 'inactive = true')), -1);
-SELECT rls_test.expect('A participant''s organization can''t be switched to another',
-  rls_test.run('a_admin', rls_test.set_part('gig', 'org_b', format('organization_id = %s', rls_test.id('org_c')))), -1);
+SELECT rls_test.expect_state('A participant can''t mark the owner Inactive',
+  rls_test.state('b_admin', rls_test.set_part('gig', 'org_a', 'inactive = true')), '42501');
+SELECT rls_test.expect_state('The owner can''t mark itself Inactive',
+  rls_test.state('a_admin', rls_test.set_part('gig', 'org_a', 'inactive = true')), '23514');
+SELECT rls_test.expect_state('A participant''s organization can''t be switched to another',
+  rls_test.state('a_admin', rls_test.set_part('gig', 'org_b', format('organization_id = %s', rls_test.id('org_c')))), '42501');
+INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (rls_test.u('gig'), rls_test.u('org_c'), 'Rentals');
+SELECT rls_test.expect_state('A third participant can''t mark another participant Inactive',
+  rls_test.state('c_admin', rls_test.set_part('gig', 'org_b', 'inactive = true')), '42501');
+SELECT rls_test.expect('A participation can''t be added already Inactive',
+  rls_test.run('b_admin', format('INSERT INTO gig_participants (gig_id, organization_id, role, inactive) VALUES (%s, %s, ''Rentals'', true)',
+    rls_test.id('gig'), rls_test.id('org_b'))), -1);
+SELECT rls_test.expect('...not even by the owner, for itself',
+  rls_test.run('a_admin', format('INSERT INTO gig_participants (gig_id, organization_id, role, inactive) VALUES (%s, %s, ''Rentals'', true)',
+    rls_test.id('gig'), rls_test.id('org_a'))), -1);
+SELECT rls_test.expect('An organization Inactive on one of its two roles is Inactive on the gig',
+  rls_test.run('b_admin', format('INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (%s, %s, ''Rentals''); ', rls_test.id('gig'), rls_test.id('org_b'))
+    || format('UPDATE gig_participants SET inactive = true WHERE gig_id = %s AND organization_id = %s AND role = ''Sound''; ', rls_test.id('gig'), rls_test.id('org_b'))
+    || rls_test.set_gig('gig', $$title = 'Renamed'$$)), 0);
+DELETE FROM gig_participants WHERE gig_id = rls_test.u('gig') AND organization_id = rls_test.u('org_c');
 
 SELECT rls_test.act('b_admin', rls_test.set_part('gig', 'org_b', 'inactive = true'));
 SELECT rls_test.expect('An Inactive organization can''t edit the gig''s title',
@@ -119,6 +161,8 @@ SELECT rls_test.expect('An Inactive organization still adds its own staff slots'
     rls_test.id('gig'), rls_test.id('role'), rls_test.id('org_b'))), 1);
 SELECT rls_test.expect('The owner still edits the gig while B is Inactive',
   rls_test.run('a_manager', rls_test.set_gig('gig', $$title = 'Renamed'$$)), 1);
+SELECT rls_test.expect_state('An Inactive organization can''t change its own role or notes',
+  rls_test.state('b_admin', rls_test.set_part('gig', 'org_b', $$notes = 'n'$$)), '42501');
 SELECT rls_test.expect('An Inactive organization can reactivate itself',
   rls_test.run('b_admin', rls_test.set_part('gig', 'org_b', 'inactive = false')), 1);
 SELECT rls_test.expect('An Inactive claimed organization still keeps the owner from deleting the gig',
@@ -145,18 +189,20 @@ VALUES (rls_test.u('org_b'), rls_test.u('gig'), rls_test.u('kit_b'), rls_test.u(
 
 SELECT rls_test.expect('Another participant can''t remove an organization that isn''t its own',
   rls_test.run('b_admin', rls_test.del_part('gig', 'org_c')), 0);
-SELECT rls_test.expect('The owner can''t remove an organization with kits on the gig',
-  rls_test.run('a_manager', rls_test.del_part('gig', 'org_b')), -1);
+SELECT rls_test.expect_state('The owner can''t remove an organization with kits on the gig',
+  rls_test.state('a_manager', rls_test.del_part('gig', 'org_b')), '23503');
 SELECT rls_test.expect('...nor can that organization itself',
   rls_test.run('b_admin', rls_test.del_part('gig', 'org_b')), -1);
-SELECT rls_test.expect('The owner''s own participation can''t be removed',
-  rls_test.run('a_admin', rls_test.del_part('gig', 'org_a')), -1);
+SELECT rls_test.expect_state('The owner''s own participation can''t be removed',
+  rls_test.state('a_admin', rls_test.del_part('gig', 'org_a')), '23514');
 SELECT rls_test.expect('Any participating Manager can remove an unclaimed venue',
   rls_test.run('b_manager', rls_test.del_part('gig', 'org_v')), 1);
 SELECT rls_test.expect('A non-participant can''t remove the unclaimed venue',
   rls_test.run('c_admin', rls_test.del_part('gig_solo', 'org_v')), 0);
 SELECT rls_test.expect('An organization with nothing on the gig can remove itself',
-  rls_test.act('c_admin', rls_test.del_part('gig', 'org_c')), 1);
+  rls_test.run('c_admin', rls_test.del_part('gig', 'org_c')), 1);
+SELECT rls_test.expect('The owner''s Manager can remove a claimed organization with nothing on the gig',
+  rls_test.act('a_manager', rls_test.del_part('gig', 'org_c')), 1);
 SELECT rls_test.expect('...which deletes its scans on the gig',
   rls_test.n(format('inventory_tracking WHERE gig_id = %s AND organization_id = %s', rls_test.id('gig'), rls_test.id('org_c'))), 0);
 SELECT rls_test.expect('...and its contacts on the gig',
