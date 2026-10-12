@@ -30,6 +30,8 @@ function makeQueryChain(result: { data: any; error: any }) {
   return chain;
 }
 
+import { whereabouts } from '../utils/locations';
+
 describe('inventoryManagement.service', () => {
   let mockSupabase: any;
 
@@ -37,6 +39,220 @@ describe('inventoryManagement.service', () => {
     vi.clearAllMocks();
     mockSupabase = { from: vi.fn() };
     (createClient as any).mockReturnValue(mockSupabase);
+  });
+
+  // #186 (Cameron, 10-11): an item's pieces place by place, with each gig's title.
+  describe('getItemWhereabouts', () => {
+    it('reads the records\' tracking rows and names each gig', async () => {
+      const { getItemWhereabouts } = await import('./inventoryManagement.service');
+      const tracking = makeQueryChain({ data: [
+        { id: 't1', asset_id: 'lot', gig_id: 'g1', kit_id: 'k1', status: 'On Site', location: 'Stage', quantity: 4, scanned_at: '2026-10-01T10:00:00Z', created_at: null },
+      ], error: null });
+      const gigs = makeQueryChain({ data: [{ id: 'g1', title: 'Harvest Gala' }], error: null });
+      mockSupabase.from.mockImplementation((t: string) => (t === 'gigs' ? gigs : tracking));
+      const result = await getItemWhereabouts('org-1', [{ id: 'lot', quantity: 10, status: 'Active' } as any]);
+      expect(result).toEqual([
+        { gig_id: 'g1', gig_title: 'Harvest Gala', location: 'Stage', quantity: 4 },
+        { gig_id: null, gig_title: null, location: null, quantity: 6 },
+      ]);
+      expect(tracking.in).toHaveBeenCalledWith('asset_id', ['lot']);
+      expect(tracking.eq).toHaveBeenCalledWith('organization_id', 'org-1');
+    });
+
+    it('follows the Locations rule: a lot in a case is one place per case (review, 10-12)', async () => {
+      const { getItemWhereabouts } = await import('./inventoryManagement.service');
+      const r = (id: string, gig_id: string, status: string, location: string, at: string, inCase = true) => ({
+        id, asset_id: 't58', gig_id, kit_id: inCase ? 'case' : 'band', status, location, quantity: inCase ? 4 : 1,
+        scanned_at: at, created_at: null, kit: { is_container: inCase },
+      });
+      const tracking = makeQueryChain({ data: [
+        r('fest', 'festival', 'On Site', 'Stage', '2026-09-27T20:00:00Z', false),
+        r('cedar', 'cedar', 'Checked Out', 'Staging Area', '2026-10-10T22:30:00Z'),
+        r('pl-out', 'paper-lanterns', 'Checked Out', 'Staging Area', '2026-10-10T22:40:00Z'),
+        r('pl-back', 'paper-lanterns', 'In Warehouse', 'Warehouse', '2026-10-10T22:50:00Z'),
+        r('hb', 'halloween', 'Checked Out', 'Staging Area', '2026-10-10T23:10:00Z'),
+      ], error: null });
+      const gigs = makeQueryChain({ data: [{ id: 'halloween', title: 'Halloween Bash' }, { id: 'festival', title: 'Festival' }], error: null });
+      mockSupabase.from.mockImplementation((t: string) => (t === 'gigs' ? gigs : tracking));
+      expect(await getItemWhereabouts('org-1', [{ id: 't58', quantity: 6, status: 'Active' } as any])).toEqual([
+        { gig_id: 'halloween', gig_title: 'Halloween Bash', location: 'Staging Area', quantity: 4 },
+        { gig_id: 'festival', gig_title: 'Festival', location: 'Stage', quantity: 1 },
+        { gig_id: null, gig_title: null, location: null, quantity: 1 },
+      ]);
+      expect(tracking.select).toHaveBeenCalledWith(expect.stringContaining('is_container'));
+    });
+
+    it('reads many records a batch of ids at a time, to keep the URL short', async () => {
+      const { getItemWhereabouts } = await import('./inventoryManagement.service');
+      const tracking = makeQueryChain({ data: [], error: null });
+      mockSupabase.from.mockImplementation(() => tracking);
+      const units = Array.from({ length: 150 }, (_, i) => ({ id: `u${i}`, quantity: 1, tag_number: `T${i}`, status: 'Active' }) as any);
+      await getItemWhereabouts('org-1', units);
+      expect(tracking.in.mock.calls.map((c: any[]) => c[1].length)).toEqual([100, 50]);
+    });
+
+    it('reads nothing for no records', async () => {
+      const { getItemWhereabouts } = await import('./inventoryManagement.service');
+      expect(await getItemWhereabouts('org-1', [])).toEqual([]);
+      expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+  });
+
+  // #186 / #160 (Cameron, 10-11): move N of a lot's M pieces at a place, by the rules in
+  // database.md: a return closes a whole bucket, so part of a lot going home leaves the rest.
+  describe('moveLotPieces', () => {
+    const base = { organizationId: 'org-1', assetId: 'lot', kitId: 'k1', fromGigId: 'gig-a', fromStatus: 'On Site',
+      fromLocation: 'Stage', here: 6, lotOf: 10, createdBy: 'user-1', notes: null };
+    const lotRow = (id: string, gig_id: string, kit_id: string | null, status: string, quantity: number, at: string, inCase = false) => ({
+      id, asset_id: 'lot', gig_id, kit_id, status, location: null, quantity, scanned_at: at, created_at: null, kit: kit_id ? { is_container: inCase } : null,
+    });
+    function capture(lotRows: any[] = []) {
+      const chain = makeQueryChain({ data: lotRows, error: null });
+      mockSupabase.from.mockReturnValue(chain);
+      return chain;
+    }
+    const inserted = (chain: any) => chain.insert.mock.calls.flatMap((c: any[]) => c[0])
+      .map((r: any) => ({ gig_id: r.gig_id, kit_id: r.kit_id, status: r.status, location: r.location, quantity: r.quantity }));
+
+    it('part of a lot back home leaves the rest out, with its status and place', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture();
+      await moveLotPieces({ ...base, n: 4, toGigId: 'gig-a', toStatus: 'In Warehouse', toLocation: 'Bay 2' });
+      expect(inserted(chain)).toEqual([{ gig_id: 'gig-a', kit_id: 'k1', status: 'On Site', location: 'Stage', quantity: 2 }]);
+    });
+
+    it('all of it back home is a return, which closes the bucket', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture();
+      await moveLotPieces({ ...base, n: 6, toGigId: 'gig-a', toStatus: 'In Warehouse', toLocation: 'Bay 2' });
+      expect(inserted(chain)).toEqual([{ gig_id: 'gig-a', kit_id: 'k1', status: 'In Warehouse', location: 'Bay 2', quantity: 6 }]);
+    });
+
+    it('to another gig: the first gig keeps the rest, the other gains N on top of what it has', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture([
+        lotRow('a', 'gig-a', 'k1', 'On Site', 6, '2026-10-02T10:00:00Z'),
+        lotRow('b', 'gig-b', 'k1', 'Checked Out', 1, '2026-10-01T10:00:00Z'),
+      ]);
+      await moveLotPieces({ ...base, n: 2, toGigId: 'gig-b', toStatus: 'Checked Out', toLocation: 'Dock' });
+      expect(inserted(chain)).toEqual([
+        { gig_id: 'gig-a', kit_id: 'k1', status: 'On Site', location: 'Stage', quantity: 4 },
+        { gig_id: 'gig-b', kit_id: 'k1', status: 'Checked Out', location: 'Dock', quantity: 3 },
+      ]);
+    });
+
+    it('from home to a gig adds N there and leaves the home pieces alone', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture([lotRow('x', 'gig-a', 'k1', 'In Warehouse', 6, '2026-10-01T10:00:00Z')]);
+      await moveLotPieces({ ...base, fromStatus: 'In Warehouse', fromLocation: 'Bay 2', n: 3, toGigId: 'gig-a', toStatus: 'Checked Out', toLocation: 'Dock' });
+      expect(inserted(chain)).toEqual([{ gig_id: 'gig-a', kit_id: 'k1', status: 'Checked Out', location: 'Dock', quantity: 3 }]);
+    });
+
+    it('a new status at the same gig applies to the whole bucket', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture();
+      await moveLotPieces({ ...base, n: 2, toGigId: 'gig-a', toStatus: 'In Transit', toLocation: 'Truck' });
+      expect(inserted(chain)).toEqual([{ gig_id: 'gig-a', kit_id: 'k1', status: 'In Transit', location: 'Truck', quantity: 6 }]);
+    });
+
+    // Coordinator review (10-12): what the target "holds" counts only if that bucket is current.
+    it('T58\'s 4 at Halloween to Cedar Hall: Cedar\'s stale 4 in the case isn\'t added (4, not 8)', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture([
+        lotRow('fest', 'festival', 'band', 'On Site', 1, '2026-09-27T20:00:00Z'),
+        lotRow('cedar', 'cedar', 'case', 'Checked Out', 4, '2026-10-10T22:30:00Z', true),
+        lotRow('pl-out', 'paper-lanterns', 'case', 'Checked Out', 4, '2026-10-10T22:40:00Z', true),
+        lotRow('pl-back', 'paper-lanterns', 'case', 'In Warehouse', 4, '2026-10-10T22:50:00Z', true),
+        lotRow('hb', 'halloween', 'case', 'Checked Out', 4, '2026-10-10T23:10:00Z', true),
+      ]);
+      await moveLotPieces({ ...base, kitId: 'case', fromGigId: 'halloween', fromStatus: 'Checked Out', fromLocation: 'Staging Area',
+        here: 4, lotOf: 6, n: 4, toGigId: 'cedar', toStatus: 'Checked Out', toLocation: 'Staging Area' });
+      expect(inserted(chain)).toEqual([
+        // The closing return has no place: the pieces didn't go home.
+        { gig_id: 'halloween', kit_id: 'case', status: 'In Warehouse', location: null, quantity: 4 },
+        { gig_id: 'cedar', kit_id: 'case', status: 'Checked Out', location: 'Staging Area', quantity: 4 },
+      ]);
+    });
+
+    it('a one-piece lot moved back to a gig with a stale row writes 1, not 2', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture([
+        lotRow('old', 'gig-b', null, 'Checked Out', 1, '2026-10-01T10:00:00Z'),
+        lotRow('now', 'gig-a', null, 'On Site', 1, '2026-10-05T10:00:00Z'),
+      ]);
+      await moveLotPieces({ ...base, kitId: null, here: 1, lotOf: 1, n: 1, toGigId: 'gig-b', toStatus: 'Checked Out', toLocation: 'Dock' });
+      expect(inserted(chain)).toEqual([
+        { gig_id: 'gig-a', kit_id: null, status: 'In Warehouse', location: null, quantity: 1 },
+        { gig_id: 'gig-b', kit_id: null, status: 'Checked Out', location: 'Dock', quantity: 1 },
+      ]);
+    });
+
+    // Coordinator re-review (10-12): what Move N writes, read back. Both rows are written at once,
+    // so their order mustn't rest on their ids: here the closing return gets the higher id.
+    describe('read back', () => {
+      const written = (chain: any) => chain.insert.mock.calls.flatMap((c: any[]) => c[0])
+        .map((r: any, i: number) => ({ ...r, id: i === 0 ? 'zz-first-written' : 'aa-second-written', created_at: null }));
+
+      it('a one-piece lot moved from gig A to B is at B', async () => {
+        const { moveLotPieces } = await import('./inventoryManagement.service');
+        const before = [lotRow('a', 'gig-a', null, 'On Site', 1, '2026-10-05T10:00:00Z')];
+        const chain = capture(before);
+        await moveLotPieces({ ...base, kitId: null, here: 1, lotOf: 1, n: 1, toGigId: 'gig-b', toStatus: 'Checked Out', toLocation: 'Dock' });
+        expect(whereabouts([...before, ...written(chain)], [{ id: 'lot', quantity: 1, status: 'Active' }]))
+          .toEqual([{ gig_id: 'gig-b', location: 'Dock', quantity: 1 }]);
+      });
+
+      it('T58\'s 4 in the case moved from Halloween to Cedar Hall are at Cedar Hall', async () => {
+        const { moveLotPieces } = await import('./inventoryManagement.service');
+        const before = [
+          lotRow('fest', 'festival', 'band', 'On Site', 1, '2026-09-27T20:00:00Z'),
+          lotRow('cedar', 'cedar', 'case', 'Checked Out', 4, '2026-10-10T22:30:00Z', true),
+          lotRow('hb', 'halloween', 'case', 'Checked Out', 4, '2026-10-10T23:10:00Z', true),
+        ];
+        const chain = capture(before);
+        await moveLotPieces({ ...base, kitId: 'case', fromGigId: 'halloween', fromStatus: 'Checked Out', fromLocation: null,
+          here: 4, lotOf: 6, n: 4, toGigId: 'cedar', toStatus: 'Checked Out', toLocation: 'Staging Area' });
+        const places = whereabouts([...before, ...written(chain)], [{ id: 'lot', quantity: 6, status: 'Active' }], (k) => k === 'case');
+        expect(places).toEqual([
+          { gig_id: 'cedar', location: 'Staging Area', quantity: 4 },
+          { gig_id: 'festival', location: null, quantity: 1 },
+          { gig_id: null, location: null, quantity: 1 },
+        ]);
+      });
+    });
+
+    it('pieces leaving their case for another gig are written loose there; the rest stay in the case (Cameron, 10-12)', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const before = [lotRow('c', 'gig-a', 'case', 'On Site', 6, '2026-10-05T10:00:00Z', true)];
+      const chain = capture(before);
+      await moveLotPieces({ ...base, kitId: 'case', here: 6, lotOf: 10, n: 2, toGigId: 'gig-b', toStatus: 'Checked Out', toLocation: 'Dock', leaveCase: true });
+      expect(inserted(chain)).toEqual([
+        { gig_id: 'gig-a', kit_id: 'case', status: 'On Site', location: 'Stage', quantity: 4 },
+        { gig_id: 'gig-b', kit_id: null, status: 'Checked Out', location: 'Dock', quantity: 2 },
+      ]);
+      const rows = [...before, ...chain.insert.mock.calls.flatMap((c: any[]) => c[0]).map((r: any, i: number) => ({ ...r, id: `n${i}`, created_at: null }))];
+      expect(whereabouts(rows, [{ id: 'lot', quantity: 10, status: 'Active' }], (k) => k === 'case')).toEqual([
+        { gig_id: 'gig-a', location: 'Stage', quantity: 4 },
+        { gig_id: 'gig-b', location: 'Dock', quantity: 2 },
+        { gig_id: null, location: null, quantity: 4 },
+      ]);
+    });
+
+    it('from home with none home, nothing goes: it says so', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture([lotRow('out', 'gig-b', 'k2', 'On Site', 6, '2026-10-02T10:00:00Z')]);
+      await expect(moveLotPieces({ ...base, fromStatus: 'In Warehouse', fromLocation: 'Bay 2', here: 0, lotOf: 6, n: 1,
+        toGigId: 'gig-a', toStatus: 'Checked Out', toLocation: 'Dock' })).rejects.toThrow('None of this lot is at home to move.');
+      expect(chain.insert).not.toHaveBeenCalled();
+    });
+
+    it('from home, no more than the pieces at home go', async () => {
+      const { moveLotPieces } = await import('./inventoryManagement.service');
+      const chain = capture([lotRow('out', 'gig-b', 'k2', 'On Site', 5, '2026-10-02T10:00:00Z')]);
+      await moveLotPieces({ ...base, fromStatus: 'In Warehouse', fromLocation: 'Bay 2', here: 1, lotOf: 6, n: 6,
+        toGigId: 'gig-a', toStatus: 'Checked Out', toLocation: 'Dock' });
+      expect(inserted(chain)).toEqual([{ gig_id: 'gig-a', kit_id: 'k1', status: 'Checked Out', location: 'Dock', quantity: 1 }]);
+    });
   });
 
   describe('getLocationSuggestions', () => {
@@ -1239,6 +1455,29 @@ describe('inventoryManagement.service', () => {
         : { data: rows, error: null }));
     }
 
+    // #186 (Cameron, 10-11): an Item filter, and each line's pieces ("2 of 10" for a lot).
+    it('filters by item, on its own too, and gives each line its pieces and lot size', async () => {
+      const { getItemsByLocation } = await import('./inventoryManagement.service');
+      const rows = [
+        { id: 'r1', gig_id: 'g1', kit_id: 'k1', asset_id: 'lot', status: 'On Site', location: 'Stage', quantity: 2, scanned_at: '2026-10-01T10:00:00Z',
+          created_at: null, scanned_by_user: null, kit: { name: 'Lights', is_container: false }, gig: { title: 'Gala' } },
+        { id: 'r2', gig_id: 'g1', kit_id: 'k1', asset_id: 'amp', status: 'On Site', location: 'Stage', quantity: 1, scanned_at: '2026-10-01T10:00:00Z',
+          created_at: null, scanned_by_user: null, kit: { name: 'Lights', is_container: false }, gig: { title: 'Gala' } },
+      ];
+      mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+        ? { data: [
+          { id: 'lot', manufacturer_model: 'DMX Cable', tag_number: null, serial_number: null, quantity: 10, equipment_item_id: 'item-dmx' },
+          { id: 'amp', manufacturer_model: 'Amp', tag_number: 'A-1', serial_number: null, quantity: 1, equipment_item_id: 'item-amp' },
+        ], error: null }
+        : { data: rows, error: null }));
+
+      const result = await getItemsByLocation('org-1', { itemId: 'item-dmx' });
+      expect(result).toEqual([expect.objectContaining({ asset_id: 'lot', quantity: 2, lot_of: 10, equipment_item_id: 'item-dmx' })]);
+
+      const all = await getItemsByLocation('org-1', { gigId: 'g1' });
+      expect(all.find((i) => i.asset_id === 'amp')).toEqual(expect.objectContaining({ quantity: 1, lot_of: null }));
+    });
+
     it('shows a container where its newest scan puts it, not at an older gig\'s last scan', async () => {
       const { getItemsByLocation } = await import('./inventoryManagement.service');
       mockRows([...gigBRows, ...gigARows]);
@@ -1401,6 +1640,41 @@ describe('inventoryManagement.service', () => {
           ['t58', 'festival', 'Stage'],
           ['t58', 'halloween', 'Staging Area'],
           ['t58', 'paper-lanterns', 'Warehouse'],
+        ]);
+      });
+
+      it('a lot line in a case says where the case itself is (Cameron, 10-12)', async () => {
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+          ? { data: [{ id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null, quantity: 6 }], error: null }
+          : { data: [
+            row('case-row', 'gig-b', null, 'Checked Out', 'Dock', '2026-10-10T10:00:00.000Z'),
+            { ...row('t58-row', 'gig-b', 't58', 'Checked Out', 'Dock', '2026-10-10T10:00:00.000Z'), quantity: 4 },
+          ], error: null }));
+        const lines = await getItemsByLocation('org-1', { itemId: undefined, status: allStatuses });
+        expect(lines.find((l) => l.asset_id === 't58')).toMatchObject({ case_gig_id: 'gig-b', case_gig_title: 'gig-b' });
+      });
+
+      it('a lot\'s lines count its pieces now: the home line is the lot less what\'s out (review, 10-12)', async () => {
+        // The #258 rows: 4 at Halloween and 1 at the festival, so 1 of the 6 is home (not the 4
+        // its return row says).
+        const { getItemsByLocation } = await import('./inventoryManagement.service');
+        const loose = { kit_id: 'mics', kit: { name: 'Mic bag', is_container: false } };
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+          ? { data: [{ id: 't58', manufacturer_model: 'Tessel T58', tag_number: null, serial_number: null, quantity: 6 }], error: null }
+          : { data: [
+            { ...row('cedar', 'cedar', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:30:00.000Z'), ...loose, quantity: 4 },
+            { ...row('pl-out', 'paper-lanterns', 't58', 'Checked Out', 'Staging Area', '2026-10-10T22:40:00.000Z'), ...loose, quantity: 4 },
+            { ...row('pl-back', 'paper-lanterns', 't58', 'In Warehouse', 'Warehouse', '2026-10-10T22:50:00.000Z'), ...loose, quantity: 4 },
+            { ...row('fest', 'festival', 't58', 'On Site', 'Stage', '2026-10-10T23:00:00.000Z'), ...loose, quantity: 1 },
+            { ...row('hb', 'halloween', 't58', 'Checked Out', 'Staging Area', '2026-10-10T23:10:00.000Z'), ...loose, quantity: 4 },
+          ], error: null }));
+
+        const lines = await getItemsByLocation('org-1', { status: allStatuses });
+        expect(lines.map((l) => [l.gig_id, l.quantity, l.lot_of]).sort()).toEqual([
+          ['festival', 1, 6],
+          ['halloween', 4, 6],
+          ['paper-lanterns', 1, 6],
         ]);
       });
     });

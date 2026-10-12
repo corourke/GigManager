@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bucketsAt, currentRows, placementOf, type TrackingRow } from './locations';
+import { bucketsAt, currentRows, lotPieces, placementOf, whereabouts, type TrackingRow } from './locations';
 import { RETURNED_STATUS } from '../config/inventoryWorkflow';
 
 // #186 / #185: where a unit or lot is, from the append-only tracking history.
@@ -307,5 +307,108 @@ describe('currentRows: a lot shows in no more places than it has pieces (Cameron
       row({ id: 'now', asset_id: 'lot', gig_id: 'gig-b', status: 'Checked Out', quantity: 4, scanned_at: t(6) }),
     ];
     expect(ids(rows, 4)).toEqual(['now']);
+  });
+});
+
+// #186 (Cameron, 10-11): where an item's pieces are, for the "where is it" card and the Item
+// page. Home pieces have no place unless everything in that record came back on a return scan.
+describe('whereabouts (#186)', () => {
+  const unit2 = { id: 'u2', quantity: 1, tag_number: 'T2', status: 'Active' };
+  const fresh = { id: 'u3', quantity: 1, tag_number: 'T3', status: 'Active' };
+
+  it('sums each place\'s pieces across records; home pieces are not checked out', () => {
+    const rows = [
+      row({ asset_id: 'lot', gig_id: 'g1', kit_id: 'k1', status: 'On Site', location: 'Stage', quantity: 4, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ asset_id: 'lot', gig_id: 'g2', kit_id: null, status: 'Checked Out', location: 'Dock', quantity: 2, scanned_at: '2026-10-02T10:00:00Z' }),
+      row({ asset_id: 'u1', gig_id: 'g1', kit_id: 'k1', status: 'On Site', location: 'Stage', scanned_at: '2026-10-01T10:00:00Z' }),
+    ];
+    expect(whereabouts(rows, [lot, unit, fresh])).toEqual([
+      { gig_id: 'g1', location: 'Stage', quantity: 5 },
+      { gig_id: 'g2', location: 'Dock', quantity: 2 },
+      { gig_id: null, location: null, quantity: 5 },
+    ]);
+  });
+
+  it('a record all back on a return scan is at that scan\'s location', () => {
+    const rows = [
+      row({ asset_id: 'u1', gig_id: 'g1', kit_id: 'k1', status: 'On Site', location: 'Stage', scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ asset_id: 'u1', gig_id: 'g1', kit_id: 'k1', status: RETURNED_STATUS, location: 'Bay 2', scanned_at: '2026-10-03T10:00:00Z' }),
+      row({ asset_id: 'u2', gig_id: 'g1', kit_id: 'k1', status: RETURNED_STATUS, location: 'Bay 2', scanned_at: '2026-10-03T10:00:00Z' }),
+    ];
+    expect(whereabouts(rows, [unit, unit2, fresh])).toEqual([
+      { gig_id: null, location: 'Bay 2', quantity: 2 },
+      { gig_id: null, location: null, quantity: 1 },
+    ]);
+  });
+
+  it('a lot partly back has no home place: only what all came back is placed', () => {
+    const rows = [
+      row({ asset_id: 'lot', gig_id: 'g1', kit_id: 'k1', status: RETURNED_STATUS, location: 'Bay 2', quantity: 3, scanned_at: '2026-10-03T10:00:00Z' }),
+      row({ asset_id: 'lot', gig_id: 'g2', kit_id: 'k2', status: 'On Site', location: 'Stage', quantity: 4, scanned_at: '2026-10-04T10:00:00Z' }),
+    ];
+    expect(whereabouts(rows, [lot])).toEqual([
+      { gig_id: 'g2', location: 'Stage', quantity: 4 },
+      { gig_id: null, location: null, quantity: 6 },
+    ]);
+  });
+
+  it('leaves out retired records', () => {
+    expect(whereabouts([], [{ ...unit, status: 'Disposed' }])).toEqual([]);
+  });
+
+  // Coordinator review (10-12): the card and the Item page follow the Locations rule (currentRows),
+  // so they agree with the Locations lines.
+  it('a lot in a case is one place per case: T58\'s stale Cedar Hall place isn\'t counted (#260 rows)', () => {
+    const t58 = { id: 't58', quantity: 6, status: 'Active' };
+    const rows = [
+      row({ id: 'fest', asset_id: 't58', gig_id: 'festival', kit_id: 'band', status: 'On Site', location: 'Stage', quantity: 1, scanned_at: '2026-09-27T20:00:00Z' }),
+      row({ id: 'cedar', asset_id: 't58', gig_id: 'cedar', kit_id: 'case', status: 'Checked Out', location: 'Staging Area', quantity: 4, scanned_at: '2026-10-10T22:30:00Z' }),
+      row({ id: 'pl-out', asset_id: 't58', gig_id: 'paper-lanterns', kit_id: 'case', status: 'Checked Out', location: 'Staging Area', quantity: 4, scanned_at: '2026-10-10T22:40:00Z' }),
+      row({ id: 'pl-back', asset_id: 't58', gig_id: 'paper-lanterns', kit_id: 'case', status: RETURNED_STATUS, location: 'Warehouse', quantity: 4, scanned_at: '2026-10-10T22:50:00Z' }),
+      row({ id: 'hb', asset_id: 't58', gig_id: 'halloween', kit_id: 'case', status: 'Checked Out', location: 'Staging Area', quantity: 4, scanned_at: '2026-10-10T23:10:00Z' }),
+    ];
+    expect(whereabouts(rows, [t58], (kitId) => kitId === 'case')).toEqual([
+      { gig_id: 'halloween', location: 'Staging Area', quantity: 4 },
+      { gig_id: 'festival', location: 'Stage', quantity: 1 },
+      { gig_id: null, location: null, quantity: 1 },
+    ]);
+  });
+
+  // Coordinator re-review (10-12): what Move N writes, read back. A return that closed a bucket
+  // because its pieces went to another gig doesn't make an older place elsewhere stale.
+  it('after moving 4 from gig A to B, the 1 still at the festival stays there (festival 1, B 4, home 1)', () => {
+    const six = { id: 'lot6', quantity: 6, status: 'Active' };
+    const rows = [
+      row({ id: 'fest', asset_id: 'lot6', gig_id: 'festival', kit_id: 'band', status: 'On Site', location: 'Stage', quantity: 1, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ id: 'a-out', asset_id: 'lot6', gig_id: 'gig-a', kit_id: 'k1', status: 'Checked Out', location: 'Dock', quantity: 4, scanned_at: '2026-10-02T10:00:00Z' }),
+      row({ id: 'a-closed', asset_id: 'lot6', gig_id: 'gig-a', kit_id: 'k1', status: RETURNED_STATUS, location: null, quantity: 4, scanned_at: '2026-10-03T10:00:00.000Z' }),
+      row({ id: 'b-in', asset_id: 'lot6', gig_id: 'gig-b', kit_id: 'k1', status: 'Checked Out', location: 'Ramp', quantity: 4, scanned_at: '2026-10-03T10:00:00.001Z' }),
+    ];
+    expect(whereabouts(rows, [six])).toEqual([
+      { gig_id: 'gig-b', location: 'Ramp', quantity: 4 },
+      { gig_id: 'festival', location: 'Stage', quantity: 1 },
+      { gig_id: null, location: null, quantity: 1 },
+    ]);
+  });
+
+  it('a lot home in two cases reads each case\'s pieces, not 9 of 6', () => {
+    const rows = [
+      row({ id: 'c1-out', asset_id: 'lot', gig_id: 'gig-a', kit_id: 'case1', status: 'Checked Out', quantity: 3, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ id: 'c2-out', asset_id: 'lot', gig_id: 'gig-a', kit_id: 'case2', status: 'Checked Out', quantity: 3, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ id: 'c1-back', asset_id: 'lot', gig_id: 'gig-a', kit_id: 'case1', status: RETURNED_STATUS, location: 'Shelf C', quantity: 3, scanned_at: '2026-10-02T10:00:00Z' }),
+      row({ id: 'c2-back', asset_id: 'lot', gig_id: 'gig-a', kit_id: 'case2', status: RETURNED_STATUS, location: 'Shelf D', quantity: 3, scanned_at: '2026-10-02T11:00:00Z' }),
+    ];
+    const current = currentRows(rows, { isLot: () => true, isContainer: () => true, lotQuantity: () => 6 });
+    const { pieces } = lotPieces(current, 6);
+    expect(current.map((r) => [r.id, pieces.get(r)]).sort()).toEqual([['c1-back', 3], ['c2-back', 3]]);
+  });
+
+  it('a one-piece lot is at its newest row only, not also at an older gig\'s stale row', () => {
+    const one = { id: 'snake', quantity: 1, status: 'Active' };
+    const rows = [
+      row({ asset_id: 'snake', gig_id: 'gig-a', status: 'Checked Out', location: 'Dock', scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ asset_id: 'snake', gig_id: 'gig-b', status: 'On Site', location: 'Stage', scanned_at: '2026-10-05T10:00:00Z' }),
+    ];
+    expect(whereabouts(rows, [one])).toEqual([{ gig_id: 'gig-b', location: 'Stage', quantity: 1 }]);
   });
 });

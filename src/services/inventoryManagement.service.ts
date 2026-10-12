@@ -4,7 +4,7 @@ import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
 import { getKitComponentTree, flattenToScanUnits, type KitComponentTreeNode } from './kit.service';
 import type { DbInventoryTracking } from '../utils/supabase/types';
 import { isRetired, recordKind, type ItemRecord } from '../utils/equipmentItems';
-import { bucketsAt, currentRows, type TrackingRow } from '../utils/locations';
+import { bucketsAt, currentRows, lotNow, lotPieces, whereabouts, type TrackingRow } from '../utils/locations';
 
 const getSupabase = () => createClient();
 
@@ -65,6 +65,14 @@ export interface LocationItem {
   gig_title?: string | null;
   scanned_at: string;
   scanned_by_name?: string | null;
+  /** Pieces at this place: 1 for a unit, N of a lot (#186). */
+  quantity?: number;
+  /** A lot's size ("2 of 10"); null for a unit or a kit row. */
+  lot_of?: number | null;
+  equipment_item_id?: string | null;
+  /** A lot line in a container: where the case itself is, by its own newest row (Cameron, 10-12). */
+  case_gig_id?: string | null;
+  case_gig_title?: string | null;
 }
 
 export interface ManifestRow {
@@ -420,11 +428,11 @@ export async function getLocationSuggestions(organizationId: string): Promise<st
 
 export async function getItemsByLocation(
   organizationId: string,
-  filters: { location?: string; status?: string | string[]; gigId?: string }
+  filters: { location?: string; status?: string | string[]; gigId?: string; itemId?: string }
 ): Promise<LocationItem[]> {
   const supabase = getSupabase();
   try {
-    if (!filters.location && !filters.status && !filters.gigId) {
+    if (!filters.location && !filters.status && !filters.gigId && !filters.itemId) {
       return [];
     }
 
@@ -440,7 +448,7 @@ export async function getItemsByLocation(
 
     const { data: assets, error: assetsError } = await supabase
       .from('assets')
-      .select('id, manufacturer_model, tag_number, serial_number, quantity')
+      .select('id, manufacturer_model, tag_number, serial_number, quantity, equipment_item_id')
       .in('id', [...new Set(records.filter((r) => r.asset_id).map((r) => r.asset_id as string))]);
 
     if (assetsError) throw assetsError;
@@ -448,13 +456,30 @@ export async function getItemsByLocation(
     const assetMap = new Map((assets ?? []).map((a: any) => [a.id, a]));
     const statuses = filters.status ? [filters.status].flat() : null;
     const containers = new Set(records.filter((r) => r.kit_id && r.kit?.is_container).map((r) => r.kit_id as string));
-    const latest = currentRows(records as DbInventoryTracking[], {
-      isLot: (id) => assetMap.has(id) && recordKind(assetMap.get(id)) === 'lot',
+    const isLot = (id: string) => assetMap.has(id) && recordKind(assetMap.get(id)) === 'lot';
+    const current = currentRows(records as DbInventoryTracking[], {
+      isLot,
       isContainer: (id) => containers.has(id),
       lotQuantity: (id) => (assetMap.get(id)?.quantity != null ? Number(assetMap.get(id).quantity) : null),
-    }).filter((r) => (!filters.location || r.location === filters.location)
+    });
+    // A lot's lines add up to it (review, 10-12): each out line's pieces, and the rest at home.
+    const lotRows = new Map<string, DbInventoryTracking[]>();
+    for (const r of current) {
+      if (r.asset_id && isLot(r.asset_id) && assetMap.get(r.asset_id)?.quantity != null) lotRows.set(r.asset_id, [...(lotRows.get(r.asset_id) ?? []), r]);
+    }
+    const piecesOf = new Map<DbInventoryTracking, number>();
+    for (const [id, rows] of lotRows) {
+      for (const [r, n] of lotPieces(rows, Number(assetMap.get(id).quantity)).pieces) piecesOf.set(r, n);
+    }
+    // Where each case is, by its own newest row, for a lot line in it.
+    const caseRow = new Map<string, DbInventoryTracking>();
+    for (const r of current) if (!r.asset_id && r.kit_id && containers.has(r.kit_id)) caseRow.set(r.kit_id, r);
+    const latest = current.filter((r) => !piecesOf.has(r) || (piecesOf.get(r) ?? 0) > 0)
+      .filter((r) => (!filters.location || r.location === filters.location)
       && (!statuses || statuses.includes(r.status))
-      && (!filters.gigId || r.gig_id === filters.gigId));
+      && (!filters.gigId || r.gig_id === filters.gigId)
+      // An item's units and lots only (#186): a kit's own row isn't one of them.
+      && (!filters.itemId || (!!r.asset_id && assetMap.get(r.asset_id)?.equipment_item_id === filters.itemId)));
 
     return latest.map((record): LocationItem => {
       const asset = record.asset_id ? assetMap.get(record.asset_id) : null;
@@ -472,10 +497,105 @@ export async function getItemsByLocation(
         gig_title: rawRecord?.gig?.title ?? null,
         scanned_at: record.scanned_at,
         scanned_by_name: formatUserName(rawRecord?.scanned_by_user),
+        quantity: piecesOf.get(record) ?? Math.max(1, Number(record.quantity ?? 1) || 1),
+        lot_of: asset && recordKind(asset) === 'lot' ? Number(asset.quantity ?? 1) : null,
+        equipment_item_id: asset?.equipment_item_id ?? null,
+        ...(asset && recordKind(asset) === 'lot' && record.kit_id && caseRow.has(record.kit_id) ? {
+          case_gig_id: caseRow.get(record.kit_id)!.gig_id,
+          case_gig_title: (records.find((r) => r.id === caseRow.get(record.kit_id!)!.id) as any)?.gig?.title ?? null,
+        } : {}),
       };
     });
   } catch (err) {
     return handleApiError(err, 'get items by location');
+  }
+}
+
+export interface MoveLotPiecesParams {
+  organizationId: string;
+  assetId: string;
+  /** The lot's size. */
+  lotOf: number;
+  /** The lot's bucket now: its gig, kit, status and place, and the pieces there. */
+  fromGigId: string;
+  kitId: string | null;
+  fromStatus: string;
+  fromLocation: string | null;
+  here: number;
+  /** How many to move, and where to: a gig with a status, or home (RETURNED_STATUS). */
+  n: number;
+  toGigId: string;
+  toStatus: string;
+  toLocation: string | null;
+  notes: string | null;
+  createdBy: string;
+  /** Pieces in a case going to another gig than the case's: they leave it, written loose there (Cameron, 10-12). */
+  leaveCase?: boolean;
+}
+
+/**
+ * Move N of a lot's M pieces (#186; fixes #160), by the bucket rules in database.md. A return
+ * closes a whole bucket, so N < M going home leaves the bucket's own row at M − N, never a
+ * return of N. Going to another gig takes N from here (closing this bucket if it's all of it,
+ * with no place, as the pieces didn't go home) and adds N to what that gig's bucket holds, if
+ * it's one of the lot's current places (Locations rule), never past the lot. From home, only the
+ * target bucket changes, and no more than the pieces home go. A new status at the same gig
+ * applies to the whole bucket.
+ */
+export async function moveLotPieces(params: MoveLotPiecesParams): Promise<void> {
+  const { organizationId, assetId, kitId, fromGigId, fromStatus, fromLocation, here, toGigId, toStatus, toLocation, notes, createdBy } = params;
+  // Pieces leaving their case go loose at the target gig; the case stays where it is.
+  const toKitId = params.leaveCase ? null : kitId;
+  const lotOf = Math.max(1, Number(params.lotOf) || 1);
+  const supabase = getSupabase();
+  try {
+    const now = new Date().toISOString();
+    const fromHome = fromStatus === RETURNED_STATUS;
+    const goingHome = toStatus === RETURNED_STATUS;
+    const sameGig = !fromHome && toGigId === fromGigId;
+    // The lot's current places: what's home, and what the target bucket holds now.
+    let atHome = here;
+    let there = 0;
+    if (fromHome || (!goingHome && !sameGig)) {
+      const { data, error } = await (supabase.from('inventory_tracking') as any)
+        .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at, kit:kit_id(is_container)')
+        .eq('organization_id', organizationId)
+        .eq('asset_id', assetId);
+      if (error) throw error;
+      const rows = (data ?? []) as (TrackingRow & { kit?: { is_container?: boolean } | null })[];
+      const containers = new Set(rows.filter((r) => r.kit_id && r.kit?.is_container).map((r) => r.kit_id as string));
+      const { pieces, home } = lotNow(rows, lotOf, (id) => containers.has(id));
+      atHome = home;
+      for (const [r, n] of pieces) {
+        if (r.gig_id === toGigId && (r.kit_id ?? null) === toKitId && r.status !== RETURNED_STATUS) there = n;
+      }
+    }
+    if (fromHome && atHome < 1) throw new Error('None of this lot is at home to move.');
+    const n = Math.max(1, Math.min(Math.floor(params.n) || 1, fromHome ? atHome : here));
+    const row = (gigId: string, status: string, location: string | null, quantity: number, at = now, kit = kitId) => ({
+      organization_id: organizationId, gig_id: gigId, kit_id: kit, asset_id: assetId, status,
+      location, notes, scanned_at: at, scanned_by: createdBy, quantity: Math.max(1, quantity),
+    });
+    // The target row is written just after this bucket's, so it reads as the newer of the two.
+    const later = new Date(Date.parse(now) + 1).toISOString();
+    const rows: ReturnType<typeof row>[] = [];
+    // This bucket keeps the rest; all of it leaving closes it with a return.
+    const leaveHere = () => rows.push(n >= here
+      ? row(fromGigId, RETURNED_STATUS, goingHome ? toLocation : null, here)
+      : row(fromGigId, fromStatus, fromLocation, here - n));
+    if (goingHome) {
+      if (fromHome) rows.push(row(fromGigId, RETURNED_STATUS, toLocation, here));
+      else leaveHere();
+    } else if (sameGig) {
+      rows.push(row(fromGigId, toStatus, toLocation, here));
+    } else {
+      if (!fromHome) leaveHere();
+      rows.push(row(toGigId, toStatus, toLocation, Math.min(lotOf, there + n), later, toKitId));
+    }
+    const { error } = await (supabase.from('inventory_tracking') as any).insert(rows);
+    if (error) throw error;
+  } catch (err) {
+    return handleApiError(err, 'move lot pieces');
   }
 }
 
@@ -936,6 +1056,57 @@ export async function getMaintenanceQueueReport(organizationId: string): Promise
     });
   } catch (err) {
     return handleApiError(err, 'get maintenance queue report');
+  }
+}
+
+const WHEREABOUTS_ID_BATCH = 100;
+
+/** An item's pieces at one place, with the gig's title (#186). */
+export interface ItemWhereabout {
+  gig_id: string | null;
+  gig_title: string | null;
+  /** At a gig: its location there. At home: a return scan's location, else null (not checked out). */
+  location: string | null;
+  quantity: number;
+}
+
+/**
+ * Where an item's units and lots are, place by place (#186, Cameron 10-11): see `whereabouts`.
+ * Reads every tracking row of the given records, a page at a time.
+ */
+export async function getItemWhereabouts(organizationId: string, records: readonly ItemRecord[]): Promise<ItemWhereabout[]> {
+  if (records.length === 0) return [];
+  const supabase = getSupabase();
+  try {
+    const rows: TrackingRow[] = [];
+    // A batch of ids at a time keeps the request URL short for an item with many units.
+    const ids = records.map((r) => r.id);
+    for (let i = 0; i < ids.length; i += WHEREABOUTS_ID_BATCH) {
+      for (let from = 0; ; from += TRACKING_PAGE) {
+        const { data, error } = await (supabase.from('inventory_tracking') as any)
+          .select('id, gig_id, kit_id, asset_id, status, location, quantity, scanned_at, created_at, kit:kit_id(is_container)')
+          .eq('organization_id', organizationId)
+          .in('asset_id', ids.slice(i, i + WHEREABOUTS_ID_BATCH))
+          .order('id', { ascending: true })
+          .range(from, from + TRACKING_PAGE - 1);
+        if (error) throw error;
+        rows.push(...((data ?? []) as TrackingRow[]));
+        if ((data ?? []).length < TRACKING_PAGE) break;
+      }
+    }
+    const containers = new Set((rows as (TrackingRow & { kit?: { is_container?: boolean } | null })[])
+      .filter((r) => r.kit_id && r.kit?.is_container).map((r) => r.kit_id as string));
+    const places = whereabouts(rows, records, (id) => containers.has(id));
+    const gigIds = [...new Set(places.map((p) => p.gig_id).filter((id): id is string => !!id))];
+    const titles = new Map<string, string>();
+    if (gigIds.length) {
+      const { data, error } = await (supabase.from('gigs') as any).select('id, title').in('id', gigIds);
+      if (error) throw error;
+      for (const g of (data ?? []) as { id: string; title: string }[]) titles.set(g.id, g.title);
+    }
+    return places.map((p) => ({ ...p, gig_title: p.gig_id ? titles.get(p.gig_id) ?? null : null }));
+  } catch (err) {
+    return handleApiError(err, 'get item whereabouts');
   }
 }
 

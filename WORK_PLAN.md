@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 (coordinator: Cameron deployed to prod; verified read-only; #268 waits on the case-split warning, then Cameron's OK)
+- **Last updated:** 2026-10-12 (triage: §1 verified against open issues/PRs; closed rows removed)
 
 ---
 
@@ -18,13 +18,11 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | # | Item | State | Next / owner |
 |---|---|---|---|
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
-| [#183](https://github.com/corourke/GigManager/issues/183), [#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchases, CSV import; (e) locations, override, maintenance (closes #160) | Audit 10-11: #184 and #185 **closed** (all PRs in prod); #183 A–C in prod, **piece D (CSV import) not started**; #186: Locations fixes shipped (#231, #253, #254, #257, #258, #260), but the Item filter, where-is-it card, moving N of a lot in Override (#160), the maintenance flow and an editable Maintenance screen are unbuilt; the 10-09 plan's Q1–Q4 are unanswered | Next #186 PR and #183 D wait on Cameron's release; Equipment Lead after #245/#249 |
-| [#245](https://github.com/corourke/GigManager/issues/245), [#249](https://github.com/corourke/GigManager/issues/249) | Packing-list fixes | Released 10-11; Lead's plans posted; item 2 of #245 already fixed by #246. Defaults for the Lead's questions: ticks don't carry to print, Columns choice not remembered, header "N kits · M pieces · P packed" | Equipment Lead, one PR |
-| [#242](https://github.com/corourke/GigManager/issues/242) | Write-off follow-ups | Items 1–4 shipped (#244). Open: 5 Undo only from Not returned; 6 whole-record vs split-lot undo (intended?); 7 no warning when a kit line asks for more than a shrunken lot | Cameron: build 5/7 and document 6, or park |
-| [#256](https://github.com/corourke/GigManager/issues/256), [#265](https://github.com/corourke/GigManager/issues/265), [#266](https://github.com/corourke/GigManager/issues/266) | Desktop scanner manual entry; container still out at another gig; kit-page follow-ups | Filed, not released | Cameron releases |
+| [#183](https://github.com/corourke/GigManager/issues/183), [#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchase review, manual purchases, CSV import; (e) locations, override, maintenance (closes #160) | #183 D (CSV import) shipped in #276 (in prod 10-12); only D2 (summary cards, grouped column guide) is unreleased. #186: Locations fixes shipped; **[#268](https://github.com/corourke/GigManager/pull/268) (Item filter, where-is-it card, Move N of a lot) is open, awaiting the case-split warning and Cameron's OK**; override and maintenance flow still unbuilt | Equipment Lead (#268); the rest waits on Cameron's release |
+| [#278](https://github.com/corourke/GigManager/issues/278), [#279](https://github.com/corourke/GigManager/issues/279) | Kit list Tracking Status count reads "6/0"; Kit Contents table wider than its card | Filed by the Docs Lead 10-12, not released | Cameron releases |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
-| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c). Audit 10-11: Managers still see Delete in prod (gated only by `canEdit`) |
+| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c). Stopgap #271 (Delete gig Admin-only) merged 10-12 and in prod; the 3-PR owner-organization plan is still after #186 |
 
 ## 2. Waiting on Cameron
 
@@ -119,6 +117,13 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
+- **Docs Lead status, 10-12 05:35 UTC (after Cameron's 10-12 deploy):**
+  - **PR #277:** publishes the held drafts: packing list (#267), Undo write-off and the lot note (#270), Delete for Admins only (#271), desktop scanning (#272), phone rows (#263), the update notice (#264), CSV import (#276), and the #269 case warning. Columns persistence and desktop scanning were checked on dev.
+  - **PR #280:** publishes Kits (#273 and #270), audited against main, with 2 screenshots.
+  - **Filed:**
+    - **#278:** the kit list's Tracking Status count reads "6/0" and "7/5".
+    - **#279:** the kit editor's Kit Contents table overflows its card (Total Value and the remove X are cut off).
+  - **Locations** is untouched until #268.
 - **Docs Lead status, 10-12 01:40 UTC.**
   - **Published (PRs, ready for review):**
     - **PR #274:** Equipment → Locations (prod since 10-11), with a screenshot.
