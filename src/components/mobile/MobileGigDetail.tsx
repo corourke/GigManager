@@ -36,6 +36,7 @@ import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '../ui/utils';
+import { isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
 import type { GigStatus } from '../../utils/supabase/types';
 import type { OrganizationRole } from '../../utils/supabase/types';
 
@@ -373,6 +374,11 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       .map((a: any) => ({ ...a, roleName: slot.role }))
   );
 
+  // #175: the status is the gig owner's Admins' and Managers' to change. An organization
+  // Inactive on the gig is read-only on its shared details, which is all mobile edits.
+  const ownsGig = managesGigOwner(gig, selectedOrganization?.id, userRole);
+  const inactiveHere = isInactiveOn(gig, selectedOrganization?.id);
+
   const showActionButtons = (status: string) => status === 'Invited' || status === 'Requested';
   const showTimestamp = (status: string) => status === 'Confirmed' || status === 'Declined';
 
@@ -388,14 +394,14 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold truncate">{gig.title}</h1>
             <div className="flex items-center gap-2 mt-0.5">
-              <button onClick={() => setShowStatusMenu(!showStatusMenu)}>
+              <button onClick={() => ownsGig && setShowStatusMenu(!showStatusMenu)} disabled={!ownsGig}>
                 <span className={cn('inline-flex items-center rounded border px-1.5 py-0.5 font-medium cursor-pointer', statusConfig?.color)} style={{ fontSize: '11px', lineHeight: '1' }}>
                   {statusConfig?.label || gig.status}
                 </span>
               </button>
             </div>
           </div>
-          {canEdit && !isEditing && (
+          {canEdit && !inactiveHere && !isEditing && (
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Edit gig" onClick={handleStartEdit}>
               <Pencil className="w-4 h-4" />
             </Button>
@@ -423,7 +429,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
             </div>
           )}
         </div>
-        {showStatusMenu && (
+        {ownsGig && showStatusMenu && (
           <div className="mt-2 flex flex-wrap gap-1">
             {Object.entries(GIG_STATUS_CONFIG).map(([key, conf]) => (
               <button
@@ -445,6 +451,11 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       </div>
 
       <div className="flex-1 p-4 space-y-3 pb-12">
+        {inactiveHere && (
+          <div className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700">
+            {selectedOrganization?.name ?? 'Your organization'} is Inactive on this gig. Shared details, the schedule and other organizations' contacts are read-only.
+          </div>
+        )}
         {myAssignments.length > 0 && (
           <Card className="border-primary/20 bg-primary/5" style={{ gap: 0 }}>
             <CardContent className="px-3 py-2 space-y-1.5" style={{ paddingBottom: '8px' }}>
