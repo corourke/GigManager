@@ -755,11 +755,11 @@ export const shots = [
       await page.getByText('Kit Contents', { exact: true }).waitFor();
       await page.getByText('4 units owned').first().waitFor();
     },
-    // The form above Kit Contents: Basic Information, Tracking Type and Kit Summary. (Kit
-    // Contents is left out until its table fits its card, #279.)
+    // The whole form: Basic Information, Tracking Type, Kit Summary and Kit Contents (its
+    // table fits its card since #279).
     clip: async (page) => {
       const contents = await box(cardOf(page, 'Kit Contents'));
-      return { x: 0, y: 56, width: 1200, height: contents.y - 12 - 56 };
+      return { x: 0, y: 56, width: 1200, height: contents.y + contents.height + 12 - 56 };
     },
   },
   // The phone's Scanning screen (phone layout below 768 px wide).

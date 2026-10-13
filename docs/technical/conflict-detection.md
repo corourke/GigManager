@@ -18,6 +18,8 @@ Two gigs conflict on participants when the same organization appears in `gig_par
 
 **Data path**: `gigs → gig_participants → organizations`
 
+**Inactive participants are left out (#175).** A `gig_participants` row with `inactive = true` neither raises nor receives a participant conflict; `checkParticipantConflicts` and the batch check both skip it.
+
 **Configurable roles**: The constant `PARTICIPANT_CONFLICT_ROLES = ['Venue', 'Act']` controls which participant roles trigger conflict detection. The conflict `type` field remains `'venue'` for UI compatibility, with `details.role` indicating the actual role.
 
 ### Equipment Conflicts
@@ -72,13 +74,14 @@ Used when viewing a single gig's detail screen. Makes 3 parallel Supabase querie
 
 ## Batch Detection (`checkAllConflictsForGigs`)
 
-Used on the gig list/calendar view to detect conflicts across all visible gigs efficiently. Makes exactly **3 Supabase queries** regardless of the number of gigs:
+Used on the gig list/calendar view to detect conflicts across all visible gigs efficiently. Gigs with status `Cancelled` (`EXCLUDED_STATUSES`) are dropped first. The number of queries doesn't grow with the number of gigs; four run in parallel:
 
 1. `gig_staff_slots` with nested `gig_staff_assignments` for all gig IDs
-2. `gig_participants` (filtered to conflict roles) for all gig IDs
+2. `gig_participants` (filtered to conflict roles, with `inactive`) for all gig IDs
 3. `gig_kit_assignments` for all gig IDs
+4. The no-kit pack-out rows (`loadLooseSafely`, the viewing organization's only; #185)
 
-Then builds lookup maps (`staffByGig`, `participantsByGig`, `kitsByGig`) and does O(n²) pairwise comparison in JavaScript:
+A further `kit_flattened_cache` query resolves the assigned kits to their tracked units, and the kit-tree loads for the per-item check follow. Then builds lookup maps (`staffByGig`, `participantsByGig`, `kitsByGig`) and does O(n²) pairwise comparison in JavaScript:
 
 - For each pair (A, B) where `rangesOverlap(A, B)`:
   - Check shared staff user IDs
@@ -99,4 +102,5 @@ Re-exported from `src/services/gig.service.ts` for convenience, including `check
 |---|---|---|
 | `WARNING_BUFFER_MS` | 4 hours (14,400,000 ms) | Proximity threshold for warnings |
 | `DAY_MS` | 24 hours (86,400,000 ms) | Used in query widening for date-only gigs |
+| `EXCLUDED_STATUSES` | `['Cancelled']` | Gig statuses left out of the batch check |
 | `PARTICIPANT_CONFLICT_ROLES` | `['Venue', 'Act']` | Organization roles that trigger participant conflicts |
