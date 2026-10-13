@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Loader2, MoreVertical, Pencil, Printer, Trash2 } from 'lucide-react';
+import { Ban, Copy, LogOut, Loader2, MoreVertical, PauseCircle, Pencil, Printer, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import AppHeader from '../AppHeader';
 import AttachmentManager from '../AttachmentManager';
@@ -33,12 +33,12 @@ import { GigStatusField, GigTagsField, GigTitleField } from './basicInfo/GigBasi
 import { EditSaveStatus, GigEditForm, NotesCard, WhenAndScheduleCard } from './edit/GigEditParts';
 import { useEditSession } from '../../utils/hooks/editSession';
 import { EditSessionProvider } from '../../utils/hooks/EditSessionProvider';
-import { deleteGig, duplicateGig, getGig } from '../../services/gig.service';
+import { deleteGig, duplicateGig, getGig, updateGig } from '../../services/gig.service';
 import { getGigActivity } from '../../services/activityLog.service';
 import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
 import { canDeleteGig, canManage } from '../../utils/permissions';
 import { gigOwnerName, isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
-import { setGigParticipantInactive } from '../../services/gigParticipant.service';
+import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
 import type { ActivityLogEntry, Gig, Organization, User, UserRole } from '../../utils/supabase/types';
@@ -164,6 +164,59 @@ export default function GigPage({
     }
   };
 
+  // #175: the owner cancels the gig.
+  const handleCancelGig = async () => {
+    if (!confirm(`Cancel "${gig?.title}"? Its status becomes Cancelled for every organization on it.`)) return;
+    try {
+      await updateGig(gigId, { status: 'Cancelled' });
+      toast.success('Gig cancelled');
+      await loadGig();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to cancel gig');
+    }
+  };
+
+  // #175: another participant leaves the gig. The database refuses while the organization has
+  // financials, kits or staff on it; then it can be marked Inactive instead.
+  const markInactive = async () => {
+    try {
+      await setGigParticipantInactive(gigId, organization.id, true);
+      toast.success(`${organization.name} is Inactive on this gig`);
+      await loadGig();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to mark Inactive');
+    }
+  };
+
+  const handleLeave = async () => {
+    if (!confirm(
+      `Leave "${gig?.title}"? ${organization.name} is removed from the gig, with its equipment scans and contacts for it, ` +
+      `and its purchases are unlinked from it. You won't see the gig afterwards.`,
+    )) return;
+    try {
+      await removeGigParticipant(gigId, organization.id);
+      toast.success(`${organization.name} left the gig`);
+      onBack();
+    } catch (error: any) {
+      const message: string = error?.message || 'Failed to leave the gig';
+      if (/only be marked Inactive/.test(message)) {
+        if (confirm(`${message}\n\nMark ${organization.name} Inactive instead? It keeps its own staffing, financials and kits on the gig.`)) {
+          await markInactive();
+        }
+        return;
+      }
+      toast.error(message);
+    }
+  };
+
+  const handleMarkInactive = async () => {
+    if (!confirm(
+      `Mark ${organization.name} Inactive on this gig? It keeps its role and its own staffing, financials and kits, ` +
+      `but is read-only on the gig's shared details, schedule and other organizations' contacts until it's reactivated.`,
+    )) return;
+    await markInactive();
+  };
+
   // An organization Inactive on the gig reactivates itself (#175).
   const handleReactivate = async () => {
     try {
@@ -226,7 +279,11 @@ export default function GigPage({
   const ownsGig = managesGigOwner(gig, organization.id, userRole);
   const ownerName = gigOwnerName(gig);
   const inactiveHere = isInactiveOn(gig, organization.id);
-  const showMoreActions = ownsGig || canDelete;
+  // Another participant (not the owner) leaves, or marks itself Inactive.
+  const onGig = participants.some((p) => p.organization_id === organization.id);
+  const canLeave = canEdit && onGig && gig.owner_organization_id !== organization.id;
+  const canCancel = ownsGig && gig.status !== 'Cancelled';
+  const showMoreActions = ownsGig || canDelete || canLeave;
 
   const page = (
     <Tabs value={tab} onValueChange={setTab} activationMode="manual" className="gap-0">
@@ -284,6 +341,15 @@ export default function GigPage({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       {ownsGig && <DropdownMenuItem onClick={handleDuplicate}><Copy className="w-4 h-4 mr-2" />Duplicate Gig</DropdownMenuItem>}
+                      {canCancel && <DropdownMenuItem onClick={handleCancelGig}><Ban className="w-4 h-4 mr-2" />Cancel Gig</DropdownMenuItem>}
+                      {canLeave && !inactiveHere && (
+                        <DropdownMenuItem onClick={handleMarkInactive}><PauseCircle className="w-4 h-4 mr-2" />Mark Inactive</DropdownMenuItem>
+                      )}
+                      {canLeave && (
+                        <DropdownMenuItem onClick={handleLeave} className="text-red-600 focus:text-red-600">
+                          <LogOut className="w-4 h-4 mr-2" />Leave Gig
+                        </DropdownMenuItem>
+                      )}
                       {canDelete && (
                         <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
                           <Trash2 className="w-4 h-4 mr-2" />Delete Gig
