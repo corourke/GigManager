@@ -42,7 +42,7 @@ export async function updateGigParticipants(
 
     const { data: existingParticipants, error: fetchError } = await supabase
       .from('gig_participants')
-      .select('id, organization_id, role')
+      .select('id, organization_id, role, notes, is_client')
       .eq('gig_id', gigId);
 
     if (fetchError) throw fetchError;
@@ -63,6 +63,7 @@ export async function updateGigParticipants(
 
     const existingIds = (existingParticipants ?? []).map(p => p.id);
     const existingOrg = new Map((existingParticipants ?? []).map(p => [p.id, p.organization_id]));
+    const existingById = new Map((existingParticipants ?? []).map(p => [p.id, p as any]));
     const incomingIds = participants
       .filter(p => p.id && UUID_REGEX.test(p.id))
       .map(p => p.id!);
@@ -95,6 +96,14 @@ export async function updateGigParticipants(
       };
 
       if (isDbId && existingIds.includes(participant.id!) && !moved.has(participant.id!)) {
+        // Only rows that changed are written: a user may not be allowed to change the others
+        // (an Inactive organization keeps only its own notes, #175), and an unchanged row needs nothing.
+        const before = existingById.get(participant.id!);
+        if (before && before.role === changes.role && (before.notes || null) === changes.notes
+            && (before.is_client ?? false) === changes.is_client) {
+          ids.push(participant.id);
+          continue;
+        }
         const { data: updated, error: updateError } = await supabase.from('gig_participants').update(changes).eq('id', participant.id!).select('id');
         if (updateError) throw updateError;
         if (!updated || updated.length === 0) {
