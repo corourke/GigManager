@@ -36,7 +36,7 @@ import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '../ui/utils';
-import { isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
+import { inactiveBannerText, isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
 import type { GigStatus } from '../../utils/supabase/types';
 import type { OrganizationRole } from '../../utils/supabase/types';
 
@@ -453,7 +453,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       <div className="flex-1 p-4 space-y-3 pb-12">
         {inactiveHere && (
           <div className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700">
-            {selectedOrganization?.name ?? 'Your organization'} is Inactive on this gig. Shared details, the schedule and other organizations' contacts are read-only.
+            {inactiveBannerText(selectedOrganization?.name ?? 'Your organization')}
           </div>
         )}
         {myAssignments.length > 0 && (

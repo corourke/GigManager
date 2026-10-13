@@ -16,6 +16,7 @@ import GigParticipantContactsList from './GigParticipantContactsList';
 import { getGig, updateGigParticipants } from '../../services/gig.service';
 import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { canManage } from '../../utils/permissions';
+import { markInactiveConfirmText } from '../../utils/gigOwnership';
 import type { UserRole } from '../../utils/supabase/constants';
 import { createClient } from '../../utils/supabase/client';
 import {
@@ -298,7 +299,7 @@ export default function GigParticipantsSection({
     } catch (error: any) {
       const message: string = error?.message || 'Failed to remove the organization';
       if (/only be marked Inactive/.test(message)) {
-        if (confirm(`${message}\n\nMark ${orgName} Inactive instead?`)) {
+        if (confirm(`${message}\n\n${markInactiveConfirmText(orgName)}`)) {
           await handleToggleInactive(orgId, orgName, true, false);
         }
         return;
@@ -308,10 +309,7 @@ export default function GigParticipantsSection({
   };
 
   const handleToggleInactive = async (orgId: string, orgName: string, inactive: boolean, ask = true) => {
-    if (inactive && ask && !confirm(
-      `Mark ${orgName} Inactive on this gig? It keeps its role and its own staffing, financials and kits, ` +
-      `but is read-only on the gig's shared details, schedule and other organizations' contacts until it's reactivated.`,
-    )) return;
+    if (inactive && ask && !confirm(markInactiveConfirmText(orgName))) return;
     try {
       await setGigParticipantInactive(gigId, orgId, inactive);
       setInactiveOrgs((prev) => {
@@ -490,13 +488,13 @@ export default function GigParticipantsSection({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {(!myOrgInactive || rowOrgId === currentOrganizationId) && (
+                      {!myOrgInactive && (
                         <DropdownMenuItem onClick={() => setAddContactForIndex(index)}>
                           <UserPlus className="w-4 h-4 mr-2" />
                           Add Contact
                         </DropdownMenuItem>
                       )}
-                      {!myOrgInactive && (
+                      {(!myOrgInactive || rowOrgId === currentOrganizationId) && (
                         <DropdownMenuItem onClick={() => handleOpenParticipantNotes(index)}>
                           <FileText className="w-4 h-4 mr-2" />
                           Notes
@@ -555,7 +553,7 @@ export default function GigParticipantsSection({
                   organizationName={participant.organization_name || 'this organization'}
                   addDialogOpen={addContactForIndex === index}
                   onAddDialogOpenChange={(open) => setAddContactForIndex(open ? index : null)}
-                  readOnly={myOrgInactive && participant.organization_id !== currentOrganizationId}
+                  readOnly={myOrgInactive}
                 />
               )}
             </div>

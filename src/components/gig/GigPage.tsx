@@ -37,7 +37,7 @@ import { countChildGigs, deleteGig, duplicateGig, getGig } from '../../services/
 import { getGigActivity } from '../../services/activityLog.service';
 import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
 import { canManage } from '../../utils/permissions';
-import { deleteGigBlockedReason, gigOwnerName, isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
+import { deleteGigBlockedReason, gigOwnerName, inactiveBannerText, isInactiveOn, managesGigOwner, markInactiveConfirmText } from '../../utils/gigOwnership';
 import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
@@ -190,7 +190,7 @@ export default function GigPage({
     } catch (error: any) {
       const message: string = error?.message || 'Failed to leave the gig';
       if (/only be marked Inactive/.test(message)) {
-        if (confirm(`${message}\n\nMark ${organization.name} Inactive instead? It keeps its own staffing, financials and kits on the gig.`)) {
+        if (confirm(`${message}\n\n${markInactiveConfirmText(organization.name)}`)) {
           await markInactive();
         }
         return;
@@ -200,10 +200,7 @@ export default function GigPage({
   };
 
   const handleMarkInactive = async () => {
-    if (!confirm(
-      `Mark ${organization.name} Inactive on this gig? It keeps its role and its own staffing, financials and kits, ` +
-      `but is read-only on the gig's shared details, schedule and other organizations' contacts until it's reactivated.`,
-    )) return;
+    if (!confirm(markInactiveConfirmText(organization.name))) return;
     await markInactive();
   };
 
@@ -389,7 +386,7 @@ export default function GigPage({
           <Alert className="mb-4 bg-gray-100 border-gray-300 text-gray-700">
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
               <span>
-                {organization.name} is Inactive on this gig. Shared details, the schedule and other organizations' contacts are read-only.
+                {inactiveBannerText(organization.name)}
               </span>
               {canEdit && (
                 <Button variant="outline" size="sm" onClick={handleReactivate}>Reactivate</Button>

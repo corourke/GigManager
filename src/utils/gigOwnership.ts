@@ -64,3 +64,17 @@ export function deleteGigBlockedReason(
   }
   return null;
 }
+
+/**
+ * What Inactive means, in Cameron's terms (10-13): the organization is being removed from the
+ * gig. Its financial records and notes are kept so sunk costs and agreements can be settled;
+ * its staff and equipment are released first, and it can't change anything else.
+ */
+export function inactiveBannerText(orgName: string): string {
+  return `${orgName} is Inactive on this gig: it is being removed. Its financial records and notes are kept; everything else is read-only.`;
+}
+
+export function markInactiveConfirmText(orgName: string): string {
+  return `Mark ${orgName} Inactive? It's being removed from the gig: its financial records and notes are kept ` +
+    `so sunk costs and agreements can be settled, but it can't change anything else. Release its staff and equipment first.`;
+}

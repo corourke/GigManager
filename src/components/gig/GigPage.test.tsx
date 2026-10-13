@@ -291,7 +291,7 @@ describe('GigPage (#12)', () => {
       const user = await open('Manager');
       await user.click(await screen.findByRole('menuitem', { name: /Leave Gig/ }));
       await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-1', true));
-      expect(confirmSpy.mock.calls.at(-1)?.[0]).toMatch(/Mark .* Inactive instead/);
+      expect(confirmSpy.mock.calls.at(-1)?.[0]).toMatch(/only be marked Inactive[\s\S]*Mark Northwest Sound Co Inactive\?/);
       expect(baseProps.onBack).not.toHaveBeenCalled();
     });
 
