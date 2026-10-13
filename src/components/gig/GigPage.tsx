@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Ban, Copy, LogOut, Loader2, MoreVertical, PauseCircle, Pencil, Printer, Trash2 } from 'lucide-react';
+import { Copy, LogOut, Loader2, MoreVertical, PauseCircle, Pencil, Printer, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import AppHeader from '../AppHeader';
 import AttachmentManager from '../AttachmentManager';
@@ -33,11 +33,11 @@ import { GigStatusField, GigTagsField, GigTitleField } from './basicInfo/GigBasi
 import { EditSaveStatus, GigEditForm, NotesCard, WhenAndScheduleCard } from './edit/GigEditParts';
 import { useEditSession } from '../../utils/hooks/editSession';
 import { EditSessionProvider } from '../../utils/hooks/EditSessionProvider';
-import { deleteGig, duplicateGig, getGig, updateGig } from '../../services/gig.service';
+import { countChildGigs, deleteGig, duplicateGig, getGig } from '../../services/gig.service';
 import { getGigActivity } from '../../services/activityLog.service';
 import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
-import { canDeleteGig, canManage } from '../../utils/permissions';
-import { gigOwnerName, isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
+import { canManage } from '../../utils/permissions';
+import { deleteGigBlockedReason, gigOwnerName, isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
 import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
@@ -83,8 +83,9 @@ export default function GigPage({
   onLogout,
 }: GigPageProps) {
   const canEdit = canManage(userRole);
-  // Deleting a gig is Admin-only on the server (#175).
-  const canDelete = canDeleteGig(userRole);
+  // #175: a parent gig can't be deleted; Delete says so (Cameron 10-13).
+  const [childGigCount, setChildGigCount] = useState(0);
+  const [deleteReasonShown, setDeleteReasonShown] = useState(false);
   const [gig, setGig] = useState<Gig | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(initialEditing && canEdit);
@@ -117,6 +118,7 @@ export default function GigPage({
     try {
       const data = await getGig(gigId);
       setGig(data);
+      countChildGigs(gigId).then(setChildGigCount).catch(() => setChildGigCount(0));
       checkAllConflicts(gigId, data.start, data.end, data.timezone, organization.id).then((r) => setConflicts(r.conflicts)).catch(() => {});
     } catch (error: any) {
       setLoadError(error.message || 'Failed to load this gig.');
@@ -161,18 +163,6 @@ export default function GigPage({
       onGigDeleted();
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete gig');
-    }
-  };
-
-  // #175: the owner cancels the gig.
-  const handleCancelGig = async () => {
-    if (!confirm(`Cancel "${gig?.title}"? Its status becomes Cancelled for every organization on it.`)) return;
-    try {
-      await updateGig(gigId, { status: 'Cancelled' });
-      toast.success('Gig cancelled');
-      await loadGig();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to cancel gig');
     }
   };
 
@@ -282,8 +272,9 @@ export default function GigPage({
   // Another participant (not the owner) leaves, or marks itself Inactive.
   const onGig = participants.some((p) => p.organization_id === organization.id);
   const canLeave = canEdit && onGig && gig.owner_organization_id !== organization.id;
-  const canCancel = ownsGig && gig.status !== 'Cancelled';
-  const showMoreActions = ownsGig || canDelete || canLeave;
+  // Delete stays in the menu; when it would be refused it's disabled with its reason (Cameron 10-13).
+  const deleteBlocked = deleteGigBlockedReason(gig, organization.id, userRole, childGigCount);
+  const showMoreActions = canEdit;
 
   const page = (
     <Tabs value={tab} onValueChange={setTab} activationMode="manual" className="gap-0">
@@ -335,13 +326,12 @@ export default function GigPage({
             ) : (
               <>
                 {showMoreActions && (
-                  <DropdownMenu>
+                  <DropdownMenu onOpenChange={(open) => { if (!open) setDeleteReasonShown(false); }}>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="icon" aria-label="More actions"><MoreVertical className="w-4 h-4" /></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       {ownsGig && <DropdownMenuItem onClick={handleDuplicate}><Copy className="w-4 h-4 mr-2" />Duplicate Gig</DropdownMenuItem>}
-                      {canCancel && <DropdownMenuItem onClick={handleCancelGig}><Ban className="w-4 h-4 mr-2" />Cancel Gig</DropdownMenuItem>}
                       {canLeave && !inactiveHere && (
                         <DropdownMenuItem onClick={handleMarkInactive}><PauseCircle className="w-4 h-4 mr-2" />Mark Inactive</DropdownMenuItem>
                       )}
@@ -350,7 +340,22 @@ export default function GigPage({
                           <LogOut className="w-4 h-4 mr-2" />Leave Gig
                         </DropdownMenuItem>
                       )}
-                      {canDelete && (
+                      {deleteBlocked ? (
+                        <>
+                          {/* Not `disabled`: a disabled item gets no clicks or taps, so the reason couldn't be reached on touch. */}
+                          <DropdownMenuItem
+                            aria-disabled="true"
+                            title={deleteBlocked}
+                            className="text-gray-400 focus:text-gray-500"
+                            onSelect={(e) => { e.preventDefault(); setDeleteReasonShown(true); }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />Delete Gig
+                          </DropdownMenuItem>
+                          {deleteReasonShown && (
+                            <p role="note" className="max-w-[16rem] px-2 pb-2 text-xs text-gray-600">{deleteBlocked}</p>
+                          )}
+                        </>
+                      ) : (
                         <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
                           <Trash2 className="w-4 h-4 mr-2" />Delete Gig
                         </DropdownMenuItem>

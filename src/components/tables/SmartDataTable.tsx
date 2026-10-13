@@ -50,6 +50,12 @@ export interface RowAction<T> {
   disabled?: (row: T) => boolean;
   /** Leaves the action out of this row's menu. */
   hidden?: (row: T) => boolean;
+  /**
+   * Why the action can't be done on this row, or null. The item then shows greyed and
+   * aria-disabled, and selecting it shows the reason in the menu instead of running it.
+   * It isn't `disabled`, which would take no clicks or taps, leaving the reason out of reach on touch.
+   */
+  blockedReason?: (row: T) => string | null;
 }
 
 export interface ColumnDef<T> {
@@ -417,45 +423,7 @@ export function SmartDataTable<T extends { id: string }>({
 
   const renderRowActions = (row: T) => {
     if (!rowActions) return null;
-
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[160px]">
-          {rowActions.filter((action) => !action.hidden?.(row)).map((action) => {
-            const Icon = action.icon || {
-              view: <Eye className="h-4 w-4" />,
-              edit: <Edit className="h-4 w-4" />,
-              duplicate: <Copy className="h-4 w-4" />,
-              delete: <Trash2 className="h-4 w-4" />,
-            }[action.id];
-
-            return (
-              <DropdownMenuItem
-                key={action.id}
-                onClick={() => action.onClick(row)}
-                disabled={action.disabled?.(row)}
-                className={cn(
-                  action.id === 'delete' && "text-destructive focus:text-destructive",
-                  action.className
-                )}
-              >
-                {Icon}
-                <span className="ml-2">{action.label || action.id.charAt(0).toUpperCase() + action.id.slice(1)}</span>
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
+    return <RowActionsMenu row={row} actions={rowActions} />;
   };
 
   if (isLoading) {
@@ -721,5 +689,53 @@ export function SmartDataTable<T extends { id: string }>({
         )}
       </div>
     </div>
+  );
+}
+
+function RowActionsMenu<T>({ row, actions }: { row: T; actions: RowAction<T>[] }) {
+  const [reason, setReason] = useState<string | null>(null);
+  return (
+    <DropdownMenu onOpenChange={(open) => { if (!open) setReason(null); }}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[160px]">
+        {actions.filter((action) => !action.hidden?.(row)).map((action) => {
+          const Icon = action.icon || {
+            view: <Eye className="h-4 w-4" />,
+            edit: <Edit className="h-4 w-4" />,
+            duplicate: <Copy className="h-4 w-4" />,
+            delete: <Trash2 className="h-4 w-4" />,
+          }[action.id];
+          const blocked = action.blockedReason?.(row) ?? null;
+
+          return (
+            <DropdownMenuItem
+              key={action.id}
+              onSelect={blocked ? (e) => { e.preventDefault(); setReason(blocked); } : undefined}
+              onClick={blocked ? undefined : () => action.onClick(row)}
+              disabled={action.disabled?.(row)}
+              aria-disabled={blocked ? 'true' : undefined}
+              title={blocked ?? undefined}
+              className={cn(
+                action.id === 'delete' && !blocked && "text-destructive focus:text-destructive",
+                blocked && "text-muted-foreground",
+                action.className
+              )}
+            >
+              {Icon}
+              <span className="ml-2">{action.label || action.id.charAt(0).toUpperCase() + action.id.slice(1)}</span>
+            </DropdownMenuItem>
+          );
+        })}
+        {reason && <p role="note" className="px-2 pb-2 text-xs text-muted-foreground">{reason}</p>}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

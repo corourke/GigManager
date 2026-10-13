@@ -494,6 +494,9 @@ export default function GigListScreen({
         id: 'delete',
         label: 'Delete',
         onClick: (row: Gig) => handleGigDelete(row.id),
+        // Only an Admin of the gig's owner deletes it (#175); the database explains its other refusals.
+        blockedReason: (row: Gig) => (row.owner_organization_id === organization.id
+          ? null : "Only an Admin of the gig's owner organization can delete it."),
       },
     ] satisfies RowAction<Gig>[]) : []),
   ], [canEdit, canDelete, onViewGig, onEditGig, handleGigDuplicate, handleGigDelete, organization.id, userRole]);

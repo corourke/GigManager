@@ -12,7 +12,7 @@ interface GigLike {
   participants?: Array<{
     organization_id?: string | null;
     inactive?: boolean | null;
-    organization?: { id?: string; name?: string } | null;
+    organization?: { id?: string; name?: string; claimed?: boolean | null } | null;
   }> | null;
 }
 
@@ -39,4 +39,28 @@ export function gigOwnerName(gig: GigLike | null | undefined): string {
     (p) => (p.organization_id ?? p.organization?.id) === gig?.owner_organization_id,
   );
   return owner?.organization?.name ?? '';
+}
+
+/**
+ * Why deleting the gig would be refused, or null (#175; Cameron 10-13). Mirrors the gigs
+ * DELETE rule: an Admin of the owner, no child gigs, no other claimed organization on it.
+ */
+export function deleteGigBlockedReason(
+  gig: GigLike | null | undefined,
+  organizationId: string | null | undefined,
+  role: UserRole | null | undefined,
+  childGigCount: number,
+): string | null {
+  if (!gig?.owner_organization_id || gig.owner_organization_id !== organizationId || role !== 'Admin') {
+    return "Only an Admin of the gig's owner organization can delete it.";
+  }
+  if (childGigCount > 0) {
+    return 'Delete gig is disabled as this gig has child gigs -- delete them first, or you can Cancel the gig instead.';
+  }
+  const othersClaimed = (gig.participants ?? []).some((p) =>
+    (p.organization_id ?? p.organization?.id) !== gig.owner_organization_id && !!p.organization?.claimed);
+  if (othersClaimed) {
+    return 'Delete gig is disabled as there are other claimed organizations participating -- you can Cancel the gig instead.';
+  }
+  return null;
 }
