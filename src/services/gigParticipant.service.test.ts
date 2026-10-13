@@ -239,16 +239,14 @@ describe('updateGigParticipants activity log organization (issue #103)', () => {
     expect(db.calls.some(c => c.table === 'organization_members')).toBe(false);
   });
 
-  it('logs removals against the acting org too', async () => {
+  // #175: removals are logged by the database, in the same step as the delete.
+  it('leaves logging removals to the database', async () => {
     useDb(baseRows);
 
     await updateGigParticipants('gig-1', [incoming[1]], undefined, [VENUE_ROW, PROD_ROW]);
 
-    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
-      event_type: 'participant.removed',
-      organization_id: 'org-prod',
-      context: expect.objectContaining({ gig_title: 'Test Gig', actor_org_name: 'Prod Co', role: 'Venue' }),
-    }));
+    expect(db.calls.filter(c => c.table === 'gig_participants' && c.ops.some(o => o.method === 'delete'))).toHaveLength(1);
+    expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({ event_type: 'participant.removed' }));
   });
 
   it('does not log with a null organization when the lookup query fails, and still saves', async () => {
@@ -408,48 +406,29 @@ describe('removing an organization from a gig, and Inactive (#175)', () => {
   beforeEach(() => { consoleError = vi.spyOn(console, 'error').mockImplementation(() => {}); });
   afterEach(() => consoleError.mockRestore());
 
-  it("removes every one of the organization's roles on the gig, and logs each", async () => {
+  it("removes every one of the organization's roles on the gig, and leaves the log to the database", async () => {
     const db = setup();
-    await expect(removeGigParticipant('gig-1', 'org-2', ctx)).resolves.toEqual({ success: true });
+    await expect(removeGigParticipant('gig-1', 'org-2')).resolves.toEqual({ success: true });
     const [del] = writes(db, 'delete');
     expect(filters(del)).toEqual(expect.arrayContaining([['gig_id', 'gig-1'], ['organization_id', 'org-2']]));
-    expect(logActivity).toHaveBeenCalledTimes(2);
-    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
-      event_type: 'participant.removed', organization_id: 'org-1', entity_id: 'p-b', gig_id: 'gig-1',
-      context: expect.objectContaining({ organization_name: 'Sound Co', role: 'Lighting' }),
-    }));
-  });
-
-  // #175 review: the actor's organization is found among the gig's participants, not the one removed.
-  it("logs against the remover's own organization when no context is passed", async () => {
-    setup({
-      gig_participants: [...rows, { id: 'p-o', gig_id: 'gig-1', organization_id: 'org-1', role: 'Production' }],
-      gigs: { title: 'Gig' },
-      organization_members: [{ organization_id: 'org-1', role: 'Manager' }],
-      organizations: { 'org-1': 'Owner Co', 'org-2': 'Sound Co' },
-    });
-    await removeGigParticipant('gig-1', 'org-2');
-    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
-      event_type: 'participant.removed', organization_id: 'org-1',
-      context: expect.objectContaining({ actor_org_name: 'Owner Co', organization_name: 'Sound Co' }),
-    }));
+    expect(logActivity).not.toHaveBeenCalled();
   });
 
   it("passes on the database's reason when it won't remove the organization, and logs nothing", async () => {
     setup({ writeError: { method: 'delete', error: { code: '23503', message: 'This organization has financials, kits or staff on the gig, so it can only be marked Inactive.' } } });
-    await expect(removeGigParticipant('gig-1', 'org-2', ctx)).rejects.toThrow(/only be marked Inactive/);
+    await expect(removeGigParticipant('gig-1', 'org-2')).rejects.toThrow(/only be marked Inactive/);
     expect(logActivity).not.toHaveBeenCalled();
   });
 
   it('a removal the database silently refuses is reported, not taken as done', async () => {
     setup({ refuse: 'delete' });
-    await expect(removeGigParticipant('gig-1', 'org-2', ctx)).rejects.toThrow(/permission/i);
+    await expect(removeGigParticipant('gig-1', 'org-2')).rejects.toThrow(/permission/i);
     expect(logActivity).not.toHaveBeenCalled();
   });
 
   it("says so when the organization isn't on the gig, and deletes nothing", async () => {
     const db = setup();
-    await expect(removeGigParticipant('gig-1', 'org-9', ctx)).rejects.toThrow(/not on this gig/i);
+    await expect(removeGigParticipant('gig-1', 'org-9')).rejects.toThrow(/not on this gig/i);
     expect(writes(db, 'delete')).toHaveLength(0);
   });
 

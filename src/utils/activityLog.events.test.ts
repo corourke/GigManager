@@ -127,6 +127,13 @@ describe('ACTIVITY_EVENTS', () => {
     })).toBe('All day festival converted to Accepted from Informal Terms $1,800.00 (2026-07-22), Bid Accepted $1,000.00 (2026-07-29)');
   });
 
+  // #175: the database logs removals, and marks an organization leaving the gig.
+  it('participant.removed says an organization left the gig', () => {
+    const cfg = ACTIVITY_EVENTS['participant.removed'];
+    expect(cfg.format({ ...ctx, organization_name: 'Sound Co', role: 'Sound', left: true })).toBe('Sound Co left the gig');
+    expect(cfg.format({ ...ctx, organization_name: 'Sound Co', role: 'Sound', left: false })).toBe('Sound Co removed as Sound participant');
+  });
+
   it('schedule_entry.added format renders each added entry', () => {
     const cfg = ACTIVITY_EVENTS['schedule_entry.added'];
     const result = cfg.format({
