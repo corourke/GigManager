@@ -58,7 +58,7 @@ import { isGigPast } from '../utils/gigTimeframe';
 import { GIG_STATUS_CONFIG, TAG_CONFIG } from '../utils/supabase/constants';
 import { formatDateTimeDisplay, formatTimeDisplay, isNoonUTC } from '../utils/dateUtils';
 import { canDeleteGig, canManage } from '../utils/permissions';
-import { isInactiveOn, managesGigOwner } from '../utils/gigOwnership';
+import { deleteGigBlockedReason, isInactiveOn, managesGigOwner } from '../utils/gigOwnership';
 import { PageHeader } from './layout/PageHeader';
 import { checkAllConflictsForGigs, Conflict } from '../services/conflictDetection.service';
 
@@ -289,9 +289,15 @@ export default function GigListScreen({
       type: 'text',
       className: 'w-[25%]',
       onCellClick: (row) => onViewGig(row.id),
-      render: (val) => (
-        <span className="font-medium text-gray-900 hover:underline cursor-pointer">
-          {val || <span className="text-gray-400 italic">Untitled Gig</span>}
+      render: (val, row) => (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-medium text-gray-900 hover:underline cursor-pointer">
+            {val || <span className="text-gray-400 italic">Untitled Gig</span>}
+          </span>
+          {/* #175: this organization is Inactive on the gig (being removed from it). */}
+          {isInactiveOn(row, organization.id) && (
+            <span className="rounded border border-gray-300 bg-gray-100 px-1.5 text-[11px] font-medium text-gray-600">Inactive</span>
+          )}
         </span>
       ),
     },
@@ -494,9 +500,9 @@ export default function GigListScreen({
         id: 'delete',
         label: 'Delete',
         onClick: (row: Gig) => handleGigDelete(row.id),
-        // Only an Admin of the gig's owner deletes it (#175); the database explains its other refusals.
-        blockedReason: (row: Gig) => (row.owner_organization_id === organization.id
-          ? null : "Only an Admin of the gig's owner organization can delete it."),
+        // #175: the reasons the row's own data shows (owner, other claimed organizations); child
+        // gigs aren't loaded here, so the database's refusal explains that one.
+        blockedReason: (row: Gig) => deleteGigBlockedReason(row, organization.id, userRole, 0),
       },
     ] satisfies RowAction<Gig>[]) : []),
   ], [canEdit, canDelete, onViewGig, onEditGig, handleGigDuplicate, handleGigDelete, organization.id, userRole]);

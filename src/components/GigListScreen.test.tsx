@@ -441,7 +441,8 @@ describe('GigListScreen', () => {
         onViewGig={noop} onEditGig={noop} onNavigateToDashboard={noop} onNavigateToGigs={noop}
         onNavigateToAssets={noop} onSwitchOrganization={noop} onLogout={noop} />
     );
-    const title = await screen.findByText('Upcoming Show');
-    expect(within(title.closest('tr') as HTMLElement).getByText('Inactive')).toBeInTheDocument();
+    const titles = await screen.findAllByText('Upcoming Show');
+    const row = titles.map((t) => t.closest('tr')).find(Boolean) as HTMLElement;
+    expect(within(row).getByText('Inactive')).toBeInTheDocument();
   });
 });
