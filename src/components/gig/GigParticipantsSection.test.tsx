@@ -335,6 +335,26 @@ describe('GigParticipantsSection deletes only rows it loaded (#92)', () => {
     await waitFor(() => expect(removeGigParticipant).toHaveBeenCalledWith('test-gig-id', 'org-2'));
   });
 
+  // Coordinator follow-up: the service compares each row with what this section loaded or
+  // last saved, so it sends only what the user changed.
+  it('passes what it loaded, then what it saved, as the rows to compare with', async () => {
+    render(<GigParticipantsSection {...props} />);
+    await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());
+    fireEvent.change(screen.getAllByLabelText('Role')[0], { target: { value: 'Sound' } });
+    await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    expect(calls()[0][4]).toEqual([
+      { id: MINE, role: 'Production', notes: null, is_client: false },
+      { id: OTHER, role: 'Venue', notes: null, is_client: false },
+    ]);
+
+    fireEvent.change(screen.getAllByLabelText('Role')[1], { target: { value: 'Act' } });
+    await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    expect(calls()[1][4]).toEqual([
+      { id: MINE, role: 'Sound', notes: null, is_client: false },
+      { id: OTHER, role: 'Venue', notes: null, is_client: false },
+    ]);
+  });
+
   it('drops a row that was never saved without asking the database', async () => {
     render(<GigParticipantsSection {...props} />);
     await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());

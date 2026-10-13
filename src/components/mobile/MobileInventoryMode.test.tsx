@@ -5,11 +5,11 @@ import { format } from 'date-fns'
 import MobileInventoryMode from './MobileInventoryMode'
 import { SCANNING_MODES } from '../../config/inventoryWorkflow'
 
-const auth = vi.hoisted(() => ({ role: 'Admin' as string | undefined }))
+const auth = vi.hoisted(() => ({ role: 'Admin' as string | undefined, orgId: 'org-1' }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'user-1', first_name: 'Sam', last_name: 'Lee', email: 'sam@example.test' },
-    selectedOrganization: { id: 'org-1' },
+    selectedOrganization: { id: auth.orgId },
     userRole: auth.role,
   }),
 }))
@@ -985,16 +985,45 @@ describe('MobileInventoryMode', () => {
     })
 
     // #175 review: an organization Inactive on the gig adds no equipment to it.
+    // #175 review: an organization Inactive on the gig adds no equipment to it. Read from the
+    // gig's own participants on the packing list, for the organization selected.
+    const participants = (inactive: boolean) => [
+      { organization_id: 'org-1', inactive },
+      { organization_id: 'org-2', inactive: false },
+    ]
+
     it('offers nothing to add while the organization is Inactive on the gig', async () => {
-      vi.mocked(idbStore.getGigs).mockResolvedValue([
-        { id: 'gig-1', title: 'Warehouse Check-In', participants: [{ organization_id: 'org-1', role: 'Sound', inactive: true }] },
-      ] as any)
+      vi.mocked(idbStore.getGigs).mockResolvedValue([])
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({ participants: participants(true) }))
       await renderIn()
       expect(await screen.findByText(/Inactive on this gig/)).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: '+ Add' })).not.toBeInTheDocument()
       await act(async () => { await scannerProps.onScan('CASE-1') })
       expect(screen.queryByRole('button', { name: 'Add to this gig' })).not.toBeInTheDocument()
       expect(inventoryTrackingService.addKitAtPackOut).not.toHaveBeenCalled()
+    })
+
+    it("follows the gig's participants, not an older cached gig", async () => {
+      vi.mocked(idbStore.getGigs).mockResolvedValue([
+        { id: 'gig-1', title: 'Warehouse Check-In', participants: [{ organization_id: 'org-1', role: 'Sound', inactive: true }] },
+      ] as any)
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({ participants: participants(false) }))
+      await renderIn()
+      expect(await screen.findByRole('button', { name: '+ Add' })).toBeInTheDocument()
+      expect(screen.queryByText(/Inactive on this gig/)).not.toBeInTheDocument()
+    })
+
+    it('recomputes when the selected organization changes', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({ participants: participants(true) }))
+      const { rerender } = render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      expect(await screen.findByText(/Inactive on this gig/)).toBeInTheDocument()
+      auth.orgId = 'org-2'
+      try {
+        rerender(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+        expect(await screen.findByRole('button', { name: '+ Add' })).toBeInTheDocument()
+      } finally {
+        auth.orgId = 'org-1'
+      }
     })
 
     // #246 review: what's already on the gig is marked, never added twice.
