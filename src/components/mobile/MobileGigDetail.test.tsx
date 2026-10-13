@@ -396,6 +396,35 @@ describe('MobileGigDetail', () => {
       expect(vi.mocked(updateGigParticipants).mock.calls[0][3]).toEqual(['p1', 'p2'])
     })
 
+    // #175: the save used to send only id, organization and role, and the service writes
+    // notes and the client flag from what it's sent, so every mobile edit cleared them.
+    it("keeps each participant's notes and client flag when saving", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1', name: 'Org One' },
+      })
+      vi.mocked(getGig).mockResolvedValue({
+        ...mockGig,
+        participants: [
+          { ...mockGig.participants[0], organization_id: 'org-1', notes: 'Dock B', is_client: true },
+          { ...mockGig.participants[1], organization_id: 'org-2', notes: null, is_client: false },
+        ],
+      } as unknown as Awaited<ReturnType<typeof getGig>>)
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+      await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+      await waitFor(() => expect(screen.getByPlaceholderText('Gig title')).toBeInTheDocument())
+
+      fireEvent.click(screen.getByText('Save'))
+
+      await waitFor(() => expect(updateGigParticipants).toHaveBeenCalled())
+      expect(vi.mocked(updateGigParticipants).mock.calls[0][1]).toEqual([
+        expect.objectContaining({ id: 'p1', notes: 'Dock B', is_client: true }),
+        expect.objectContaining({ id: 'p2', notes: null, is_client: false }),
+      ])
+    })
+
     it('shows toast error and stays in edit mode when updateGig rejects', async () => {
       vi.mocked(updateGig).mockRejectedValue(new Error('Server error'))
       mockUseAuth.mockReturnValue({
