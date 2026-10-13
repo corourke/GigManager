@@ -85,8 +85,10 @@ SELECT rls_test.expect('C''s Admin removes the unclaimed venue', rls_test.keep('
 SELECT rls_test.expect('…logged against C', (SELECT (organization_id = rls_test.u('org_c'))::int FROM rls_test.entry('gig', 'Venue V')), 1);
 
 -- ── Leaving ────────────────────────────────────────────────────────────────
-SELECT rls_test.expect('B''s Admin leaves the gig', rls_test.keep('b_admin', rls_test.del_part('gig', 'org_b')), 1);
-SELECT rls_test.expect('…one entry', rls_test.removals('gig', 'Org B'), 1);
+INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (rls_test.u('gig'), rls_test.u('org_b'), 'Lighting');
+SELECT rls_test.expect('B''s Admin leaves the gig (both of its roles)', rls_test.keep('b_admin', rls_test.del_part('gig', 'org_b')), 2);
+SELECT rls_test.expect('…one entry, not one per role', rls_test.removals('gig', 'Org B'), 1);
+SELECT rls_test.expect('…naming both roles', (SELECT (context->>'role' = 'Lighting, Sound')::int FROM rls_test.entry('gig', 'Org B')), 1);
 SELECT rls_test.expect('…marked as a leave', (SELECT (context->>'left' = 'true')::int FROM rls_test.entry('gig', 'Org B')), 1);
 SELECT rls_test.expect('…logged against B', (SELECT (organization_id = rls_test.u('org_b'))::int FROM rls_test.entry('gig', 'Org B')), 1);
 SELECT rls_test.expect('the owner''s Staff see it',
@@ -96,11 +98,21 @@ SELECT rls_test.expect('C sees it too',
 SELECT rls_test.expect('B, no longer on the gig, doesn''t',
   rls_test.visible(rls_test.u('b_admin'), 'activity_log', format('event_type = %L AND gig_id = %L', 'participant.removed', rls_test.u('gig'))), 0);
 
+-- ── Removed by someone who manages both the owner and the organization ─────
+-- Acting as the owner: a removal, not a leave, logged against the owner.
+INSERT INTO organization_members (organization_id, user_id, role) VALUES (rls_test.u('org_c'), rls_test.u('a_admin'), 'Admin');
+SELECT rls_test.expect('owner Admin, also C''s Admin, removes C', rls_test.keep('a_admin', rls_test.del_part('gig', 'org_c')), 1);
+SELECT rls_test.expect('…not a leave', (SELECT (context->>'left' = 'false')::int FROM activity_log
+  WHERE event_type = 'participant.removed' AND actor_id = rls_test.u('a_admin') AND context->>'organization_name' = 'Org C'), 1);
+SELECT rls_test.expect('…logged against the owner', (SELECT (organization_id = rls_test.u('org_a'))::int FROM activity_log
+  WHERE event_type = 'participant.removed' AND actor_id = rls_test.u('a_admin') AND context->>'organization_name' = 'Org C'), 1);
+
 -- ── Cascades and unsigned writes log nothing ───────────────────────────────
 SELECT rls_test.expect('owner Admin deletes gig Z (only an unclaimed venue on it)', rls_test.keep('a_admin', format('DELETE FROM gigs WHERE id = %L', rls_test.u('gig_z'))), 1);
 SELECT rls_test.expect('…no removal entries', (SELECT count(*)::int FROM activity_log WHERE event_type = 'participant.removed' AND entity_id IN
   (SELECT id FROM gig_participants WHERE gig_id = rls_test.u('gig_z'))), 0);
 SELECT rls_test.expect('…and none written for gig Z at all', (SELECT count(*)::int FROM activity_log WHERE event_type = 'participant.removed' AND context->>'gig_title' = 'Gig Z'), 0);
 
+INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (rls_test.u('gig'), rls_test.u('org_c'), 'Staging');
 DELETE FROM gig_participants WHERE gig_id = rls_test.u('gig') AND organization_id = rls_test.u('org_c');
-SELECT rls_test.expect('a removal with no signed-in user isn''t logged (C keeps its one entry)', rls_test.removals('gig', 'Org C'), 1);
+SELECT rls_test.expect('a removal with no signed-in user isn''t logged (C keeps its two entries)', rls_test.removals('gig', 'Org C'), 2);
