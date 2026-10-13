@@ -37,6 +37,8 @@ import { deleteGig, duplicateGig, getGig } from '../../services/gig.service';
 import { getGigActivity } from '../../services/activityLog.service';
 import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
 import { canDeleteGig, canManage } from '../../utils/permissions';
+import { gigOwnerName, isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
+import { setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
 import type { ActivityLogEntry, Gig, Organization, User, UserRole } from '../../utils/supabase/types';
@@ -162,6 +164,17 @@ export default function GigPage({
     }
   };
 
+  // An organization Inactive on the gig reactivates itself (#175).
+  const handleReactivate = async () => {
+    try {
+      await setGigParticipantInactive(gigId, organization.id, false);
+      toast.success(`${organization.name} is active on this gig again`);
+      await loadGig();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to reactivate');
+    }
+  };
+
   const shell = (children: React.ReactNode, printSheet?: React.ReactNode) => (
     <div className="min-h-screen bg-gray-50">
       <div className="no-print">
@@ -208,6 +221,12 @@ export default function GigPage({
   const ownSlots = (gig.staff_slots ?? []).filter((s) => s.organization_id === organization.id);
   const participantOrgIds = [organization.id, ...participants.map((p) => p.organization_id)];
   const status = GIG_STATUS_CONFIG[gig.status];
+  // #175: the owner's Admins and Managers change the status and duplicate the gig. An
+  // organization Inactive on the gig is read-only on its shared details and schedule.
+  const ownsGig = managesGigOwner(gig, organization.id, userRole);
+  const ownerName = gigOwnerName(gig);
+  const inactiveHere = isInactiveOn(gig, organization.id);
+  const showMoreActions = ownsGig || canDelete;
 
   const page = (
     <Tabs value={tab} onValueChange={setTab} activationMode="manual" className="gap-0">
@@ -223,16 +242,17 @@ export default function GigPage({
               {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
               {venue?.name ? ` · ${venue.name}` : ''}
             </span>
+            {ownerName && <span>Owned by {ownerName}</span>}
             {gig.tags.map((t) => <Badge key={t} variant="secondary" className="font-medium">{t}</Badge>)}
           </span>
         }
         heading={editing ? (
           <div className="flex flex-col gap-2 min-w-0" data-gig-header>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <GigTitleField variant="header" />
-              <GigStatusField variant="header" />
+              <GigTitleField variant="header" disabled={inactiveHere} />
+              <GigStatusField variant="header" disabled={inactiveHere || !ownsGig} />
             </div>
-            <GigTagsField variant="header" />
+            <GigTagsField variant="header" disabled={inactiveHere} />
           </div>
         ) : undefined}
         actions={(canEdit || !editing) ? (
@@ -257,19 +277,21 @@ export default function GigPage({
               </>
             ) : (
               <>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" aria-label="More actions"><MoreVertical className="w-4 h-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleDuplicate}><Copy className="w-4 h-4 mr-2" />Duplicate Gig</DropdownMenuItem>
-                    {canDelete && (
-                      <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
-                        <Trash2 className="w-4 h-4 mr-2" />Delete Gig
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {showMoreActions && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon" aria-label="More actions"><MoreVertical className="w-4 h-4" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {ownsGig && <DropdownMenuItem onClick={handleDuplicate}><Copy className="w-4 h-4 mr-2" />Duplicate Gig</DropdownMenuItem>}
+                      {canDelete && (
+                        <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
+                          <Trash2 className="w-4 h-4 mr-2" />Delete Gig
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
                 <Button onClick={() => setEditing(true)} className="bg-sky-700 hover:bg-sky-800 text-white">
                   <Pencil className="w-4 h-4 mr-1.5" />Edit
                 </Button>
@@ -292,6 +314,18 @@ export default function GigPage({
       />
 
       <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        {inactiveHere && (
+          <Alert className="mb-4 bg-gray-100 border-gray-300 text-gray-700">
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {organization.name} is Inactive on this gig. Shared details, the schedule and other organizations' contacts are read-only.
+              </span>
+              {canEdit && (
+                <Button variant="outline" size="sm" onClick={handleReactivate}>Reactivate</Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         {conflicts.length > 0 && <div className="mb-4"><ConflictWarning conflicts={conflicts} showAsCard /></div>}
 
           <TabsContent value="overview" className="mt-0">
@@ -301,6 +335,8 @@ export default function GigPage({
                   gigId={gigId}
                   gigStart={gig.start}
                   actParticipants={acts.map((p) => ({ id: p.id, organization: p.organization }))}
+                  readOnly={inactiveHere}
+                  scheduleView={<GigScheduleView entries={gig.schedule_entries ?? []} timeZone={gig.timezone} actNames={actNames} />}
                 />
                 <GigParticipantsSection
                   gigId={gigId}
@@ -312,7 +348,7 @@ export default function GigPage({
                   userRole={userRole}
                 />
                 <GigStaffSlotsSection gigId={gigId} currentOrganizationId={organization.id} participantOrganizationIds={participantOrgIds} />
-                <NotesCard organizationId={organization.id} gigId={gigId} />
+                <NotesCard organizationId={organization.id} gigId={gigId} readOnly={inactiveHere} />
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">

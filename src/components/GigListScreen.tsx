@@ -58,6 +58,7 @@ import { isGigPast } from '../utils/gigTimeframe';
 import { GIG_STATUS_CONFIG, TAG_CONFIG } from '../utils/supabase/constants';
 import { formatDateTimeDisplay, formatTimeDisplay, isNoonUTC } from '../utils/dateUtils';
 import { canDeleteGig, canManage } from '../utils/permissions';
+import { isInactiveOn, managesGigOwner } from '../utils/gigOwnership';
 import { PageHeader } from './layout/PageHeader';
 import { checkAllConflictsForGigs, Conflict } from '../services/conflictDetection.service';
 
@@ -274,6 +275,9 @@ export default function GigListScreen({
     [financialsByGigId],
   );
 
+  // An organization Inactive on a gig is read-only on its shared details (#175).
+  const sharedEditable = useCallback((row: Gig) => !isInactiveOn(row, organization.id), [organization.id]);
+
   const gigColumns = useMemo<ColumnDef<Gig>[]>(() => [
     {
       id: 'title',
@@ -298,6 +302,7 @@ export default function GigListScreen({
       sortable: true,
       required: true,
       editable: canEdit,
+      isEditable: sharedEditable,
       type: 'datetime',
       timezone: (row) => row.timezone,
       className: 'w-[14%]',
@@ -316,6 +321,7 @@ export default function GigListScreen({
       sortable: true,
       optional: true,
       editable: canEdit,
+      isEditable: sharedEditable,
       type: 'datetime',
       timezone: (row) => row.timezone,
       exportValue: (row) => formatExportDate(row.end, row.timezone),
@@ -328,6 +334,8 @@ export default function GigListScreen({
       filterable: true,
       required: true,
       editable: canEdit,
+      // The status is the gig owner's to change (#175).
+      isEditable: (row) => sharedEditable(row) && managesGigOwner(row, organization.id, userRole),
       type: 'pill',
       pillConfig: statusPillConfig,
       className: 'w-[12%]',
@@ -367,6 +375,7 @@ export default function GigListScreen({
       accessor: 'tags',
       filterable: true,
       editable: canEdit,
+      isEditable: sharedEditable,
       type: 'multi-pill',
       pillConfig: tagPillConfig,
       className: 'w-[18%]',
@@ -378,6 +387,7 @@ export default function GigListScreen({
       filterable: true,
       optional: true,
       editable: canEdit,
+      isEditable: sharedEditable,
       type: 'text',
       render: (val) => (
         <span className="text-sm text-gray-600 line-clamp-2">{val || '—'}</span>
@@ -435,7 +445,7 @@ export default function GigListScreen({
         type: 'currency',
       },
     ] as ColumnDef<Gig>[]) : []),
-  ], [canEdit, showFinancials, getGigFinancials, onViewGig]);
+  ], [canEdit, showFinancials, getGigFinancials, onViewGig, sharedEditable, organization.id, userRole]);
 
   // Fallback for the (rare) case Export is clicked before SmartDataTable's
   // mount effect has reported which columns are visible: mirrors its own
@@ -475,6 +485,8 @@ export default function GigListScreen({
         id: 'duplicate',
         label: 'Duplicate',
         onClick: (row: Gig) => handleGigDuplicate(row.id),
+        // Only the gig owner's Admins and Managers duplicate it (#175).
+        hidden: (row: Gig) => !managesGigOwner(row, organization.id, userRole),
       },
     ] satisfies RowAction<Gig>[]) : []),
     ...(canDelete ? ([
@@ -484,7 +496,7 @@ export default function GigListScreen({
         onClick: (row: Gig) => handleGigDelete(row.id),
       },
     ] satisfies RowAction<Gig>[]) : []),
-  ], [canEdit, canDelete, onViewGig, onEditGig, handleGigDuplicate, handleGigDelete]);
+  ], [canEdit, canDelete, onViewGig, onEditGig, handleGigDuplicate, handleGigDelete, organization.id, userRole]);
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return filteredGigs.map(gig => {

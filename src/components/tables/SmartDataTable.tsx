@@ -48,6 +48,8 @@ export interface RowAction<T> {
   onClick: (row: T) => void;
   className?: string;
   disabled?: (row: T) => boolean;
+  /** Leaves the action out of this row's menu. */
+  hidden?: (row: T) => boolean;
 }
 
 export interface ColumnDef<T> {
@@ -428,7 +430,7 @@ export function SmartDataTable<T extends { id: string }>({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[160px]">
-          {rowActions.map((action) => {
+          {rowActions.filter((action) => !action.hidden?.(row)).map((action) => {
             const Icon = action.icon || {
               view: <Eye className="h-4 w-4" />,
               edit: <Edit className="h-4 w-4" />,
