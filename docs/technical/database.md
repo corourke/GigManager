@@ -542,6 +542,7 @@ Organizations participating in a gig (venue, act, production, etc.)
   - an organization with financials, kit assignments or staff slots on the gig can't be removed (it can be marked Inactive);
   - otherwise its `inventory_tracking` and `gig_participant_contacts` rows for the gig are deleted and its purchases' `gig_id` is set to null.
   Rows removed because the gig or the organization is being deleted skip these checks.
+- **Removals are logged by the database** (#175, migration 20261021000000): `gig_participants_after_remove` writes a `participant.removed` entry to `activity_log` for each removed row, before the checks above, so a refused removal leaves no entry. The context has `actor_display_name` (from `users`), `actor_org_name`, `gig_title`, `organization_name`, `role` and `left`. `left` is true when the user belongs to the organization removed (it's leaving the gig), and the entry is then attributed to that organization; otherwise to the user's Admin/Manager organization among the gig's participants, the owner first. Cascades and writes with no signed-in user log nothing. The app doesn't log removals itself.
 
 ---
 
@@ -1467,7 +1468,7 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 - `user_is_contact_status(p_user_id)`: True if the user's `user_status = 'contact'` (breaks RLS recursion between `users` and `organization_members`).
 - Organization-contact RPCs: `add_organization_contact`, `link_existing_person_to_organization`, `update_organization_contact`, `set_organization_primary_contact`, `unset_organization_primary_contact`, `remove_organization_contact`.
 - Gig-contact RPCs: `create_contact_person`, `add_gig_participant_contact`, `set_gig_participant_contact_primary`, `remove_gig_participant_contact` (the only write path for `gig_participant_contacts`).
-- `log_activity(p_organization_id, p_event_type, p_entity_type, p_entity_id, p_gig_id, p_context)`: The only write path for `activity_log`; returns the new row id.
+- `log_activity(p_organization_id, p_event_type, p_entity_type, p_entity_id, p_gig_id, p_context)`: The app's write path for `activity_log`; returns the new row id. (`gig_participants_after_remove` also writes `participant.removed` entries directly, #175.)
 - `kit_would_create_cycle(p_parent_kit_id, p_child_kit_id)`: True if nesting the child kit under the parent would create a cycle.
 - `kits_that_would_cycle(p_parent_kit_id, p_candidate_kit_ids)`: Batch form of the above for the kit picker (migration 20260826230000).
 - `get_kit_hierarchy_tree(p_kit_id)`: Returns (parent_kit_id, child_kit_id, quantity, depth) rows for a kit's nested structure; requires org membership.
@@ -1573,7 +1574,7 @@ All tables have RLS **ENABLED**. Access is controlled through a combination of R
 | `gig_participants` | Accessible gigs | Gig managers | Gig managers | Gig managers |
 | `gig_participant_contacts` | Accessible gigs | — (RPC only) | — (RPC only) | — (RPC only) |
 | `gig_schedule_entries` | Participating org members | Admin/Manager of participant | Admin/Manager of participant | Admin/Manager of participant |
-| `activity_log` | Accessible gigs (gig rows); org members (non-gig rows) | — (`log_activity` only) | — | — |
+| `activity_log` | Accessible gigs (gig rows); org members (non-gig rows) | — (`log_activity`, and the participant-removal trigger) | — | — |
 | `gig_financials` | Admin/Manager of owning org | Admin/Manager of owning org | Admin/Manager of owning org | Admin/Manager of owning org |
 | `purchases` | Admin/Manager | Admin/Manager | Admin/Manager | Admin/Manager |
 | `attachments` | Org members | Admin/Manager | Admin/Manager | Admin/Manager |

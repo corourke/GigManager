@@ -311,6 +311,8 @@ export interface ActivityLogContext {
   to_title?: string;
   organization_name?: string;
   role?: string;
+  /** participant.removed: the organization's own member removed it (#175). */
+  left?: boolean;
   user_name?: string;
   initial_status?: string;
   kit_name?: string;

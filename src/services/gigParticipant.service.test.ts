@@ -387,7 +387,6 @@ describe('participant writes (#175)', () => {
 });
 
 describe('removing an organization from a gig, and Inactive (#175)', () => {
-  const ctx = { organization_id: 'org-1', actor_display_name: 'Jane', actor_org_name: 'Org 1', gig_title: 'Gig' };
   const rows = [
     { id: 'p-a', gig_id: 'gig-1', organization_id: 'org-2', role: 'Sound' },
     { id: 'p-b', gig_id: 'gig-1', organization_id: 'org-2', role: 'Lighting' },

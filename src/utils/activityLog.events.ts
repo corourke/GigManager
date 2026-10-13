@@ -136,8 +136,11 @@ export const ACTIVITY_EVENTS = {
     label: 'Participant Removed',
     entityType: 'participant',
     calendarIndicator: false,
-    contextKeys: ['gig_title', 'organization_name', 'role'],
-    format: (ctx) => `${ctx.organization_name} removed as ${ctx.role} participant`,
+    contextKeys: ['gig_title', 'organization_name', 'role', 'left'],
+    // Logged by the database; `left` when the organization's own member removed it (#175).
+    format: (ctx) => ctx.left
+      ? `${ctx.organization_name} left the gig`
+      : `${ctx.organization_name} removed as ${ctx.role} participant`,
   },
   'staffing.updated': {
     label: 'Staffing Updated',
