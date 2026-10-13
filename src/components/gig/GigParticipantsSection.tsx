@@ -14,7 +14,7 @@ import { Textarea } from '../ui/textarea';
 import OrganizationSelector from '../OrganizationSelector';
 import GigParticipantContactsList from './GigParticipantContactsList';
 import { getGig, updateGigParticipants } from '../../services/gig.service';
-import { setGigParticipantInactive } from '../../services/gigParticipant.service';
+import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { canManage } from '../../utils/permissions';
 import type { UserRole } from '../../utils/supabase/constants';
 import { createClient } from '../../utils/supabase/client';
@@ -268,17 +268,47 @@ export default function GigParticipantsSection({
     });
   };
 
-  const handleRemoveParticipant = (index: number) => {
-    const participant = fields[index];
+  const handleRemoveParticipant = async (index: number) => {
+    const participant = getValues(`participants.${index}`) ?? fields[index];
     if (participant.id === 'current-org' || participant.organization_id === currentOrganizationId) {
       toast.error('Cannot remove the current organization from participants');
       return;
     }
-    remove(index);
+    const savedRow = !!participant.id && !participant.id.startsWith('temp-');
+    if (!savedRow) {
+      remove(index);
+      return;
+    }
+
+    // A saved organization is removed right away, with all of its roles (#175).
+    const orgId = participant.organization_id;
+    const orgName = participant.organization_name || 'this organization';
+    const rows = (getValues('participants') ?? [])
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => p.organization_id === orgId);
+    if (!confirm(
+      `Remove ${orgName} from this gig?${rows.length > 1 ? ` All ${rows.length} of its roles go.` : ''} ` +
+      `Its equipment scans and contacts for the gig are deleted, and its purchases are unlinked from it.`,
+    )) return;
+    try {
+      await removeGigParticipant(gigId, orgId);
+      baseline.forget(rows.map(({ p }) => p.id));
+      remove(rows.map(({ i }) => i));
+      toast.success(`${orgName} removed from the gig`);
+    } catch (error: any) {
+      const message: string = error?.message || 'Failed to remove the organization';
+      if (/only be marked Inactive/.test(message)) {
+        if (confirm(`${message}\n\nMark ${orgName} Inactive instead?`)) {
+          await handleToggleInactive(orgId, orgName, true, false);
+        }
+        return;
+      }
+      toast.error(message);
+    }
   };
 
-  const handleToggleInactive = async (orgId: string, orgName: string, inactive: boolean) => {
-    if (inactive && !confirm(
+  const handleToggleInactive = async (orgId: string, orgName: string, inactive: boolean, ask = true) => {
+    if (inactive && ask && !confirm(
       `Mark ${orgName} Inactive on this gig? It keeps its role and its own staffing, financials and kits, ` +
       `but is read-only on the gig's shared details, schedule and other organizations' contacts until it's reactivated.`,
     )) return;
@@ -499,7 +529,7 @@ export default function GigParticipantsSection({
                   size="sm"
                   className="h-8 w-8 p-0 shrink-0"
                   onClick={() => handleRemoveParticipant(index)}
-                  disabled={field.id === 'current-org' || myOrgInactive}
+                  disabled={field.id === 'current-org' || myOrgInactive || rowIsOwner}
                   title="Remove participant"
                 >
                   <Trash2 className="w-4 h-4" />

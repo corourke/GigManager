@@ -300,18 +300,23 @@ describe('GigParticipantsSection deletes only rows it loaded (#92)', () => {
     }));
   });
 
-  it('passes the rows it loaded, so a removed one is deleted and rows added elsewhere are not', async () => {
+  // #175: a saved organization is removed right away (removeGigParticipant), and the
+  // section's later saves don't try to delete it again.
+  it('removes a saved organization right away, and later saves leave it out of the rows to delete', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<GigParticipantsSection {...props} />);
     await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());
 
     fireEvent.click(screen.getAllByTitle('Remove participant')[1]);
 
-    await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(1), { timeout: 3000 });
-    expect(calls()[0][1].map((p) => p.id)).toEqual([MINE]);
-    expect(calls()[0][3]).toEqual([MINE, OTHER]);
+    await waitFor(() => expect(removeGigParticipant).toHaveBeenCalledWith('test-gig-id', 'org-3'));
+    await waitFor(() => expect(screen.queryByText('Venue Co')).not.toBeInTheDocument());
+    // A save after the removal (if any) must not list the removed row among those it loaded.
+    for (const call of calls()) expect(call[3]).not.toContain(OTHER);
   });
 
-  it('deletes a row it added on an earlier save once the user removes it', async () => {
+  it('removes a row it added on an earlier save right away too', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<GigParticipantsSection {...props} />);
     await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());
 
@@ -324,8 +329,17 @@ describe('GigParticipantsSection deletes only rows it loaded (#92)', () => {
     const removes = screen.getAllByTitle('Remove participant');
     fireEvent.click(removes[removes.length - 1]);
 
-    await waitFor(() => expect(calls().at(-1)![1].map((p) => p.id)).toEqual([MINE, OTHER]), { timeout: 3000 });
-    expect(calls().at(-1)![3]).toEqual([MINE, OTHER, NEW]);
+    await waitFor(() => expect(removeGigParticipant).toHaveBeenCalledWith('test-gig-id', 'org-2'));
+  });
+
+  it('drops a row that was never saved without asking the database', async () => {
+    render(<GigParticipantsSection {...props} />);
+    await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Add Participant'));
+    const removes = screen.getAllByTitle('Remove participant');
+    fireEvent.click(removes[removes.length - 1]);
+    expect(removeGigParticipant).not.toHaveBeenCalled();
+    expect(screen.queryByText('Mock Select Org')).not.toBeInTheDocument();
   });
 });
 
