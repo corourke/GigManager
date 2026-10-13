@@ -76,8 +76,11 @@ vi.mock('../../services/gig.service', () => ({
   deleteGig: vi.fn(),
   duplicateGig: vi.fn(),
 }));
-vi.mock('../../services/gigParticipant.service', () => ({ setGigParticipantInactive: vi.fn().mockResolvedValue({ success: true }) }));
-import { setGigParticipantInactive } from '../../services/gigParticipant.service';
+vi.mock('../../services/gigParticipant.service', () => ({
+  setGigParticipantInactive: vi.fn().mockResolvedValue({ success: true }),
+  removeGigParticipant: vi.fn().mockResolvedValue({ success: true }),
+}));
+import { setGigParticipantInactive, removeGigParticipant } from '../../services/gigParticipant.service';
 
 const baseProps = {
   gigId: 'g1',
@@ -210,6 +213,62 @@ describe('GigPage (#12)', () => {
       render(<GigPage {...baseProps} userRole="Staff" />);
       expect(await screen.findByText(/Northwest Sound Co is Inactive on this gig/)).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Reactivate' })).not.toBeInTheDocument();
+    });
+  });
+
+  // #175: the owner cancels a gig; another participant leaves it, or marks itself Inactive.
+  describe('Cancel, Leave and Mark Inactive in the More actions menu (#175)', () => {
+    const ownedByVenue = { ...gig, owner_organization_id: 'o-venue' };
+    const open = async (role: 'Admin' | 'Manager' | 'Staff') => {
+      const user = userEvent.setup();
+      render(<GigPage {...baseProps} userRole={role} />);
+      await user.click(await screen.findByRole('button', { name: 'More actions' }));
+      return user;
+    };
+    beforeEach(() => { vi.spyOn(window, 'confirm').mockReturnValue(true); });
+
+    it("lets the owner's Manager cancel the gig", async () => {
+      const { updateGig } = await import('../../services/gig.service');
+      const user = await open('Manager');
+      await user.click(await screen.findByRole('menuitem', { name: /Cancel Gig/ }));
+      await waitFor(() => expect(updateGig).toHaveBeenCalledWith('g1', { status: 'Cancelled' }));
+    });
+
+    it("doesn't offer Cancel on a gig that's already cancelled, nor Leave to the owner", async () => {
+      vi.mocked(getGig).mockResolvedValue({ ...gig, status: 'Cancelled' } as any);
+      await open('Admin');
+      await screen.findByRole('menuitem', { name: /Duplicate Gig/ });
+      expect(screen.queryByRole('menuitem', { name: /Cancel Gig/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: /Leave Gig/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: /Mark Inactive/ })).not.toBeInTheDocument();
+    });
+
+    it('lets another participant leave the gig, and goes back', async () => {
+      vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
+      const user = await open('Manager');
+      expect(screen.queryByRole('menuitem', { name: /Cancel Gig/ })).not.toBeInTheDocument();
+      await user.click(await screen.findByRole('menuitem', { name: /Leave Gig/ }));
+      await waitFor(() => expect(removeGigParticipant).toHaveBeenCalledWith('g1', 'org-1'));
+      await waitFor(() => expect(baseProps.onBack).toHaveBeenCalled());
+    });
+
+    it('offers to mark Inactive instead when the organization has data on the gig', async () => {
+      vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
+      vi.mocked(removeGigParticipant).mockRejectedValueOnce(
+        new Error('This organization has financials, kits or staff on the gig, so it can only be marked Inactive.'));
+      const confirmSpy = vi.mocked(window.confirm);
+      const user = await open('Manager');
+      await user.click(await screen.findByRole('menuitem', { name: /Leave Gig/ }));
+      await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-1', true));
+      expect(confirmSpy.mock.calls.at(-1)?.[0]).toMatch(/Mark .* Inactive instead/);
+      expect(baseProps.onBack).not.toHaveBeenCalled();
+    });
+
+    it('lets another participant mark itself Inactive', async () => {
+      vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
+      const user = await open('Admin');
+      await user.click(await screen.findByRole('menuitem', { name: /Mark Inactive/ }));
+      await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-1', true));
     });
   });
 
