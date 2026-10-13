@@ -984,6 +984,19 @@ describe('MobileInventoryMode', () => {
       expect(inventoryTrackingService.addKitAtPackOut).toHaveBeenCalledWith(expect.objectContaining({ kit: index.kits[0] }))
     })
 
+    // #175 review: an organization Inactive on the gig adds no equipment to it.
+    it('offers nothing to add while the organization is Inactive on the gig', async () => {
+      vi.mocked(idbStore.getGigs).mockResolvedValue([
+        { id: 'gig-1', title: 'Warehouse Check-In', participants: [{ organization_id: 'org-1', role: 'Sound', inactive: true }] },
+      ] as any)
+      await renderIn()
+      expect(await screen.findByText(/Inactive on this gig/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '+ Add' })).not.toBeInTheDocument()
+      await act(async () => { await scannerProps.onScan('CASE-1') })
+      expect(screen.queryByRole('button', { name: 'Add to this gig' })).not.toBeInTheDocument()
+      expect(inventoryTrackingService.addKitAtPackOut).not.toHaveBeenCalled()
+    })
+
     // #246 review: what's already on the gig is marked, never added twice.
     it('"+ Add" marks a kit already on the gig, and offers nothing to add for it', async () => {
       vi.mocked(idbStore.getPackingList).mockImplementation(async () => list({

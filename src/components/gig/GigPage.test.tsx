@@ -244,6 +244,18 @@ describe('GigPage (#12)', () => {
       expect(screen.getByRole('textbox', { name: 'Gig title' })).toBeDisabled();
     });
 
+    it('keeps staff and equipment read-only while Inactive, saying why', async () => {
+      vi.mocked(getGig).mockResolvedValue(inactive as any);
+      render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
+      await screen.findByRole('textbox', { name: 'Gig title' });
+      const why = 'Staff and equipment are read-only while Northwest Sound Co is Inactive on this gig.';
+      expect(screen.queryByTestId('edit-staffing')).not.toBeInTheDocument();
+      expect(screen.getByText(why)).toBeInTheDocument();
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Equipment' }));
+      await waitFor(() => expect(screen.queryByTestId('edit-equipment')).not.toBeInTheDocument());
+      expect(screen.getAllByText(why).length).toBeGreaterThan(0);
+    });
+
     it('lets the Inactive organization reactivate itself from the banner', async () => {
       vi.mocked(getGig).mockResolvedValue(inactive as any);
       const user = userEvent.setup();
