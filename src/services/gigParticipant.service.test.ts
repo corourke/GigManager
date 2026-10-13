@@ -420,6 +420,21 @@ describe('removing an organization from a gig, and Inactive (#175)', () => {
     }));
   });
 
+  // #175 review: the actor's organization is found among the gig's participants, not the one removed.
+  it("logs against the remover's own organization when no context is passed", async () => {
+    setup({
+      gig_participants: [...rows, { id: 'p-o', gig_id: 'gig-1', organization_id: 'org-1', role: 'Production' }],
+      gigs: { title: 'Gig' },
+      organization_members: [{ organization_id: 'org-1', role: 'Manager' }],
+      organizations: { 'org-1': 'Owner Co', 'org-2': 'Sound Co' },
+    });
+    await removeGigParticipant('gig-1', 'org-2');
+    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+      event_type: 'participant.removed', organization_id: 'org-1',
+      context: expect.objectContaining({ actor_org_name: 'Owner Co', organization_name: 'Sound Co' }),
+    }));
+  });
+
   it("passes on the database's reason when it won't remove the organization, and logs nothing", async () => {
     setup({ writeError: { method: 'delete', error: { code: '23503', message: 'This organization has financials, kits or staff on the gig, so it can only be marked Inactive.' } } });
     await expect(removeGigParticipant('gig-1', 'org-2', ctx)).rejects.toThrow(/only be marked Inactive/);
