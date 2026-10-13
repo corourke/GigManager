@@ -3,7 +3,7 @@ import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Building2, FileText, Loader2, Plus, Trash2, AlertCircle, Eye, Pencil, Star, MoreVertical, UserPlus } from 'lucide-react';
+import { Building2, FileText, Loader2, Plus, Trash2, AlertCircle, Eye, Pencil, Star, MoreVertical, UserPlus, PauseCircle, PlayCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -14,6 +14,9 @@ import { Textarea } from '../ui/textarea';
 import OrganizationSelector from '../OrganizationSelector';
 import GigParticipantContactsList from './GigParticipantContactsList';
 import { getGig, updateGigParticipants } from '../../services/gig.service';
+import { setGigParticipantInactive } from '../../services/gigParticipant.service';
+import { canManage } from '../../utils/permissions';
+import type { UserRole } from '../../utils/supabase/constants';
 import { createClient } from '../../utils/supabase/client';
 import {
   Organization,
@@ -75,6 +78,15 @@ export default function GigParticipantsSection({
   const [viewingParticipant, setViewingParticipant] = useState<{ organization: Organization; notes: string } | null>(null);
   const [addContactForIndex, setAddContactForIndex] = useState<number | null>(null);
   const [isUserAdmin, setIsUserAdmin] = useState(false);
+  // #175: the gig's owner, and the organizations Inactive on it (a flag on each of their roles).
+  const [ownerOrgId, setOwnerOrgId] = useState<string | null>(null);
+  const [inactiveOrgs, setInactiveOrgs] = useState<Set<string>>(new Set());
+  const myOrgInactive = inactiveOrgs.has(currentOrganizationId);
+  // The owner's Admins and Managers, or the organization's own, mark it Inactive or
+  // reactivate it; never the owner. While Inactive, my organization only toggles its own flag.
+  const canToggleInactive = (orgId: string) =>
+    !!orgId && orgId !== ownerOrgId && canManage(userRole as UserRole | undefined)
+    && (orgId === currentOrganizationId || (currentOrganizationId === ownerOrgId && !myOrgInactive));
 
   const { control, handleSubmit: _handleSubmit, formState: { errors, isDirty }, watch, reset, setValue, getValues } = useForm<ParticipantsFormData>({
     resolver: zodResolver(participantsFormSchema),
@@ -168,6 +180,8 @@ export default function GigParticipantsSection({
     setIsLoading(true);
     try {
       const gig = await getGig(gigId);
+      setOwnerOrgId((gig as any).owner_organization_id ?? null);
+      setInactiveOrgs(new Set((gig.participants || []).filter((p: any) => p.inactive).map((p: any) => p.organization_id)));
 
       const loadedParticipants = (gig.participants || []).map((p: any) => ({
         id: p.id,
@@ -263,6 +277,24 @@ export default function GigParticipantsSection({
     remove(index);
   };
 
+  const handleToggleInactive = async (orgId: string, orgName: string, inactive: boolean) => {
+    if (inactive && !confirm(
+      `Mark ${orgName} Inactive on this gig? It keeps its role and its own staffing, financials and kits, ` +
+      `but is read-only on the gig's shared details, schedule and other organizations' contacts until it's reactivated.`,
+    )) return;
+    try {
+      await setGigParticipantInactive(gigId, orgId, inactive);
+      setInactiveOrgs((prev) => {
+        const next = new Set(prev);
+        if (inactive) next.add(orgId); else next.delete(orgId);
+        return next;
+      });
+      toast.success(inactive ? `${orgName} is Inactive on this gig` : `${orgName} is active on this gig again`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to change Inactive');
+    }
+  };
+
   const handleOpenParticipantNotes = (index: number) => {
     const participant = fields[index];
     setCurrentParticipantNotes(participant.notes || '');
@@ -300,15 +332,17 @@ export default function GigParticipantsSection({
             <CardTitle>Participants</CardTitle>
             <SaveStateIndicator state={saveState} />
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleAddParticipant}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Participant
-          </Button>
+          {!myOrgInactive && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAddParticipant}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Participant
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -322,8 +356,12 @@ export default function GigParticipantsSection({
             // actions" menu and contact list render immediately instead of
             // only after a reload/reset().
             const participant = formValues.participants?.[index] ?? field;
+            const rowOrgId = participant.organization_id;
+            const rowInactive = !!rowOrgId && inactiveOrgs.has(rowOrgId);
+            const rowIsOwner = !!rowOrgId && rowOrgId === ownerOrgId;
+            const savedRow = !!field.id && !field.id.startsWith('temp-') && field.id !== 'current-org';
             return (
-            <div key={field.id} className="py-2 first:pt-0 last:pb-0">
+            <div key={field.id} className={`py-2 first:pt-0 last:pb-0 ${rowInactive ? 'opacity-60' : ''}`}>
               <div className="flex items-center gap-2">
                 <Controller
                   name={`participants.${index}.role`}
@@ -332,7 +370,7 @@ export default function GigParticipantsSection({
                     <Select
                       value={selectField.value}
                       onValueChange={selectField.onChange}
-                      disabled={field.id === 'current-org'}
+                      disabled={field.id === 'current-org' || myOrgInactive}
                     >
                       <SelectTrigger className={`w-[130px] h-8 shrink-0 ${errors.participants?.[index]?.role ? 'border-red-500' : ''}`}>
                         <SelectValue placeholder="Role" />
@@ -391,6 +429,9 @@ export default function GigParticipantsSection({
                   )}
                 </div>
 
+                {rowIsOwner && <Badge variant="secondary" className="shrink-0">Owner</Badge>}
+                {rowInactive && <Badge variant="outline" className="shrink-0 text-gray-600">Inactive</Badge>}
+
                 <Controller
                   name={`participants.${index}.is_client`}
                   control={control}
@@ -398,6 +439,7 @@ export default function GigParticipantsSection({
                     <button
                       type="button"
                       onClick={() => clientField.onChange(!clientField.value)}
+                      disabled={myOrgInactive}
                       title={clientField.value ? 'Client — click to unmark' : 'Mark as client'}
                       className="p-1 shrink-0"
                     >
@@ -430,6 +472,13 @@ export default function GigParticipantsSection({
                         <Eye className="w-4 h-4 mr-2" />
                         View Organization
                       </DropdownMenuItem>
+                      {savedRow && canToggleInactive(rowOrgId) && (
+                        <DropdownMenuItem onClick={() => handleToggleInactive(rowOrgId, participant.organization_name || 'This organization', !rowInactive)}>
+                          {rowInactive
+                            ? <><PlayCircle className="w-4 h-4 mr-2" />Reactivate</>
+                            : <><PauseCircle className="w-4 h-4 mr-2" />Mark Inactive</>}
+                        </DropdownMenuItem>
+                      )}
                       {isUserAdmin && onEditOrganization && (
                         <DropdownMenuItem onClick={() => onEditOrganization!(participant.organization as Organization)}>
                           <Pencil className="w-4 h-4 mr-2" />
@@ -446,7 +495,7 @@ export default function GigParticipantsSection({
                   size="sm"
                   className="h-8 w-8 p-0 shrink-0"
                   onClick={() => handleRemoveParticipant(index)}
-                  disabled={field.id === 'current-org'}
+                  disabled={field.id === 'current-org' || myOrgInactive}
                   title="Remove participant"
                 >
                   <Trash2 className="w-4 h-4" />

@@ -123,4 +123,15 @@ describe('GigParticipantContactsList', () => {
     ));
     expect(toast.error).not.toHaveBeenCalled();
   });
+
+  // #175: an organization Inactive on the gig is read-only on other organizations' contacts.
+  it('read-only: no remove, and the primary star is fixed', async () => {
+    vi.mocked(gigParticipantContactsService.getGigParticipantContacts).mockResolvedValue([REAL_USER_CONTACT_ROW] as any);
+
+    render(<GigParticipantContactsList {...defaultProps} readOnly />);
+
+    await waitFor(() => expect(screen.getByText(/Cameron Orourke/)).toBeInTheDocument());
+    expect(screen.queryByTitle('Remove contact')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Primary contact for this gig')).toBeDisabled();
+  });
 });

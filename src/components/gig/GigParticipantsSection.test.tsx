@@ -419,4 +419,22 @@ describe('GigParticipantsSection: owner and Inactive (#175)', () => {
     await user.click(await screen.findByRole('menuitem', { name: /Reactivate/ }));
     await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-b', false));
   });
+
+  it("doesn't offer Notes or Add Contact on another organization's row while mine is Inactive", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    render(<GigParticipantsSection {...props('org-b', 'Sound Co')} />);
+    await screen.findByText('Owner Co');
+    await openMenu('Owner Co');
+    expect(await screen.findByRole('menuitem', { name: /View Organization/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Add Contact/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Notes/ })).not.toBeInTheDocument();
+  });
+
+  it('still offers Add Contact on my own row while Inactive', async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    render(<GigParticipantsSection {...props('org-b', 'Sound Co')} />);
+    await screen.findByText('Owner Co');
+    await openMenu('Sound Co');
+    expect(await screen.findByRole('menuitem', { name: /Add Contact/ })).toBeInTheDocument();
+  });
 });
