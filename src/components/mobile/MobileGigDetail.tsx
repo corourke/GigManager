@@ -50,6 +50,9 @@ interface EditParticipant {
   organization_id: string;
   organization_name: string;
   role: string;
+  // Carried through the save: the service writes them from what it's sent (#175).
+  notes?: string | null;
+  is_client?: boolean;
 }
 
 const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; textColor: string; icon: React.ElementType }> = {
@@ -161,6 +164,8 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
         organization_id: p.organization?.id || p.organization_id,
         organization_name: p.organization?.name || '',
         role: p.role,
+        notes: p.notes ?? null,
+        is_client: p.is_client ?? false,
       }))
     );
 
@@ -217,7 +222,13 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       await updateGig(gigId, updatePayload);
       await updateGigParticipants(
         gigId,
-        editParticipants.map(p => ({ id: p.id, organization_id: p.organization_id, role: p.role as OrganizationRole })),
+        editParticipants.map(p => ({
+          id: p.id,
+          organization_id: p.organization_id,
+          role: p.role as OrganizationRole,
+          notes: p.notes ?? null,
+          is_client: p.is_client ?? false,
+        })),
         // Log History against the org the user is working as (issue #103).
         selectedOrganization ? { organization_id: selectedOrganization.id, actor_org_name: selectedOrganization.name } : undefined,
         // Only rows this screen loaded can be removed by it (#92).
