@@ -234,7 +234,10 @@ describe('GigPage (#12)', () => {
     it('tells an Inactive organization so, and makes the shared details read-only', async () => {
       vi.mocked(getGig).mockResolvedValue(inactive as any);
       render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
-      expect(await screen.findByText(/Northwest Sound Co is Inactive on this gig/)).toBeInTheDocument();
+      // Cameron 10-13: Inactive means being removed.
+      expect(await screen.findByText(
+        'Northwest Sound Co is Inactive on this gig: it is being removed. Its financial records and notes are kept; everything else is read-only.',
+      )).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: 'Gig title' })).toBeDisabled();
     });
 
@@ -292,11 +295,15 @@ describe('GigPage (#12)', () => {
       expect(baseProps.onBack).not.toHaveBeenCalled();
     });
 
-    it('lets another participant mark itself Inactive', async () => {
+    it('lets another participant mark itself Inactive, saying what that means', async () => {
       vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
       const user = await open('Admin');
       await user.click(await screen.findByRole('menuitem', { name: /Mark Inactive/ }));
       await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-1', true));
+      const asked = vi.mocked(window.confirm).mock.calls.at(-1)?.[0] as string;
+      expect(asked).toMatch(/being removed from the gig/);
+      expect(asked).toMatch(/financial records and notes are kept/);
+      expect(asked).toMatch(/Release its staff and equipment first/);
     });
   });
 

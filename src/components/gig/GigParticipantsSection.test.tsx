@@ -445,12 +445,25 @@ describe('GigParticipantsSection: owner and Inactive (#175)', () => {
     expect(screen.queryByRole('menuitem', { name: /Notes/ })).not.toBeInTheDocument();
   });
 
-  it('still offers Add Contact on my own row while Inactive', async () => {
+  // Cameron 10-13: while Inactive, an organization keeps only its financials and notes.
+  it('offers Notes on my own row while Inactive, but not Add Contact', async () => {
     vi.mocked(getGig).mockResolvedValue(gig(true) as any);
     render(<GigParticipantsSection {...props('org-b', 'Sound Co')} />);
     await screen.findByText('Owner Co');
     await openMenu('Sound Co');
-    expect(await screen.findByRole('menuitem', { name: /Add Contact/ })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /Notes/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Add Contact/ })).not.toBeInTheDocument();
+  });
+
+  it("explains what Mark Inactive means before marking another organization", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig() as any);
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    const user = await openMenu('Sound Co');
+    await user.click(await screen.findByRole('menuitem', { name: /Mark Inactive/ }));
+    const asked = vi.mocked(window.confirm).mock.calls.at(-1)?.[0] as string;
+    expect(asked).toMatch(/being removed from the gig/);
+    expect(asked).toMatch(/Release its staff and equipment first/);
   });
 
   // #175 (Cameron 10-13): Remove runs right away, behind a confirmation.

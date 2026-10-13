@@ -204,7 +204,7 @@ describe('MobileGigDetail', () => {
     } as unknown as Awaited<ReturnType<typeof getGig>>)
     render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
 
-    expect(await screen.findByText(/The Rock Band is Inactive on this gig/)).toBeInTheDocument()
+    expect(await screen.findByText('The Rock Band is Inactive on this gig: it is being removed. Its financial records and notes are kept; everything else is read-only.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit gig/i })).not.toBeInTheDocument()
   })
 
