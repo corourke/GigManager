@@ -344,6 +344,16 @@ describe('GigListScreen', () => {
       expect(screen.queryByRole('menuitem', { name: 'Duplicate' })).not.toBeInTheDocument();
     });
 
+    // #175 (Cameron 10-13): Delete is disabled with its reason, not hidden, when it would be refused.
+    it("is disabled on a gig another organization owns, with the reason shown on selecting it", async () => {
+      vi.mocked(getGigsForOrganization).mockResolvedValue([{ ...futureGig, owner_organization_id: 'org-other' }, pastGig]);
+      await openRowMenu('Admin');
+      const item = screen.getByRole('menuitem', { name: 'Delete' });
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      await userEvent.setup().click(item);
+      expect(await screen.findByText("Only an Admin of the gig's owner organization can delete it.")).toBeInTheDocument();
+    });
+
     it('is not offered to Managers, who can still edit and duplicate', async () => {
       await openRowMenu('Manager');
       expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeInTheDocument();

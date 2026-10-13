@@ -75,6 +75,7 @@ vi.mock('../../services/gig.service', () => ({
   getGigKits: vi.fn().mockResolvedValue([]),
   deleteGig: vi.fn(),
   duplicateGig: vi.fn(),
+  countChildGigs: vi.fn().mockResolvedValue(0),
 }));
 vi.mock('../../services/gigParticipant.service', () => ({
   setGigParticipantInactive: vi.fn().mockResolvedValue({ success: true }),
@@ -138,21 +139,58 @@ describe('GigPage (#12)', () => {
   });
 
   // #175: deleting a gig is Admin-only on the server, so Managers aren't offered it.
+  // #175 (Cameron 10-13): Delete Gig stays in the menu; when the delete would be refused it's
+  // disabled, and selecting it (mouse, keyboard or touch) shows the reason instead.
   describe('Delete Gig in the More actions menu (#175)', () => {
-    it('is offered to Admins', async () => {
+    const open = async (role: 'Admin' | 'Manager', g: any = gig) => {
+      vi.mocked(getGig).mockResolvedValue(g);
       const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole="Admin" />);
+      render(<GigPage {...baseProps} userRole={role} />);
       await user.click(await screen.findByRole('button', { name: 'More actions' }));
-      expect(await screen.findByRole('menuitem', { name: /Duplicate Gig/ })).toBeInTheDocument();
-      expect(screen.getByRole('menuitem', { name: /Delete Gig/ })).toBeInTheDocument();
+      return { user, item: await screen.findByRole('menuitem', { name: /Delete Gig/ }) };
+    };
+
+    it("deletes for the owner's Admin when nothing is in the way", async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const { deleteGig } = await import('../../services/gig.service');
+      const { user, item } = await open('Admin');
+      expect(item).not.toHaveAttribute('aria-disabled', 'true');
+      await user.click(item);
+      await waitFor(() => expect(deleteGig).toHaveBeenCalledWith('g1'));
     });
 
-    it('is not offered to Managers, who can still duplicate', async () => {
-      const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole="Manager" />);
-      await user.click(await screen.findByRole('button', { name: 'More actions' }));
-      expect(await screen.findByRole('menuitem', { name: /Duplicate Gig/ })).toBeInTheDocument();
-      expect(screen.queryByRole('menuitem', { name: /Delete Gig/ })).not.toBeInTheDocument();
+    it("is disabled for the owner's Manager, with the reason shown on selecting it", async () => {
+      const { deleteGig } = await import('../../services/gig.service');
+      const { user, item } = await open('Manager');
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      await user.click(item);
+      expect(await screen.findByText("Only an Admin of the gig's owner organization can delete it.")).toBeInTheDocument();
+      expect(deleteGig).not.toHaveBeenCalled();
+    });
+
+    it('is disabled when another claimed organization is on the gig', async () => {
+      const withOther = {
+        ...gig,
+        participants: [...gig.participants, { id: 'p9', role: 'Act', organization_id: 'o-act', organization: { id: 'o-act', name: 'The Act', claimed: true } }],
+      };
+      const { user, item } = await open('Admin', withOther);
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      await user.click(item);
+      expect(await screen.findByText('Delete gig is disabled as there are other claimed organizations participating -- you can Cancel the gig instead.')).toBeInTheDocument();
+    });
+
+    it('is disabled when the gig has child gigs', async () => {
+      const { countChildGigs } = await import('../../services/gig.service');
+      vi.mocked(countChildGigs).mockResolvedValue(2);
+      const { user, item } = await open('Admin');
+      await waitFor(() => expect(item).toHaveAttribute('aria-disabled', 'true'));
+      await user.click(item);
+      expect(await screen.findByText(/this gig has child gigs/)).toBeInTheDocument();
+    });
+
+    it('no longer offers Cancel Gig (the owner sets the status instead)', async () => {
+      await open('Admin');
+      expect(screen.queryByRole('menuitem', { name: /Cancel Gig/ })).not.toBeInTheDocument();
     });
   });
 
@@ -217,7 +255,7 @@ describe('GigPage (#12)', () => {
   });
 
   // #175: the owner cancels a gig; another participant leaves it, or marks itself Inactive.
-  describe('Cancel, Leave and Mark Inactive in the More actions menu (#175)', () => {
+  describe('Leave and Mark Inactive in the More actions menu (#175)', () => {
     const ownedByVenue = { ...gig, owner_organization_id: 'o-venue' };
     const open = async (role: 'Admin' | 'Manager' | 'Staff') => {
       const user = userEvent.setup();
@@ -227,18 +265,9 @@ describe('GigPage (#12)', () => {
     };
     beforeEach(() => { vi.spyOn(window, 'confirm').mockReturnValue(true); });
 
-    it("lets the owner's Manager cancel the gig", async () => {
-      const { updateGig } = await import('../../services/gig.service');
-      const user = await open('Manager');
-      await user.click(await screen.findByRole('menuitem', { name: /Cancel Gig/ }));
-      await waitFor(() => expect(updateGig).toHaveBeenCalledWith('g1', { status: 'Cancelled' }));
-    });
-
-    it("doesn't offer Cancel on a gig that's already cancelled, nor Leave to the owner", async () => {
-      vi.mocked(getGig).mockResolvedValue({ ...gig, status: 'Cancelled' } as any);
+    it("doesn't offer Leave or Mark Inactive to the owner", async () => {
       await open('Admin');
       await screen.findByRole('menuitem', { name: /Duplicate Gig/ });
-      expect(screen.queryByRole('menuitem', { name: /Cancel Gig/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('menuitem', { name: /Leave Gig/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('menuitem', { name: /Mark Inactive/ })).not.toBeInTheDocument();
     });
@@ -246,7 +275,6 @@ describe('GigPage (#12)', () => {
     it('lets another participant leave the gig, and goes back', async () => {
       vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
       const user = await open('Manager');
-      expect(screen.queryByRole('menuitem', { name: /Cancel Gig/ })).not.toBeInTheDocument();
       await user.click(await screen.findByRole('menuitem', { name: /Leave Gig/ }));
       await waitFor(() => expect(removeGigParticipant).toHaveBeenCalledWith('g1', 'org-1'));
       await waitFor(() => expect(baseProps.onBack).toHaveBeenCalled());
