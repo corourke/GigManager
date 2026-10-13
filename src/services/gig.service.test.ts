@@ -1053,6 +1053,49 @@ describe('gig.service', () => {
   // ─── duplicateGig ───────────────────────────────────────────────────────────
 
   describe('duplicateGig', () => {
+    // create_gig_complex returns the new id; user_manages_gig_owner says whether the caller may copy.
+    const dupRpc = (newId: string, managesOwner = true) => vi.fn((name: string) => Promise.resolve(
+      name === 'user_manages_gig_owner' ? { data: managesOwner, error: null } : { data: [{ id: newId }], error: null }));
+
+    // #175 (Cameron 10-13): only the owner's Admins and Managers duplicate a gig.
+    it("refuses a caller who doesn't manage the gig's owner, and creates nothing", async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-a', participants: [{ organization_id: 'org-a', role: 'Venue' }],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      mockSupabase.from.mockImplementation((table: string) =>
+        makeChain({ data: table === 'gigs' ? originalGig : [], error: null }));
+      mockSupabase.rpc = dupRpc('new', false);
+
+      await expect(duplicateGig('g')).rejects.toThrow("Only the gig owner's Admins and Managers can duplicate it.");
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('user_manages_gig_owner', { p_gig_id: 'g', p_user: 'user-1' });
+      expect(mockSupabase.rpc).not.toHaveBeenCalledWith('create_gig_complex', expect.anything());
+    });
+
+    // #175 (Cameron 10-13): a copy gets only the original's active participants.
+    it('leaves out participants that are Inactive on the original', async () => {
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-a',
+        participants: [
+          { organization_id: 'org-a', role: 'Production', inactive: false },
+          { organization_id: 'org-b', role: 'Sound', inactive: true },
+          { organization_id: 'org-c', role: 'Act' },
+        ],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      mockSupabase.from.mockImplementation((table: string) =>
+        makeChain({ data: table === 'gigs' ? originalGig : [], error: null }));
+      mockSupabase.rpc = dupRpc('new');
+
+      await duplicateGig('g');
+
+      const rpcArgs = mockSupabase.rpc.mock.calls.find((c: any[]) => c[0] === 'create_gig_complex')[1];
+      expect(rpcArgs.p_participants.map((p: any) => p.organization_id)).toEqual(['org-a', 'org-c']);
+    });
+
     it('logs gig.created for duplicated gig', async () => {
       const gigId = 'original-gig-id';
       const originalGig = { 
@@ -1074,7 +1117,7 @@ describe('gig.service', () => {
         if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
         return makeChain({ data: [], error: null });
       });
-      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: newGigId }], error: null });
+      mockSupabase.rpc = dupRpc(newGigId);
 
       await duplicateGig(gigId);
 
@@ -1112,7 +1155,7 @@ describe('gig.service', () => {
         if (table === 'gig_kit_assignments') return kitChain;
         return makeChain({ data: [], error: null });
       });
-      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new' }], error: null });
+      mockSupabase.rpc = dupRpc('new');
 
       await duplicateGig('g');
 
@@ -1138,7 +1181,7 @@ describe('gig.service', () => {
         if (table === 'gig_kit_assignments') return makeChain({ data: null, error: { message: 'kit is retired' } });
         return makeChain({ data: [], error: null });
       });
-      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new' }], error: null });
+      mockSupabase.rpc = dupRpc('new');
 
       await expect(duplicateGig('g')).rejects.toThrow(/copied.*financials \(tax year 2025 is locked\).*kit assignments \(kit is retired\)/s);
       expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'gig.created', entity_id: 'new' }));
@@ -1165,7 +1208,7 @@ describe('gig.service', () => {
         if (table === 'gigs') return makeChain({ data: originalGig, error: null });
         return makeChain({ data: [], error: null });
       });
-      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new' }], error: null });
+      mockSupabase.rpc = dupRpc('new');
 
       await duplicateGig('g');
 
@@ -1206,7 +1249,7 @@ describe('gig.service', () => {
         if (table === 'gig_kit_assignments') return kitChain;
         return makeChain({ data: [], error: null });
       });
-      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new' }], error: null });
+      mockSupabase.rpc = dupRpc('new');
 
       await duplicateGig('g');
 
