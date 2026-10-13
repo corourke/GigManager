@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-13 00:40 UTC (coordinator: #284 (#175 PR 2) under independent review; prod still at 20261019000000, waiting on Cameron's deploy)
+- **Last updated:** 2026-10-13 02:45 UTC (coordinator: #284 (#175 PR 2) reviewed, fixes in at 5ce0e26, `server` on dev; asking Cameron about duplicate ownership)
 
 ---
 
@@ -88,7 +88,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 **Status 10-12 22:45 UTC:**
 - **In prod (Cameron's deploy 10-12):** #263, #264, #267, #269, #270, #271, #272, #273, #276.
 - **Merged, not yet in prod:** #268 (#186 Locations step; fixes #160), #282 (#278), #283 (#279), and #281 (#175 PR 1, merged 10-12 as 13a78ce): **migration `20261020000000` and an edge-function deploy (`server`)**. The prod backfill dry run (read-only) resolves 99/99 gigs. The Docs Lead holds the Locations and Kits pages for them until the deploy.
-- **#281 (#175 PR 1):** merged 10-12 with Cameron's OK (dev has it). **PR 2 is #284** (services; Lead marked ready at ef70ab1, 10-12); independent review running. The Docs Lead is drafting the #175 rules, held until prod.
+- **#281 (#175 PR 1):** merged 10-12 with Cameron's OK (dev has it). **PR 2 is #284** (services): independent review found no blockers; review fixes in at 5ce0e26 (CI green); `server` deployed to dev 10-13. Open for Cameron: who owns a duplicate when the caller manages a participant but not the owner; whether Inactive participants are copied; logging an organization leaving a gig. The Docs Lead is drafting the #175 rules, held until prod.
 - Open question for Cameron later: should #265's warning also cover a case *added* at pack-out?
 
 **Released by Cameron 10-11 (answers recorded on each issue):**
