@@ -673,7 +673,18 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
       throw new Error('Original gig missing start or end dates');
     }
 
-    const participants = (originalGig.participants || []).map((gp: any) => ({
+    // Only the owner's Admins and Managers duplicate a gig, and the copy is the owner's (#175).
+    const { data: managesOwner, error: ownerError } = await supabase.rpc('user_manages_gig_owner', {
+      p_gig_id: gigId,
+      p_user: user.id,
+    });
+    if (ownerError) throw ownerError;
+    if (managesOwner !== true) {
+      throw new Error("Only the gig owner's Admins and Managers can duplicate it.");
+    }
+
+    // A copy gets only the original's active participants (#175).
+    const participants = (originalGig.participants || []).filter((gp: any) => !gp.inactive).map((gp: any) => ({
       organization_id: gp.organization_id,
       role: gp.role,
       notes: gp.notes,
