@@ -58,7 +58,12 @@ vi.mock('./EquipmentNeededTable', () => ({ default: ({ gigId }: { gigId: string 
 const gig = {
   id: 'g1', title: 'Riverside Summer Series', status: 'Booked', start: '2026-07-12T19:00:00Z', end: '2026-07-13T06:30:00Z',
   timezone: 'America/Los_Angeles', tags: ['Outdoor'], notes: 'Crew parking in Lot C',
-  participants: [{ id: 'p1', role: 'Venue', organization_id: 'o-venue', organization: { id: 'o-venue', name: 'Riverside Amphitheater', address_line1: '1200 Waterfront Dr', city: 'Portland', state: 'OR' } }],
+  // Owned by the organization the user works as (#175).
+  owner_organization_id: 'org-1',
+  participants: [
+    { id: 'p1', role: 'Venue', organization_id: 'o-venue', organization: { id: 'o-venue', name: 'Riverside Amphitheater', address_line1: '1200 Waterfront Dr', city: 'Portland', state: 'OR' } },
+    { id: 'p0', role: 'Sound', organization_id: 'org-1', inactive: false, organization: { id: 'org-1', name: 'Northwest Sound Co' } },
+  ],
   schedule_entries: [{ id: 's1', activity_type: 'Load-In', label: null, start_time: '2026-07-12T19:00:00Z', end_time: null, act_participant_id: null, notes: 'Dock B' }],
   staff_slots: [{ id: 'sl1', organization_id: 'org-1', role: 'A1 Audio Engineer', count: 1,
     staff_assignments: [{ id: 'a1', user_id: 'u1', status: 'Confirmed', fee: 450, user: { first_name: 'Jordan', last_name: 'Lee', phone: '555-0121', email: 'j@example.com' } }] }],
@@ -71,6 +76,8 @@ vi.mock('../../services/gig.service', () => ({
   deleteGig: vi.fn(),
   duplicateGig: vi.fn(),
 }));
+vi.mock('../../services/gigParticipant.service', () => ({ setGigParticipantInactive: vi.fn().mockResolvedValue({ success: true }) }));
+import { setGigParticipantInactive } from '../../services/gigParticipant.service';
 
 const baseProps = {
   gigId: 'g1',
@@ -143,6 +150,66 @@ describe('GigPage (#12)', () => {
       await user.click(await screen.findByRole('button', { name: 'More actions' }));
       expect(await screen.findByRole('menuitem', { name: /Duplicate Gig/ })).toBeInTheDocument();
       expect(screen.queryByRole('menuitem', { name: /Delete Gig/ })).not.toBeInTheDocument();
+    });
+  });
+
+  // #175: every gig has an owner organization. Its Admins and Managers alone change the
+  // status and duplicate it; an organization Inactive on the gig is read-only on shared details.
+  describe('the gig owner (#175)', () => {
+    const ownedByVenue = { ...gig, owner_organization_id: 'o-venue' };
+    const inactive = {
+      ...ownedByVenue,
+      participants: gig.participants.map((p) => (p.organization_id === 'org-1' ? { ...p, inactive: true } : p)),
+    };
+
+    it('names the owner in the header', async () => {
+      vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
+      render(<GigPage {...baseProps} userRole="Admin" />);
+      expect(await screen.findByText('Owned by Riverside Amphitheater')).toBeInTheDocument();
+    });
+
+    it("doesn't offer Duplicate to an Admin of another participant", async () => {
+      vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
+      const user = userEvent.setup();
+      render(<GigPage {...baseProps} userRole="Admin" />);
+      await user.click(await screen.findByRole('button', { name: 'More actions' }));
+      expect(screen.queryByRole('menuitem', { name: /Duplicate Gig/ })).not.toBeInTheDocument();
+    });
+
+    it("shows the status read-only to another participant's Admin while editing", async () => {
+      vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
+      render(<GigPage {...baseProps} userRole="Admin" initialEditing />);
+      await screen.findByRole('textbox', { name: 'Gig title' });
+      expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled();
+      expect(screen.getByRole('textbox', { name: 'Gig title' })).toBeEnabled();
+    });
+
+    it("lets the owner's Manager change the status", async () => {
+      render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
+      await screen.findByRole('textbox', { name: 'Gig title' });
+      expect(screen.getByRole('combobox', { name: 'Status' })).toBeEnabled();
+    });
+
+    it('tells an Inactive organization so, and makes the shared details read-only', async () => {
+      vi.mocked(getGig).mockResolvedValue(inactive as any);
+      render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
+      expect(await screen.findByText(/Northwest Sound Co is Inactive on this gig/)).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'Gig title' })).toBeDisabled();
+    });
+
+    it('lets the Inactive organization reactivate itself from the banner', async () => {
+      vi.mocked(getGig).mockResolvedValue(inactive as any);
+      const user = userEvent.setup();
+      render(<GigPage {...baseProps} userRole="Manager" />);
+      await user.click(await screen.findByRole('button', { name: 'Reactivate' }));
+      await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-1', false));
+    });
+
+    it("doesn't offer Reactivate to the organization's Staff", async () => {
+      vi.mocked(getGig).mockResolvedValue(inactive as any);
+      render(<GigPage {...baseProps} userRole="Staff" />);
+      expect(await screen.findByText(/Northwest Sound Co is Inactive on this gig/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Reactivate' })).not.toBeInTheDocument();
     });
   });
 
