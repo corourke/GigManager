@@ -460,14 +460,18 @@ export default function GigParticipantsSection({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setAddContactForIndex(index)}>
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Add Contact
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleOpenParticipantNotes(index)}>
-                        <FileText className="w-4 h-4 mr-2" />
-                        Notes
-                      </DropdownMenuItem>
+                      {(!myOrgInactive || rowOrgId === currentOrganizationId) && (
+                        <DropdownMenuItem onClick={() => setAddContactForIndex(index)}>
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          Add Contact
+                        </DropdownMenuItem>
+                      )}
+                      {!myOrgInactive && (
+                        <DropdownMenuItem onClick={() => handleOpenParticipantNotes(index)}>
+                          <FileText className="w-4 h-4 mr-2" />
+                          Notes
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={() => setViewingParticipant({ organization: participant.organization as Organization, notes: watch(`participants.${index}.notes`) || '' })}>
                         <Eye className="w-4 h-4 mr-2" />
                         View Organization
@@ -521,6 +525,7 @@ export default function GigParticipantsSection({
                   organizationName={participant.organization_name || 'this organization'}
                   addDialogOpen={addContactForIndex === index}
                   onAddDialogOpenChange={(open) => setAddContactForIndex(open ? index : null)}
+                  readOnly={myOrgInactive && participant.organization_id !== currentOrganizationId}
                 />
               )}
             </div>
