@@ -115,6 +115,8 @@ function makeDb(rows: {
   writeError?: { method: 'insert' | 'update' | 'delete'; error: any };
   /** RLS refuses this write silently: no error, no rows (#175). */
   refuse?: 'update' | 'delete';
+  /** Rows RLS hides from this user's updates: an update by id touches nothing (#175). */
+  notUpdatable?: string[];
 }) {
   const calls: Array<{ table: string; ops: Op[] }> = [];
   const answer = (table: string, ops: Op[]) => {
@@ -130,6 +132,7 @@ function makeDb(rows: {
     if (table === 'gig_participants') {
       if (rows.writeError && has(rows.writeError.method)) return { data: null, error: rows.writeError.error };
       if (rows.refuse && has(rows.refuse)) return { data: [], error: null };
+      if (has('update') && rows.notUpdatable?.includes(has('eq')?.args[1])) return { data: [], error: null };
       // Filtered by gig and organization: answer with the matching rows (#175).
       const eqs = ops.filter(o => o.method === 'eq');
       if (eqs.some(o => o.args[0] === 'organization_id')) {
@@ -374,6 +377,34 @@ describe('participant writes (#175)', () => {
     expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({ event_type: 'participant.removed' }));
     expect(writes(db, 'insert')).toHaveLength(0);
     consoleError.mockRestore();
+  });
+
+  it("updates only the rows that changed, so an Inactive organization saves its own notes (#175)", async () => {
+    // B (Inactive) edits its notes; the owner's row comes back unchanged. B can't update the
+    // owner's row (no rows touched), so sending it would fail the whole save.
+    const OWNER_ROW = '88888888-8888-4888-8888-888888888888';
+    const db = setup({
+      gig_participants: [
+        { id: OWNER_ROW, organization_id: 'org-1', role: 'Production', notes: 'owner note', is_client: true },
+        { id: ROW, organization_id: 'org-2', role: 'Venue', notes: null, is_client: false },
+      ],
+      notUpdatable: [OWNER_ROW],
+    });
+    const result = await updateGigParticipants('gig-1', [
+      { id: OWNER_ROW, organization_id: 'org-1', role: 'Production', notes: 'owner note', is_client: true },
+      { id: ROW, organization_id: 'org-2', role: 'Venue', notes: 'settle the deposit' },
+    ], ctx, [OWNER_ROW, ROW]);
+    const updates = writes(db, 'update');
+    expect(updates).toHaveLength(1);
+    expect(updates[0].ops.find(o => o.method === 'eq')?.args).toEqual(['id', ROW]);
+    expect(updates[0].ops.find(o => o.method === 'update')?.args[0]).toEqual({ role: 'Venue', notes: 'settle the deposit', is_client: false });
+    expect(result.ids).toEqual([OWNER_ROW, ROW]);
+  });
+
+  it('treats empty notes and no notes as the same, so an untouched row is left alone', async () => {
+    const db = setup({ gig_participants: [{ id: ROW, organization_id: 'org-2', role: 'Venue', notes: null, is_client: false }] });
+    await updateGigParticipants('gig-1', [{ id: ROW, organization_id: 'org-2', role: 'Venue', notes: '' }], ctx, [ROW]);
+    expect(writes(db, 'update')).toHaveLength(0);
   });
 
   it('a move the database refuses to remove doesn\'t add the new organization', async () => {
