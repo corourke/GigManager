@@ -24,7 +24,7 @@ A gig's **packing list** is on the gig itself: open the gig's **Equipment** tab,
 or choose **Print → Packing list** on the gig.
 
 - **Items** — your items, with their units and lots: search, filter, add, edit.
-- **Kits** — logical vs. container kits, and nested kits.
+- **[Kits](/equipment/kits/)** — building kits, "any" lines, nesting and containers, and the kit page.
 - **[Locations](/equipment/location-explorer/)** — where gear is right now, and correcting a record.
 - **[Inventory reports](/equipment/inventory-reports/)** — the packing list.
 - **Barcode & QR scanning** — tags and the mobile

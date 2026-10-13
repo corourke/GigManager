@@ -634,6 +634,7 @@ export type Database = {
           gig_id: string
           id: string
           is_client: boolean
+          inactive: boolean
           notes: string | null
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
@@ -642,6 +643,7 @@ export type Database = {
           gig_id: string
           id?: string
           is_client?: boolean
+          inactive?: boolean
           notes?: string | null
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
@@ -650,6 +652,7 @@ export type Database = {
           gig_id?: string
           id?: string
           is_client?: boolean
+          inactive?: boolean
           notes?: string | null
           organization_id?: string
           role?: Database["public"]["Enums"]["organization_role"]
@@ -912,6 +915,7 @@ export type Database = {
           hierarchy_depth: number
           id: string
           notes: string | null
+          owner_organization_id: string
           parent_gig_id: string | null
           start: string
           status: Database["public"]["Enums"]["gig_status"]
@@ -928,6 +932,7 @@ export type Database = {
           hierarchy_depth?: number
           id?: string
           notes?: string | null
+          owner_organization_id: string
           parent_gig_id?: string | null
           start: string
           status: Database["public"]["Enums"]["gig_status"]
@@ -944,6 +949,7 @@ export type Database = {
           hierarchy_depth?: number
           id?: string
           notes?: string | null
+          owner_organization_id?: string
           parent_gig_id?: string | null
           start?: string
           status?: Database["public"]["Enums"]["gig_status"]
@@ -2078,6 +2084,10 @@ export type Database = {
       user_is_contact_status: { Args: { p_user_id: string }; Returns: boolean }
       user_is_member_of_org: {
         Args: { org_id: string; user_uuid: string }
+        Returns: boolean
+      }
+      user_manages_gig_owner: {
+        Args: { p_gig_id: string; p_user: string }
         Returns: boolean
       }
       user_organization_ids: {

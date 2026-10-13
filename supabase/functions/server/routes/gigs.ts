@@ -50,20 +50,9 @@ export function registerGigs(app: App) {
     return c.json({ ...gig, participants: participants || [] });
   });
 
-  // Gigs are created with the create_gig_complex RPC and edited through RLS-
-  // guarded table writes; the server's old create and update routes were
-  // unused and wrote other organizations' staffing, so they were removed.
-
-  // Delete gig — Admin only (intersection)
-  app.delete('/gigs/:id', requireUser, requireGigAccess(['Admin']), async (c) => {
-    const gigId = c.req.param('id');
-    const { error } = await supabaseAdmin.from('gigs').delete().eq('id', gigId);
-    if (error) {
-      console.error('Error deleting gig:', error);
-      return c.json({ error: error.message }, 400);
-    }
-    return c.json({ success: true });
-  });
+  // Gigs are created with the create_gig_complex RPC and edited and deleted
+  // through RLS-guarded table writes; the server's old create, update and
+  // delete routes were unused, so they were removed (delete: #175).
 
   // Organization dashboard stats (Admin/Manager/Staff)
   app.get('/organizations/:id/dashboard', requireUser, requireOrgRole({ roles: ['Admin', 'Manager', 'Staff'] }), async (c) => {

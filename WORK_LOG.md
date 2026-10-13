@@ -5,6 +5,16 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 10-13** (Cameron): #268, #282, #283, #281 (migration `20261020000000`), #284, plus the `server` function. Coordinator verified read-only: 99/99 gigs owned with active owners, no Inactive rows, the new build's strings, `server` updated 17:26 UTC. The Docs Lead is publishing the held Locations and Kits pages.
+
+- **PR #284** (Equipment Lead, merged 10-13 with Cameron's OK after an independent review): #175 PR 2 of 3, services. Delete names why it's refused; remove and Inactive services check what the database did; duplicate is owner-only and leaves out Inactive participants (Cameron 10-13); calendar sync skips Inactive organizations. No migration; prod needs a `server` deploy (dev has it).
+
+- **PR #281** (Equipment Lead, merged 10-12 with Cameron's OK after two independent reviews): #175 PR 1 of 3. Every gig has an owner organization; delete, status, owner and parent-gig changes are owner-only; participations can be marked Inactive (read-only on shared details, the schedule and other organizations' contacts). Participant saves now fail clearly when a change is refused. The legacy gig-delete server route is removed. Migration `20261020000000` applied to dev 10-12 (17/17 gigs owned); prod needs it plus a `server` deploy. Prod backfill dry run: 99/99.
+
+- **PRs #282, #283** (coordinator's helper, merged 10-12 with Cameron's OK): fix #278 (the kit list's Tracking Status count was meaningless; it now uses the gig packing-list count, the badge plus "N of M") and #279 (Kit Contents cells wrap so Total Value and the X fit). Failing tests first; no migrations. **PR #280** (Docs Lead): Kits page.
+
+- **PR #268** (Equipment Lead, merged 10-12 with Cameron's OK after three independent reviews): Locations Item filter, piece counts, "2 of 10" rows, the where-is-it card, Move N of a lot in Manual Tracking Override (fixes #160; the target row is written after the closing return; one stale rule; capped at the lot), and parts of a lot leaving a case get a warning. **PR #277** (Docs Lead): user-guide pages for the 10-12 deploy.
+
 - **Prod deploy, 10-12** (Cameron): #263, #264, #267, #269, #270, #271, #272, #273, #276 (no migrations). The coordinator verified the served build's strings read-only; migrations are unchanged at 20261019000000. The Blue Valley duplicate payment was cleaned up by Cameron in the app.
 
 - **10-12 merges, round 2** (Cameron's OK, after coordinator review): **#276** (#183 D, CSV import onto units, lots and kit lines; independent review found the row-grouping, retired-status, retry and preview-crash problems, all fixed with failing tests first), **#269** (Equipment Lead; #265 container still out at another gig; the review's repeat-warning finding fixed), **#275** (Docs Lead; Payment received → Apply to).
@@ -223,7 +233,7 @@ middleware; `DELETE /gigs/:id` is Admin-only; access-request and notification ro
 
 ## Docs passes by triage
 
-Covered: `docs/development/testing.md` (09-23, PR #67), `docs/technical/setup-guide.md` (09-23, PR #68), `docs/README.md` (09-24, PR #70), `docs/technical/database.md` (09-25, PR #72), `docs/technical/server-endpoint-inventory.md` (09-29, PR #88), `docs/technical/security-scheme.md` (checked 09-29; update held, see WORK_PLAN), `docs/technical/deployment.md` (10-01, PR #110), `docs/technical/tech-stack.md` (10-02, PR #118), `docs/development/coding-guide.md` (10-03, PR #119), `docs/technical/SmartDataTable.md` (10-05, PR #126).
+Covered: `docs/technical/conflict-detection.md` (10-13, batch queries, Cancelled and Inactive rules), `docs/development/testing.md` (09-23, PR #67), `docs/technical/setup-guide.md` (09-23, PR #68), `docs/README.md` (09-24, PR #70), `docs/technical/database.md` (09-25, PR #72), `docs/technical/server-endpoint-inventory.md` (09-29, PR #88), `docs/technical/security-scheme.md` (checked 09-29; update held, see WORK_PLAN), `docs/technical/deployment.md` (10-01, PR #110), `docs/technical/tech-stack.md` (10-02, PR #118), `docs/development/coding-guide.md` (10-03, PR #119), `docs/technical/SmartDataTable.md` (10-05, PR #126).
 
 ## Settled decisions and closed threads
 

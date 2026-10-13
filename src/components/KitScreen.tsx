@@ -859,6 +859,8 @@ export default function KitScreen({
                   </Button>
                 </div>
               ) : (
+                // Cells are nowrap by default: Component and Availability wrap so Total Value and
+                // the remove X fit the card (#279); a narrow screen still scrolls it sideways.
                 <div className="border rounded-lg overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -885,7 +887,7 @@ export default function KitScreen({
                           : (row.asset?.manufacturer_model || 'Unknown Asset');
                         return (
                           <TableRow key={rowId}>
-                            <TableCell>
+                            <TableCell className="whitespace-normal break-words min-w-[8rem]">
                               <div>
                                 <div className="text-sm text-gray-900">{lineName}</div>
                                 {isAny && <div className="text-xs text-gray-500">any unit</div>}
@@ -926,7 +928,7 @@ export default function KitScreen({
                                 />
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="whitespace-normal">
                               {avail && (
                                 <div className={`text-xs ${avail.tone === 'red' ? 'text-red-700' : avail.tone === 'amber' ? 'text-amber-700' : 'text-gray-500'}`}>
                                   <div className={avail.tone === 'amber' && isAny ? 'font-medium' : ''}>{avail.text}</div>

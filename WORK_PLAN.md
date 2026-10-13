@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-12 (triage: §1 verified against open issues/PRs; closed rows removed)
+- **Last updated:** 2026-10-13 17:45 UTC (coordinator: Cameron's prod deploy verified — #268, #282, #283, #281, #284; Docs Lead publishing Locations and Kits)
 
 ---
 
@@ -18,11 +18,10 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | # | Item | State | Next / owner |
 |---|---|---|---|
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
-| [#183](https://github.com/corourke/GigManager/issues/183), [#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchase review, manual purchases, CSV import; (e) locations, override, maintenance (closes #160) | #183 D (CSV import) shipped in #276 (in prod 10-12); only D2 (summary cards, grouped column guide) is unreleased. #186: Locations fixes shipped; **[#268](https://github.com/corourke/GigManager/pull/268) (Item filter, where-is-it card, Move N of a lot) is open, awaiting the case-split warning and Cameron's OK**; override and maintenance flow still unbuilt | Equipment Lead (#268); the rest waits on Cameron's release |
-| [#278](https://github.com/corourke/GigManager/issues/278), [#279](https://github.com/corourke/GigManager/issues/279) | Kit list Tracking Status count reads "6/0"; Kit Contents table wider than its card | Filed by the Docs Lead 10-12, not released | Cameron releases |
+| [#183](https://github.com/corourke/GigManager/issues/183), [#186](https://github.com/corourke/GigManager/issues/186) | Items screens: (b) purchase review, manual purchases, CSV import; (e) locations, override, maintenance (closes #160) | #183 D (CSV import) shipped in #276 (in prod 10-12); only D2 (summary cards, grouped column guide) is unreleased. #186: Locations fixes shipped; **[#268](https://github.com/corourke/GigManager/pull/268) (Item filter, where-is-it card, Move N of a lot) merged 10-12**; override and maintenance flow still unbuilt | Equipment Lead (#268); the rest waits on Cameron's release |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
-| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08; **sequenced after the equipment refactor (#183–#186)**. Coordinator builds it in 3 PRs (§3c). Stopgap #271 (Delete gig Admin-only) merged 10-12 and in prod; the 3-PR owner-organization plan is still after #186 |
+| [#175](https://github.com/corourke/GigManager/issues/175) | Delete gig offered to Managers, but Admin-only | Cameron 10-07: another participating org's Admin must never delete; direction "cancel only when other orgs participate" | Plan approved by Cameron 10-08. **Released to the Equipment Lead 10-12 (Cameron)**: 3 PRs per the plan; the design comment on #175 comes before the migration; the coordinator applies it to dev, Cameron to prod. Stopgap #271 (Delete gig Admin-only) merged 10-12 and in prod; the 3-PR owner-organization plan is still after #186 |
 
 ## 2. Waiting on Cameron
 
@@ -63,6 +62,18 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 4. ~~**Item 6, tracked expensed line needs a category.**~~ **Done: PR #252, merged 10-10.** A purchase line that is tracked as equipment and expensed can't be saved without an expense category: the line shows "Choose an expense category" and Save is blocked until it has one. Untracked lines keep today's rule. Test both.
 
 
+**Status 10-12 21:15 UTC:**
+- **#281 (#175 PR 1, database):** CI green; an independent review says fix first (the details went to Cameron privately). **10-12: re-reviewed clean at d95dcdd (CI green). Applied to dev 10-12: migration `20261020000000` (17/17 dev gigs owned) and all three edge functions. **Merged 10-12 (13a78ce, Cameron's OK).** Prod needs the migration and a `server` deploy. Prod backfill dry run (read-only): 99/99 resolve, no child gigs.** Also folded into this PR: the participant-change path in the app (delete + insert with error checks), removal of the legacy delete route (needs an edge-function deploy), the demo-seed owner, and more RLS 62 cases. **Cameron 10-12:** an Inactive organization is also read-only on the gig schedule and on other organizations' contacts. The migration goes to dev only after re-review.
+
+**Status 10-12 18:45 UTC:**
+- **#280 merged** (docs: Kits page). The Docs Lead filed #278 (kit list Tracking Status count) and #279 (kit editor's Kit Contents table overflows its card). Fixed by a coordinator helper and merged 10-12 with Cameron's OK: #282 (Tracking Status reads the badge plus "N of M" at the active gig) and #283 (Kit Contents fits its card). Not yet in prod.
+- **#175 PR 1 design approved (Cameron, 10-12; answers on #175):** RESTRICT on owner delete; any participating Admin/Manager may remove an unclaimed venue or act; the owner can't Leave or go Inactive; **an Inactive organization is read-only on the shared gig details**; the backfill fails loudly. Coordinator prod check (read-only): 99/99 gigs resolve, 0 unresolved, no children. The Equipment Lead is building the migration and PR 1; the coordinator applies it to dev after review.
+
+**Status 10-12 15:00 UTC:**
+- **Merged (not yet in prod):** #268 (#186 Locations step: Item filter, piece counts, "2 of 10", the where-is-it card, Move N of a lot with the case-split warning; fixes #160). No migration. The Docs Lead is drafting the Locations update and holding it for the deploy.
+- **Docs:** #277 merged (pages for the 10-12 deploy). #280 (Kits page) is approved but conflicts with #277; the Docs Lead is merging main.
+- **Equipment Lead next (Cameron 10-12): #175 full plan** (owner organization; delete, cancel, leave, Inactive), 3 PRs, migration first via a design comment on #175. **Not released:** the rest of #186 (Maintenance), #183 D2. #20 stays paused.
+
 **Status 10-12 05:15 UTC:**
 - **#274 merged** (docs: Locations page, live behaviour).
 - **#268 (#186 Locations step, fixes #160):** the third independent check passed. Move N reads back correctly (the target row is written 1 ms after the closing return); there's one stale rule (an out place is stale when other places later held more pieces at once than the lot leaves; returns hold none); a lot home in two cases splits correctly; a move from home with none home is refused. **Cameron 10-12: moving part of a lot in a case to another gig is allowed, with a warning** ("These N leave <case>. The case stays at <gig>."). The Equipment Lead is adding it; then the merge waits on Cameron's OK.
@@ -73,10 +84,10 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 - **In review:** #268 (#186 Locations step): Equipment Lead pushed fixes for every finding; an independent re-check is running. #274 (docs: Locations page): two sentences contradict the 10-10 rule (contents keep their own records); the Docs Lead is fixing them.
 - **#183 D2 (not started, not released):** mockup 11's summary cards and the grouped column guide on the import screen. The v1 purchase RPCs can be dropped in the next migration.
 
-**Status 10-12 01:40 UTC:**
-- **Merged (not yet in prod):** #263, #264, #267 (#245/#249), #270 (#242 items 5, 7; #242 closed), #271 (#175 stopgap: Delete gig Admin-only), #272 (#256), #273 (#266 items 1–4; #266 closed). No migrations.
-- **Back to the Equipment Lead for fixes (coordinator review 10-12):** #268 (#186 Locations step): the where-is-it card and Item page don't use the `currentRows` rule (T58 regression), Move N can exceed the lot via a stale bucket, the Maintenance + In Warehouse mismatch, home lot count/cap, and the closing row's location. #269 (#265): the warning repeats after the case is packed here (reads only server `last_records`).
-- **#183 D (CSV import), branch `claude/183d-csv-import`:** D1 built; review fixes in progress: group all rows so lines keep their invoice, hold purchases with invalid rows, Retry failed, guard the preview. **Cameron 10-12: the `status` column is removed (import seeds a new account; every unit is Active)**; the kit column stays; retired_on/liquidation_amt dropped; template regrouped; example mic-kit file. No migration.
+**Status 10-12 22:45 UTC:**
+- **In prod (Cameron's deploy 10-12):** #263, #264, #267, #269, #270, #271, #272, #273, #276.
+- **In prod (Cameron's deploy 10-13, verified read-only):** #268, #282, #283, #281, #284. Migration `20261020000000` (99/99 gigs owned, all owners active participants); build `index-Oni_LDm_.js`; `server` v35 deployed 17:26 UTC. **Merged, not yet in prod:** nothing.
+- **#281 (#175 PR 1):** merged 10-12 with Cameron's OK (dev has it). **PR 2 is #284, merged 10-13 (58e0974, Cameron's OK)** (services): independent review found no blockers; review fixes in at 5ce0e26 (CI green); `server` deployed to dev 10-13. **Cameron 10-13:** duplicate is owner-only (the owner's Admins and Managers; clear message for others; PR 3 hides the button); a duplicate leaves Inactive participants off; leaving a gig is logged through a small migration in PR 3 (design on #175 first). Items 1–2 landed in #284 (828e8b1). **Cameron 10-13, Inactive redefined:** Inactive means the organization is being removed from the gig. It keeps and maintains its own financials and notes, but its staff and equipment are released, and it can't change anything else. Mark Inactive is refused until the org has released its own staff slots and kit assignments (release first, then Inactive). Gig History logs Inactive/Reactivated. In Participants, Remove runs right away behind a confirmation. Leave and Inactive are web-only this round. **Delete vs Cancel (Cameron 10-13):** Cancelled stays a status (no Cancel menu item). Delete Gig stays in the menu, disabled with a popover when other claimed organizations participate: "Delete gig is disabled as there are other claimed organizations participating -- you can Cancel the gig instead." Other refusals get their own reason. **PR 3 migration design approved by the coordinator 10-13** (one migration `20261021000000_gig_participant_inactive_rules.sql`: removal log, Inactive/Reactivated history, release-first rule, no new staff/kits while Inactive, own contacts read-only while Inactive — Cameron's "only financials and notes"); RLS tests 63 and 64. **PR 3 (UI) started 10-13:** the leave-log design comes first on #175, then the UI, plus the mobile participant-save bug. The Docs Lead is drafting the #175 rules, held until prod.
 - Open question for Cameron later: should #265's warning also cover a case *added* at pack-out?
 
 **Released by Cameron 10-11 (answers recorded on each issue):**
@@ -123,7 +134,33 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **Filed:**
     - **#278:** the kit list's Tracking Status count reads "6/0" and "7/5".
     - **#279:** the kit editor's Kit Contents table overflows its card (Total Value and the remove X are cut off).
+- **Docs Lead status, 10-12 15:35 UTC:**
+  - **PR #280 merged 10-12 18:46 UTC:** Kits is published.
+- **Docs Lead status, 10-12 20:40 UTC:** Kits update for #282/#283 is held on `claude/docs-kits-282-283` (0d36506), checked on dev @ 1be842f.
+  - Full Band at Harvest Gala reads Checked Out · "6 of 29", with the tooltip "Pieces at Harvest Gala Dinner & Dance: Checked Out 6 · Not packed 23". That matches the kit page's Pieces to check off (29; its Mic Case and XLR Cable Box count as one each).
+  - Other kits show the badge only.
+  - The editor shot now includes Kit Contents, and Total Value and the remove X fit.
+  - No PR until prod has #282/#283. The Locations draft for #268 is still held as well.
+  - **#268 Locations draft (held):** on `claude/docs-locations-268` (fd0d10d), checked on dev. It covers the Item filter and card, the "2 of 10" lot lines, pieces counts, Move N with its After line, the Move N button and the leave-the-case warning. A save split the T58s 2 and 2 as expected. No PR until prod has #268.
+  - **Small wording issue (not filed):** a place with one piece reads "1 pieces" in Locations' place headings (the old "1 items" note).
   - **Locations** is untouched until #268.
+- **Docs Lead status, 10-12 22:40 UTC:** #175 PR 1 (#281) draft held on `claude/docs-175-owner` (8abdd07). No PR until #281 is in prod.
+  - **`participating-organizations.md`:** new sections The gig's owner, Taking an organization off a gig, and Inactive organizations.
+  - **`overview.md` and `the-gig-list.md`:** delete and status are now owner-only.
+  - **Rules only:** the draft names no Inactive or owner controls, since that UI is #175 PR 3, and screenshots wait for PR 3.
+  - **For the coordinator:**
+    - If #281 ships before PR 3, the guide will describe Inactive with no way to set it. Hold the Inactive section until PR 3, or publish it with a "coming soon" note?
+    - Parent gigs have no UI, so the draft mentions them in one clause only.
+    - The gig menu still offers **Delete Gig** to any Admin until PR 3. Per #281's dev check, a delete that isn't allowed "does nothing", so users get no feedback until PR 3.
+- **Docs Lead status, 10-13 15:45 UTC:** the #175 draft is updated for Cameron's 10-13 Inactive rule (8abdd07), still held until PR 3.
+  - **What Inactive means**, a new plain section:
+    - the organization is leaving the gig;
+    - it releases its staff and kits first;
+    - while Inactive it updates only its own financials and notes;
+    - it can be reactivated or leave;
+    - History records both.
+  - The "remove or mark Inactive" text follows the new rule. The earlier "hold Inactive until PR 3" question is moot now that it ships with PR 3.
+  - **For the coordinator:** can the owner's Admins and Managers still mark another organization Inactive (#281 allowed it), or only the organization itself, now that it must release its own staff and kits first? The draft avoids saying who until you confirm.
 - **Docs Lead status, 10-12 01:40 UTC.**
   - **Published (PRs, ready for review):**
     - **PR #274:** Equipment → Locations (prod since 10-11), with a screenshot.
@@ -232,7 +269,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 **Triage routine** (daily, ~09:00 UTC). Each run:
 1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.
 2. Build what §3c releases that has no PR yet: plan comment on the issue, failing test first.
-3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/technical/conflict-detection.md`). Leave `website/docs/` to the Docs Lead.
+3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/technical/gig-financials.md`). Leave `website/docs/` to the Docs Lead.
 4. Don't manufacture activity: if nothing changed, commit nothing and post nothing.
 
 **Who updates which docs** (Cameron, 10-07):
@@ -251,8 +288,8 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | published (PR #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Importing equipment from a spreadsheet (#276): example/template, invoice rows, units vs lots, kits by name, fix and retry |
 | `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come |
-| `equipment/kits.md` | publishing in PR #280 (open) | 2026-10-12 (Docs Lead; audited against prod) | kit page (#273), editor, any lines, nesting, containers; 2 shots; kit-list and Kit Contents shots wait on #278/#279 |
-| `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 merged 10-12, page update drafted once it reaches prod (Item filter, where-is-it card, Move N) |
+| `equipment/kits.md` | published (PR #280) | 2026-10-12 (Docs Lead; audited against prod) | kit page (#273), editor, any lines, nesting, containers; 2 shots. #282/#283 update (Tracking Status "6 of 29" and tooltip; full editor shot with Kit Contents) held on `claude/docs-kits-282-283` (0d36506) until prod |
+| `equipment/location-explorer.md` | published (PR #274) | 2026-10-12 (Docs Lead; matches prod) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 update drafted and checked on dev, held on branch `claude/docs-locations-268` (fd0d10d) until #268 is in prod; overview shot to retake then (place headings now read "N pieces") |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
@@ -271,11 +308,11 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `gigs/conflict-detection.md` | published | 2026-10-12 (Docs Lead, PRs #235, #277; matches prod 10-12) | per-item conflicts, Equipment needed table, same-unit rule after #238, lot short/missing notes (#270) |
 | `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
 | `gigs/documents-and-notes.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
-| `gigs/overview.md` | published | 2026-10-12 (Docs Lead, PR #277) | Delete is Admin-only (#271) |
-| `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
+| `gigs/overview.md` | published | 2026-10-12 (Docs Lead, PR #277) | Delete is Admin-only (#271); #175 PR 1 (#281) owner rules held on `claude/docs-175-owner` (8abdd07) until prod; screenshots wait for #175 PR 3 |
+| `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | The gig's owner, Taking an organization off a gig, Inactive organizations: #175 PR 1 (#281) owner rules held on `claude/docs-175-owner` (8abdd07) until prod; screenshots wait for #175 PR 3 |
 | `gigs/schedule.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/staffing-and-participants.md` | published (PR #222) | 2026-10-09 (Docs Lead, PR #224) | — |
-| `gigs/the-gig-list.md` | published (PRs #222, #277) | 2026-10-12 (Docs Lead) | Delete is Admin-only (#271) |
+| `gigs/the-gig-list.md` | published (PRs #222, #277) | 2026-10-12 (Docs Lead) | Delete is Admin-only (#271); #175 PR 1 (#281) owner rules held on `claude/docs-175-owner` (8abdd07) until prod; screenshots wait for #175 PR 3 |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
 | `mobile/adding-at-pack-out.md` | published (PR #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | scan or + Add, conflict check, Added at pack-out, offline; 1 phone shot |
@@ -298,6 +335,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 
 ## 5. Future considerations (not open work)
 
+- *From the #281 re-review (10-12):* saving a gig's edit on mobile resets every participant's notes and client flag (MobileGigDetail sends only id, organization and role; `updateGigParticipants` writes `notes || null` and `is_client ?? false`). Prod today: 0 participant notes and 1 client flag, so little is at risk yet. Raised with Cameron; a fit for #175 PR 3 (UI).
 - *From the #268 checks:* Locations' stale rule assumes a consistent history; a raw lot scan that sends out more than is home (#185 lot scans) can make an older place read stale and over-report home. Rows written by the pre-fix Move N on dev can tie on time. The stale check is O(rows × history) per lot (fine now, slow for very long histories). `getItemsByLocation` reads tracking rows unpaged (1000-row cap) and doesn't batch `.in('id')`.
 - *From #266 / the #225 review:* concurrent kit edits can leave partial writes; nested-container availability isn't shown; the kit editor's item query isn't paged.
 - *From the #183 D1 review:* Track as equipment can double-track across two sessions (client-side check); the import's item/kit lookups load full records and are subject to the ~1000-row PostgREST cap.
