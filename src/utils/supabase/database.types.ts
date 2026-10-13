@@ -2086,6 +2086,10 @@ export type Database = {
         Args: { org_id: string; user_uuid: string }
         Returns: boolean
       }
+      user_manages_gig_owner: {
+        Args: { p_gig_id: string; p_user: string }
+        Returns: boolean
+      }
       user_organization_ids: {
         Args: { user_uuid: string }
         Returns: {

@@ -31,8 +31,10 @@ vi.mock('../utils/supabase/auth-utils', () => ({
 vi.mock('./googleCalendar.service', () => ({
   syncGigToCalendar: vi.fn().mockResolvedValue(undefined),
   deleteGigFromCalendar: vi.fn().mockResolvedValue(undefined),
+  deleteCalendarEvent: vi.fn().mockResolvedValue(undefined),
   debouncedSyncGigToAllCalendars: vi.fn(),
 }));
+import { deleteCalendarEvent, deleteGigFromCalendar } from './googleCalendar.service';
 
 // Helper: build a chainable Supabase query builder that resolves to `result`
 function makeChain(result: { data: any; error: any }) {
@@ -276,16 +278,91 @@ describe('gig.service', () => {
       await expect(deleteGig('gig-1')).rejects.toThrow('foreign key constraint');
     });
 
-    it('throws when no row was deleted (RLS denied — e.g. a non-Admin)', async () => {
-      // Supabase does NOT error on an RLS-denied delete; it affects 0 rows.
-      // deleteGig must detect that and fail, not report false success.
+    // A refused delete affects 0 rows with no error; deleteGig says why (#175 review).
+    const refused = (gig: any, children: any[], participants: any[]) => {
+      const gigCalls = [
+        makeChain({ data: [], error: null }),     // the delete: no rows
+        makeChain({ data: gig, error: null }),    // the gig and its owner
+        makeChain({ data: children, error: null }), // its child gigs
+      ];
       mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'gig_sync_status') return makeChain({ data: [], error: null });
-        if (table === 'gigs') return makeChain({ data: [], error: null });
+        if (table === 'gigs') return gigCalls.shift() ?? makeChain({ data: [], error: null });
+        if (table === 'gig_participants') return makeChain({ data: participants, error: null });
+        return makeChain({ data: [], error: null });
+      });
+    };
+    const owner = { id: 'gig-1', owner_organization_id: 'org-o' };
+
+    it('throws when no row was deleted and the gig is gone', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      refused(null, [], []);
+      await expect(deleteGig('gig-1')).rejects.toThrow(/not found/i);
+    });
+
+    it('says to cancel instead when another claimed organization is on the gig', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      refused(owner, [], [
+        { organization_id: 'org-o', organization: { claimed: true } },
+        { organization_id: 'org-b', organization: { claimed: true } },
+      ]);
+      await expect(deleteGig('gig-1')).rejects.toThrow(/other organizations.*Cancel/is);
+    });
+
+    it('says so when the gig has child gigs', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      refused(owner, [{ id: 'child-1' }], [{ organization_id: 'org-o', organization: { claimed: true } }]);
+      await expect(deleteGig('gig-1')).rejects.toThrow(/child gigs/i);
+    });
+
+    it("says only the owner's Admins can delete when nothing else is in the way", async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      refused(owner, [], [
+        { organization_id: 'org-o', organization: { claimed: true } },
+        { organization_id: 'org-v', organization: { claimed: false } },
+      ]);
+      await expect(deleteGig('gig-1')).rejects.toThrow(/Admin of the gig's owner organization/);
+    });
+
+    // #175: calendar events go only once the gig is gone. Their sync rows are
+    // deleted with the gig, so the event ids are read first.
+    it('removes the calendar events only after the gig was deleted', async () => {
+      const syncChain = makeChain({ data: [{ user_id: 'u-1', google_event_id: 'ev-1' }], error: null });
+      const gigChain = makeChain({ data: [{ id: 'gig-1' }], error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_sync_status') return syncChain;
+        if (table === 'gigs') return gigChain;
         return makeChain({ data: [], error: null });
       });
 
-      await expect(deleteGig('gig-1')).rejects.toThrow(/permission|not found/i);
+      await deleteGig('gig-1');
+
+      expect(deleteCalendarEvent).toHaveBeenCalledWith('u-1', 'ev-1');
+      expect((deleteCalendarEvent as any).mock.invocationCallOrder[0])
+        .toBeGreaterThan(gigChain.delete.mock.invocationCallOrder[0]);
+    });
+
+    it('leaves the calendar alone when the delete is refused', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_sync_status') return makeChain({ data: [{ user_id: 'u-1', google_event_id: 'ev-1' }], error: null });
+        return makeChain({ data: [], error: null });
+      });
+
+      await expect(deleteGig('gig-1')).rejects.toThrow();
+      expect(deleteCalendarEvent).not.toHaveBeenCalled();
+      expect(deleteGigFromCalendar).not.toHaveBeenCalled();
+    });
+
+    it('still reports the delete as done when a calendar event fails to go', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      (deleteCalendarEvent as any).mockRejectedValueOnce(new Error('token expired'));
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gig_sync_status') return makeChain({ data: [{ user_id: 'u-1', google_event_id: 'ev-1' }], error: null });
+        if (table === 'gigs') return makeChain({ data: [{ id: 'gig-1' }], error: null });
+        return makeChain({ data: [], error: null });
+      });
+
+      await expect(deleteGig('gig-1')).resolves.toEqual({ success: true });
     });
   });
 
@@ -976,6 +1053,49 @@ describe('gig.service', () => {
   // ─── duplicateGig ───────────────────────────────────────────────────────────
 
   describe('duplicateGig', () => {
+    // create_gig_complex returns the new id; user_manages_gig_owner says whether the caller may copy.
+    const dupRpc = (newId: string, managesOwner = true) => vi.fn((name: string) => Promise.resolve(
+      name === 'user_manages_gig_owner' ? { data: managesOwner, error: null } : { data: [{ id: newId }], error: null }));
+
+    // #175 (Cameron 10-13): only the owner's Admins and Managers duplicate a gig.
+    it("refuses a caller who doesn't manage the gig's owner, and creates nothing", async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-a', participants: [{ organization_id: 'org-a', role: 'Venue' }],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      mockSupabase.from.mockImplementation((table: string) =>
+        makeChain({ data: table === 'gigs' ? originalGig : [], error: null }));
+      mockSupabase.rpc = dupRpc('new', false);
+
+      await expect(duplicateGig('g')).rejects.toThrow("Only the gig owner's Admins and Managers can duplicate it.");
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('user_manages_gig_owner', { p_gig_id: 'g', p_user: 'user-1' });
+      expect(mockSupabase.rpc).not.toHaveBeenCalledWith('create_gig_complex', expect.anything());
+    });
+
+    // #175 (Cameron 10-13): a copy gets only the original's active participants.
+    it('leaves out participants that are Inactive on the original', async () => {
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-a',
+        participants: [
+          { organization_id: 'org-a', role: 'Production', inactive: false },
+          { organization_id: 'org-b', role: 'Sound', inactive: true },
+          { organization_id: 'org-c', role: 'Act' },
+        ],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      mockSupabase.from.mockImplementation((table: string) =>
+        makeChain({ data: table === 'gigs' ? originalGig : [], error: null }));
+      mockSupabase.rpc = dupRpc('new');
+
+      await duplicateGig('g');
+
+      const rpcArgs = mockSupabase.rpc.mock.calls.find((c: any[]) => c[0] === 'create_gig_complex')[1];
+      expect(rpcArgs.p_participants.map((p: any) => p.organization_id)).toEqual(['org-a', 'org-c']);
+    });
+
     it('logs gig.created for duplicated gig', async () => {
       const gigId = 'original-gig-id';
       const originalGig = { 
@@ -997,7 +1117,7 @@ describe('gig.service', () => {
         if (table === 'organizations') return makeChain({ data: { name: 'Acme' }, error: null });
         return makeChain({ data: [], error: null });
       });
-      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: newGigId }], error: null });
+      mockSupabase.rpc = dupRpc(newGigId);
 
       await duplicateGig(gigId);
 
@@ -1013,6 +1133,7 @@ describe('gig.service', () => {
     it("copies only the primary org's staff slots and kit assignments (#61)", async () => {
       const originalGig = {
         id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-a',
         participants: [
           { organization_id: 'org-a', role: 'Venue' },
           { organization_id: 'org-b', role: 'Sound' },
@@ -1034,7 +1155,7 @@ describe('gig.service', () => {
         if (table === 'gig_kit_assignments') return kitChain;
         return makeChain({ data: [], error: null });
       });
-      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new' }], error: null });
+      mockSupabase.rpc = dupRpc('new');
 
       await duplicateGig('g');
 
@@ -1043,11 +1164,35 @@ describe('gig.service', () => {
       expect(kitChain.insert).toHaveBeenCalledWith([expect.objectContaining({ kit_id: 'kit-a', organization_id: 'org-a' })]);
     });
 
+    // #175 review: a copy the database refuses (e.g. a locked tax year) is reported, not dropped.
+    it("reports the parts that couldn't be copied", async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-a',
+        participants: [{ organization_id: 'org-a', role: 'Venue' }],
+        financials: [{ organization_id: 'org-a', amount: 100, direction: 'in', stage: 'accepted' }],
+        kit_assignments: [{ kit_id: 'kit-a', organization_id: 'org-a' }],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gigs') return makeChain({ data: originalGig, error: null });
+        if (table === 'gig_financials') return makeChain({ data: null, error: { message: 'tax year 2025 is locked' } });
+        if (table === 'gig_kit_assignments') return makeChain({ data: null, error: { message: 'kit is retired' } });
+        return makeChain({ data: [], error: null });
+      });
+      mockSupabase.rpc = dupRpc('new');
+
+      await expect(duplicateGig('g')).rejects.toThrow(/copied.*financials \(tax year 2025 is locked\).*kit assignments \(kit is retired\)/s);
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'gig.created', entity_id: 'new' }));
+    });
+
     it('sends staff slots in the shape create_gig_complex reads, unstaffed (#102)', async () => {
       // create_gig_complex reads v_slot->>'role' (a role name), 'organization_id',
       // 'required_count' and 'notes'. It never reads staff_role_id or assignments.
       const originalGig = {
         id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-a',
         participants: [{ organization_id: 'org-a', role: 'Venue' }],
         staff_slots: [
           {
@@ -1063,7 +1208,7 @@ describe('gig.service', () => {
         if (table === 'gigs') return makeChain({ data: originalGig, error: null });
         return makeChain({ data: [], error: null });
       });
-      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [{ id: 'new' }], error: null });
+      mockSupabase.rpc = dupRpc('new');
 
       await duplicateGig('g');
 
@@ -1071,6 +1216,48 @@ describe('gig.service', () => {
       expect(rpcArgs.p_staff_slots).toEqual([
         { role: 'Audio Engineer', organization_id: 'org-a', required_count: 2, notes: 'Bring headset' },
       ]);
+    });
+
+    // #175: the copy belongs to the owner organization, not the Venue.
+    it("copies the gig for its owner organization, with only the owner's financials, slots and kits", async () => {
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T20:00:00.000Z', end: '2026-03-16T01:00:00.000Z', timezone: 'UTC',
+        owner_organization_id: 'org-owner',
+        participants: [
+          { organization_id: 'org-venue', role: 'Venue' },
+          { organization_id: 'org-owner', role: 'Production' },
+        ],
+        staff_slots: [
+          { role: 'Audio', organization_id: 'org-venue', required_count: 1 },
+          { role: 'Audio', organization_id: 'org-owner', required_count: 1 },
+        ],
+        kit_assignments: [
+          { kit_id: 'kit-v', organization_id: 'org-venue' },
+          { kit_id: 'kit-o', organization_id: 'org-owner' },
+        ],
+        financials: [
+          { organization_id: 'org-venue', amount: 100, direction: 'out', stage: 'accepted' },
+          { organization_id: 'org-owner', amount: 200, direction: 'in', stage: 'accepted' },
+        ],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      const finChain = makeChain({ data: [], error: null });
+      const kitChain = makeChain({ data: [], error: null });
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'gigs') return makeChain({ data: originalGig, error: null });
+        if (table === 'gig_financials') return finChain;
+        if (table === 'gig_kit_assignments') return kitChain;
+        return makeChain({ data: [], error: null });
+      });
+      mockSupabase.rpc = dupRpc('new');
+
+      await duplicateGig('g');
+
+      const rpcArgs = mockSupabase.rpc.mock.calls.find((c: any[]) => c[0] === 'create_gig_complex')[1];
+      expect(rpcArgs.p_gig_data.primary_organization_id).toBe('org-owner');
+      expect(rpcArgs.p_staff_slots.map((s: any) => s.organization_id)).toEqual(['org-owner']);
+      expect(finChain.insert).toHaveBeenCalledWith([expect.objectContaining({ organization_id: 'org-owner', amount: 200 })]);
+      expect(kitChain.insert).toHaveBeenCalledWith([expect.objectContaining({ kit_id: 'kit-o' })]);
     });
   });
 });
