@@ -610,6 +610,32 @@ export async function updateGig(gigId: string, gigData: {
 }
 
 /**
+ * Why the database refused to delete a gig (#175): it has child gigs, another
+ * claimed organization is on it, or the user isn't an Admin of its owner.
+ */
+async function deleteRefusalReason(gigId: string): Promise<string> {
+  const supabase = getSupabase();
+  const { data: gig } = await supabase.from('gigs').select('id, owner_organization_id').eq('id', gigId).maybeSingle();
+  if (!gig) return 'Gig not found, or you do not have permission to delete it.';
+
+  const { data: children } = await supabase.from('gigs').select('id').eq('parent_gig_id', gigId).limit(1);
+  if ((children ?? []).length > 0) {
+    return 'This gig has child gigs, so it can\'t be deleted. Delete its child gigs first, or cancel it instead.';
+  }
+
+  const { data: participants } = await supabase
+    .from('gig_participants')
+    .select('organization_id, organization:organization_id(claimed)')
+    .eq('gig_id', gigId);
+  const othersOn = (participants ?? []).some((p: any) =>
+    p.organization_id !== (gig as any).owner_organization_id && p.organization?.claimed);
+  if (othersOn) {
+    return 'Other organizations are on this gig, so it can\'t be deleted. Cancel it instead.';
+  }
+  return 'Only an Admin of the gig\'s owner organization can delete it.';
+}
+
+/**
  * Delete a gig
  */
 export async function deleteGig(gigId: string) {
@@ -625,7 +651,7 @@ export async function deleteGig(gigId: string) {
     const { data, error } = await supabase.from('gigs').delete().eq('id', gigId).select();
     if (error) throw error;
     if (!data || data.length === 0) {
-      throw new Error('Gig not found, or you do not have permission to delete it.');
+      throw new Error(await deleteRefusalReason(gigId));
     }
     await removeGigCalendarEvents(gigId, calendarEvents);
     return { success: true };
@@ -688,6 +714,8 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
     if (!data?.[0]?.id) throw new Error('Gig duplication failed to return an ID');
 
     const newGigId = data[0].id;
+    // Parts of the copy the database refused (e.g. a locked tax year), reported at the end.
+    const notCopied: string[] = [];
 
     const ownFinancials = (originalGig.financials || [])
       .filter((fin: any) => fin.organization_id === primaryOrgId);
@@ -712,7 +740,8 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
         notes: fin.notes,
         created_by: user.id,
       }));
-      await supabase.from('gig_financials').insert(financials);
+      const { error: finError } = await supabase.from('gig_financials').insert(financials);
+      if (finError) notCopied.push(`financials (${finError.message})`);
     }
 
     const ownKitAssignments = (originalGig.kit_assignments || [])
@@ -725,7 +754,8 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
         notes: gka.notes,
         assigned_by: user.id,
       }));
-      await supabase.from('gig_kit_assignments').insert(kitAssignments);
+      const { error: kitError } = await supabase.from('gig_kit_assignments').insert(kitAssignments);
+      if (kitError) notCopied.push(`kit assignments (${kitError.message})`);
     }
 
     // Duplicate schedule entries with remapped act participant IDs
@@ -772,6 +802,9 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
       console.error('Activity log failed:', e);
     }
 
+    if (notCopied.length > 0) {
+      throw new Error(`The gig was copied, but these parts couldn't be: ${notCopied.join('; ')}. Add them on the copy.`);
+    }
     return duplicatedGig;
   } catch (err) {
     return handleApiError(err, 'duplicate gig');

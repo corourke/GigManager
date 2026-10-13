@@ -196,7 +196,9 @@ export async function removeGigParticipant(gigId: string, organizationId: string
 
     let ctx: GigActivityCtx | null = null;
     try {
-      ctx = await resolveGigActivityCtx(supabase, user, gigId, activityCtx, [organizationId]);
+      // The actor's organization is found among all the gig's participants, not
+      // just the one being removed.
+      ctx = await resolveGigActivityCtx(supabase, user, gigId, activityCtx);
     } catch (e) { console.error('Activity log context lookup failed:', e); }
 
     // .select() so a removal the database refuses (no rows, no error) isn't taken as done.

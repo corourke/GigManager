@@ -348,7 +348,7 @@ describe('gig.service', () => {
         return makeChain({ data: [], error: null });
       });
 
-      await expect(deleteGig('gig-1')).rejects.toThrow(/permission|not found/i);
+      await expect(deleteGig('gig-1')).rejects.toThrow();
       expect(deleteCalendarEvent).not.toHaveBeenCalled();
       expect(deleteGigFromCalendar).not.toHaveBeenCalled();
     });
