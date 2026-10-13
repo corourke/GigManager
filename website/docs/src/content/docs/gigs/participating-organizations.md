@@ -60,7 +60,7 @@ Every gig has an owner: the organization it was created in. When you create a gi
 Only the owner's Admins and Managers can:
 
 - change the gig's **status**, for example to **Cancelled**;
-- hand the gig over to another organization on it, which becomes the owner (it can't be one that's [Inactive](#inactive-organizations));
+- hand the gig over to another organization on it, which becomes the owner (it can't be one that's [Inactive](#what-inactive-means));
 - change which gig it's part of, for a gig that's part of a larger one.
 
 Admins and Managers of the other organizations can still edit the gig's shared details: its title, times, time zone, notes and tags.
@@ -71,15 +71,19 @@ Only an Admin of the owner can delete the gig, and only while no other [claimed]
 
 The owner's Admins and Managers can take any organization off the gig, and an organization's own Admins and Managers can take it off. A venue or act that nobody has claimed can be taken off by an Admin or Manager of any organization on the gig that isn't Inactive. The owner can't be taken off.
 
-An organization can come off only if it has no financials, kit assignments or staff slots on the gig. If it has any, mark it [Inactive](#inactive-organizations) instead.
+An organization can come off only if it has no financials, kit assignments or staff slots on the gig. If it still has financials there, release its staff and kits and mark it [Inactive](#what-inactive-means) instead.
 
 When it comes off, its equipment scans and its contacts for the gig are deleted, and its purchases are no longer linked to the gig. If it has more than one role on the gig, such as **Venue** and **Act**, removing one role keeps the other, and nothing is deleted.
 
-## Inactive organizations
+## What Inactive means
 
-An organization that has stepped back from a gig can be marked **Inactive** instead of being taken off. It keeps its role, and it still manages its own staffing, financials, kits and contacts on the gig. It can't change the gig's shared details, its schedule, or other organizations' contacts.
+**Inactive** means the organization is leaving the gig. It can't simply come off yet, usually because it has money to settle, such as a deposit or costs already paid, or notes worth keeping.
 
-The owner's Admins and Managers, or the organization's own, can mark it Inactive and reactivate it. The owner is never Inactive.
+- **Before:** the organization releases its own staff and kits from the gig. It can't be marked Inactive until it has.
+- **While Inactive:** it keeps its role on the gig, and it can still update its own financials and notes there. It can't change anything else: no staff, no equipment, and none of the gig's shared details, schedule or other organizations' contacts.
+- **After:** it can be reactivated and take part again, or it can [leave the gig](#taking-an-organization-off-a-gig) once nothing ties it there.
+
+The gig's [History](/gigs/change-history/) records when an organization is marked Inactive and when it's reactivated. The owner is never Inactive.
 
 ## What everyone sees
 
