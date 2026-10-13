@@ -37,7 +37,7 @@ import { countChildGigs, deleteGig, duplicateGig, getGig } from '../../services/
 import { getGigActivity } from '../../services/activityLog.service';
 import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
 import { canManage } from '../../utils/permissions';
-import { deleteGigBlockedReason, gigOwnerName, inactiveBannerText, isInactiveOn, managesGigOwner, markInactiveConfirmText, offersMarkInactive } from '../../utils/gigOwnership';
+import { deleteGigBlockedReason, gigOwnerName, inactiveBannerText, inactiveStaffEquipmentText, isInactiveOn, managesGigOwner, markInactiveConfirmText, offersMarkInactive } from '../../utils/gigOwnership';
 import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
@@ -415,7 +415,15 @@ export default function GigPage({
                   onEditOrganization={onEditOrganization}
                   userRole={userRole}
                 />
-                <GigStaffSlotsSection gigId={gigId} currentOrganizationId={organization.id} participantOrganizationIds={participantOrgIds} />
+                {/* #175: an Inactive organization adds no staff or equipment; it has released them. */}
+                {inactiveHere ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">{inactiveStaffEquipmentText(organization.name)}</p>
+                    <GigStaffingTable slots={ownSlots} showAmounts={canEdit} gig={gig} />
+                  </div>
+                ) : (
+                  <GigStaffSlotsSection gigId={gigId} currentOrganizationId={organization.id} participantOrganizationIds={participantOrgIds} />
+                )}
                 <NotesCard organizationId={organization.id} gigId={gigId} readOnly={inactiveHere} />
               </div>
             ) : (
@@ -448,7 +456,7 @@ export default function GigPage({
           </TabsContent>
 
           <TabsContent value="equipment" className="mt-0">
-            {editing ? (
+            {editing && !inactiveHere ? (
               <GigKitAssignmentsSection
                 gigId={gigId}
                 currentOrganizationId={organization.id}
@@ -458,6 +466,7 @@ export default function GigPage({
               />
             ) : (
               <div className="space-y-4">
+                {editing && <p className="text-sm text-muted-foreground">{inactiveStaffEquipmentText(organization.name)}</p>}
                 <GigEquipmentTable gigId={gigId} organizationId={organization.id} showAmounts={canEdit} />
                 <EquipmentNeededTable gigId={gigId} gigStart={gig.start} gigEnd={gig.end} gigTimezone={gig.timezone} organizationId={organization.id} />
                 <NotReturnedSection organizationId={organization.id} gigId={gigId} gigEnd={gig.end} canEdit={canEdit} />

@@ -28,6 +28,7 @@ export const packingListService = {
         participants:gig_participants(
           organization_id,
           role,
+          inactive,
           organization:organizations(id, name)
         )
       `)

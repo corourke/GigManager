@@ -74,6 +74,11 @@ export function inactiveBannerText(orgName: string): string {
   return `${orgName} is Inactive on this gig: it is being removed. Its financial records and notes are kept; everything else is read-only.`;
 }
 
+/** Shown in place of the staff and equipment editors while the organization is Inactive. */
+export function inactiveStaffEquipmentText(orgName: string): string {
+  return `Staff and equipment are read-only while ${orgName} is Inactive on this gig.`;
+}
+
 export function markInactiveConfirmText(orgName: string): string {
   return `Mark ${orgName} Inactive? It's being removed from the gig: its financial records and notes are kept ` +
     `so sunk costs and agreements can be settled, but it can't change anything else. Release its staff and equipment first.`;
