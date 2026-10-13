@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { managesGigOwner, isInactiveOn, gigOwnerName, deleteGigBlockedReason } from './gigOwnership';
+import { managesGigOwner, isInactiveOn, gigOwnerName, deleteGigBlockedReason, offersMarkInactive } from './gigOwnership';
 
 // #175: every gig has an owner organization; status, owner, parent and Duplicate are its
 // Admins' and Managers'. An organization can be Inactive on a gig (a flag on each of its roles).
@@ -76,5 +76,19 @@ describe('deleteGigBlockedReason', () => {
   it("then other claimed organizations, in Cameron's words", () => {
     expect(deleteGigBlockedReason(claimedGig(true), 'org-a', 'Admin', 0))
       .toBe('Delete gig is disabled as there are other claimed organizations participating -- you can Cancel the gig instead.');
+  });
+});
+
+describe('offersMarkInactive', () => {
+  const FIN = "This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead.";
+  it('offers it when the refusal says to and the organization is active', () => {
+    expect(offersMarkInactive(FIN, false)).toBe(true);
+  });
+  it("doesn't when it is Inactive already", () => {
+    expect(offersMarkInactive(FIN, true)).toBe(false);
+  });
+  it("doesn't when staff or equipment must be released first, or for any other refusal", () => {
+    expect(offersMarkInactive("This organization has staff or equipment on the gig, so it can't be removed. Release its staff and equipment, then mark it Inactive.", false)).toBe(false);
+    expect(offersMarkInactive("The owner organization can't be removed from its gig.", false)).toBe(false);
   });
 });

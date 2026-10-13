@@ -16,7 +16,7 @@ import GigParticipantContactsList from './GigParticipantContactsList';
 import { getGig, updateGigParticipants } from '../../services/gig.service';
 import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { canManage } from '../../utils/permissions';
-import { markInactiveConfirmText } from '../../utils/gigOwnership';
+import { markInactiveConfirmText, offersMarkInactive } from '../../utils/gigOwnership';
 import type { UserRole } from '../../utils/supabase/constants';
 import { createClient } from '../../utils/supabase/client';
 import {
@@ -298,7 +298,7 @@ export default function GigParticipantsSection({
       toast.success(`${orgName} removed from the gig`);
     } catch (error: any) {
       const message: string = error?.message || 'Failed to remove the organization';
-      if (/only be marked Inactive/.test(message)) {
+      if (offersMarkInactive(message, inactiveOrgs.has(orgId))) {
         if (confirm(`${message}\n\n${markInactiveConfirmText(orgName)}`)) {
           await handleToggleInactive(orgId, orgName, true, false);
         }

@@ -78,3 +78,12 @@ export function markInactiveConfirmText(orgName: string): string {
   return `Mark ${orgName} Inactive? It's being removed from the gig: its financial records and notes are kept ` +
     `so sunk costs and agreements can be settled, but it can't change anything else. Release its staff and equipment first.`;
 }
+
+/**
+ * After the database refuses a removal: offer Mark Inactive only when it says to (the
+ * organization has financial records, and nothing to release first) and the organization
+ * isn't Inactive already.
+ */
+export function offersMarkInactive(refusal: string, alreadyInactive: boolean): boolean {
+  return !alreadyInactive && /Mark it Inactive instead/.test(refusal);
+}

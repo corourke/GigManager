@@ -37,7 +37,7 @@ import { countChildGigs, deleteGig, duplicateGig, getGig } from '../../services/
 import { getGigActivity } from '../../services/activityLog.service';
 import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
 import { canManage } from '../../utils/permissions';
-import { deleteGigBlockedReason, gigOwnerName, inactiveBannerText, isInactiveOn, managesGigOwner, markInactiveConfirmText } from '../../utils/gigOwnership';
+import { deleteGigBlockedReason, gigOwnerName, inactiveBannerText, isInactiveOn, managesGigOwner, markInactiveConfirmText, offersMarkInactive } from '../../utils/gigOwnership';
 import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
@@ -167,7 +167,7 @@ export default function GigPage({
   };
 
   // #175: another participant leaves the gig. The database refuses while the organization has
-  // financials, kits or staff on it; then it can be marked Inactive instead.
+  // staff or equipment on it (release them first) or financial records (mark it Inactive instead).
   const markInactive = async () => {
     try {
       await setGigParticipantInactive(gigId, organization.id, true);
@@ -189,7 +189,7 @@ export default function GigPage({
       onBack();
     } catch (error: any) {
       const message: string = error?.message || 'Failed to leave the gig';
-      if (/only be marked Inactive/.test(message)) {
+      if (offersMarkInactive(message, inactiveHere)) {
         if (confirm(`${message}\n\n${markInactiveConfirmText(organization.name)}`)) {
           await markInactive();
         }
