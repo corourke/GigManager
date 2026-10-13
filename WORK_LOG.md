@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 10-13** (Cameron): #268, #282, #283, #281 (migration `20261020000000`), #284, plus the `server` function. Coordinator verified read-only: 99/99 gigs owned with active owners, no Inactive rows, the new build's strings, `server` updated 17:26 UTC. The Docs Lead is publishing the held Locations and Kits pages.
+
 - **PR #284** (Equipment Lead, merged 10-13 with Cameron's OK after an independent review): #175 PR 2 of 3, services. Delete names why it's refused; remove and Inactive services check what the database did; duplicate is owner-only and leaves out Inactive participants (Cameron 10-13); calendar sync skips Inactive organizations. No migration; prod needs a `server` deploy (dev has it).
 
 - **PR #281** (Equipment Lead, merged 10-12 with Cameron's OK after two independent reviews): #175 PR 1 of 3. Every gig has an owner organization; delete, status, owner and parent-gig changes are owner-only; participations can be marked Inactive (read-only on shared details, the schedule and other organizations' contacts). Participant saves now fail clearly when a change is refused. The legacy gig-delete server route is removed. Migration `20261020000000` applied to dev 10-12 (17/17 gigs owned); prod needs it plus a `server` deploy. Prod backfill dry run: 99/99.
