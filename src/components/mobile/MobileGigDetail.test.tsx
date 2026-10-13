@@ -11,6 +11,7 @@ const mockGig = {
   timezone: 'America/New_York',
   tags: ['festival', 'outdoor'],
   notes: 'Load-in at 2pm',
+  owner_organization_id: 'org-1',
   participants: [
     { id: 'p1', role: 'Venue', organization: { id: 'org-1', name: 'Madison Square Garden', city: 'New York', state: 'NY', phone_number: '555-1234' } },
     { id: 'p2', role: 'Act', organization: { id: 'org-2', name: 'The Rock Band' } },
@@ -165,6 +166,7 @@ describe('MobileGigDetail', () => {
   })
 
   it('shows status change options when status badge is clicked', async () => {
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: 'Manager', selectedOrganization: { id: 'org-1' } })
     render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
 
     await waitFor(() => {
@@ -177,6 +179,33 @@ describe('MobileGigDetail', () => {
       expect(screen.getByText('Date Hold')).toBeInTheDocument()
       expect(screen.getByText('Proposed')).toBeInTheDocument()
     })
+  })
+
+  // #175: the status is the gig owner's Admins' and Managers' to change.
+  it.each([
+    ["the owner's Staff", 'Staff', 'org-1'],
+    ["another participant's Admin", 'Admin', 'org-2'],
+  ])("doesn't let %s change the status", async (_who, role, orgId) => {
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: role, selectedOrganization: { id: orgId } })
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('Booked'))
+
+    expect(screen.queryByText('Date Hold')).not.toBeInTheDocument()
+  })
+
+  // #175: an organization Inactive on the gig is read-only on its shared details.
+  it('tells an Inactive organization so, and offers no edit', async () => {
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: 'Admin', selectedOrganization: { id: 'org-2', name: 'The Rock Band' } })
+    vi.mocked(getGig).mockResolvedValue({
+      ...mockGig,
+      participants: [mockGig.participants[0], { ...mockGig.participants[1], organization_id: 'org-2', inactive: true }],
+    } as unknown as Awaited<ReturnType<typeof getGig>>)
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+    expect(await screen.findByText(/The Rock Band is Inactive on this gig/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /edit gig/i })).not.toBeInTheDocument()
   })
 
   it('renders Participants section heading instead of Organizations', async () => {
