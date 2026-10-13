@@ -10,6 +10,14 @@ import { logActivity } from './activityLog.service';
  * gig.service.ts). gig.service re-exports these for backwards compatibility.
  */
 
+/** A participation's values as a caller loaded or last saved them (#175). */
+export interface LoadedParticipantRow {
+  id: string;
+  role: OrganizationRole;
+  notes?: string | null;
+  is_client?: boolean;
+}
+
 /**
  * Update gig participants.
  *
@@ -17,6 +25,12 @@ import { logActivity } from './activityLog.service';
  * those that are no longer in `participants` are deleted: a row someone else
  * added since is left alone, and with no `loadedIds` nothing is deleted
  * (issue #92).
+ *
+ * `loadedRows` are those rows' values as the caller loaded (or last saved) them.
+ * Only a row that differs from them is written: the user may not be allowed
+ * to change the others (an Inactive organization keeps only its own notes),
+ * and another editor's later change to them isn't written over (#175). A row
+ * not in `loadedRows` is compared with the database instead.
  *
  * Returns `ids`, parallel to `participants`: each row's database id, including
  * the id of any row inserted by this call (undefined for a row that was
@@ -34,7 +48,8 @@ export async function updateGigParticipants(
     is_client?: boolean;
   }>,
   activityCtx?: GigActivityCtxInput,
-  loadedIds: string[] = []
+  loadedIds: string[] = [],
+  loadedRows: LoadedParticipantRow[] = []
 ) {
   try {
     const user = await getCurrentUser();
@@ -64,6 +79,7 @@ export async function updateGigParticipants(
     const existingIds = (existingParticipants ?? []).map(p => p.id);
     const existingOrg = new Map((existingParticipants ?? []).map(p => [p.id, p.organization_id]));
     const existingById = new Map((existingParticipants ?? []).map(p => [p.id, p as any]));
+    const loadedById = new Map(loadedRows.map(r => [r.id, r]));
     const incomingIds = participants
       .filter(p => p.id && UUID_REGEX.test(p.id))
       .map(p => p.id!);
@@ -96,9 +112,8 @@ export async function updateGigParticipants(
       };
 
       if (isDbId && existingIds.includes(participant.id!) && !moved.has(participant.id!)) {
-        // Only rows that changed are written: a user may not be allowed to change the others
-        // (an Inactive organization keeps only its own notes, #175), and an unchanged row needs nothing.
-        const before = existingById.get(participant.id!);
+        // Only rows the user changed are written (see above).
+        const before = loadedById.get(participant.id!) ?? existingById.get(participant.id!);
         if (before && before.role === changes.role && (before.notes || null) === changes.notes
             && (before.is_client ?? false) === changes.is_client) {
           ids.push(participant.id);
@@ -150,10 +165,11 @@ export async function updateGigParticipants(
 
 /**
  * Remove an organization from a gig: all of its roles there (#175). The
- * database allows it only while the organization has no financials, kits or
- * staff slots on the gig, and never for the owner; its reason is passed on.
- * The database logs the removal, marking it as leaving when the user belongs
- * to the organization.
+ * database refuses it for the owner, and while the organization has staff,
+ * equipment or financial records on the gig; its message, passed on, says
+ * what to do instead (release staff and equipment, mark it Inactive). The
+ * database logs one entry for the removal, marked as leaving when the user
+ * acts for the organization itself.
  */
 export async function removeGigParticipant(gigId: string, organizationId: string) {
   try {
