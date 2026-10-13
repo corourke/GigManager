@@ -19,6 +19,10 @@ export function useRowBaseline() {
       idsRef.current = ids;
       insertedRef.current = new Map();
     },
+    /** Rows deleted outside the section's save (e.g. removed right away, #175): never deleted again. */
+    forget(ids: string[]) {
+      idsRef.current = idsRef.current.filter((id) => !ids.includes(id));
+    },
     /** Ids of the rows loaded or last saved. */
     ids: () => idsRef.current,
     /** The database id an earlier save gave the row with this client-side id. */

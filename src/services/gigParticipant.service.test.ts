@@ -115,6 +115,8 @@ function makeDb(rows: {
   writeError?: { method: 'insert' | 'update' | 'delete'; error: any };
   /** RLS refuses this write silently: no error, no rows (#175). */
   refuse?: 'update' | 'delete';
+  /** Rows RLS hides from this user's updates: an update by id touches nothing (#175). */
+  notUpdatable?: string[];
 }) {
   const calls: Array<{ table: string; ops: Op[] }> = [];
   const answer = (table: string, ops: Op[]) => {
@@ -130,6 +132,7 @@ function makeDb(rows: {
     if (table === 'gig_participants') {
       if (rows.writeError && has(rows.writeError.method)) return { data: null, error: rows.writeError.error };
       if (rows.refuse && has(rows.refuse)) return { data: [], error: null };
+      if (has('update') && rows.notUpdatable?.includes(has('eq')?.args[1])) return { data: [], error: null };
       // Filtered by gig and organization: answer with the matching rows (#175).
       const eqs = ops.filter(o => o.method === 'eq');
       if (eqs.some(o => o.args[0] === 'organization_id')) {
@@ -239,16 +242,14 @@ describe('updateGigParticipants activity log organization (issue #103)', () => {
     expect(db.calls.some(c => c.table === 'organization_members')).toBe(false);
   });
 
-  it('logs removals against the acting org too', async () => {
+  // #175: removals are logged by the database, in the same step as the delete.
+  it('leaves logging removals to the database', async () => {
     useDb(baseRows);
 
     await updateGigParticipants('gig-1', [incoming[1]], undefined, [VENUE_ROW, PROD_ROW]);
 
-    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
-      event_type: 'participant.removed',
-      organization_id: 'org-prod',
-      context: expect.objectContaining({ gig_title: 'Test Gig', actor_org_name: 'Prod Co', role: 'Venue' }),
-    }));
+    expect(db.calls.filter(c => c.table === 'gig_participants' && c.ops.some(o => o.method === 'delete'))).toHaveLength(1);
+    expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({ event_type: 'participant.removed' }));
   });
 
   it('does not log with a null organization when the lookup query fails, and still saves', async () => {
@@ -378,6 +379,34 @@ describe('participant writes (#175)', () => {
     consoleError.mockRestore();
   });
 
+  it("updates only the rows that changed, so an Inactive organization saves its own notes (#175)", async () => {
+    // B (Inactive) edits its notes; the owner's row comes back unchanged. B can't update the
+    // owner's row (no rows touched), so sending it would fail the whole save.
+    const OWNER_ROW = '88888888-8888-4888-8888-888888888888';
+    const db = setup({
+      gig_participants: [
+        { id: OWNER_ROW, organization_id: 'org-1', role: 'Production', notes: 'owner note', is_client: true },
+        { id: ROW, organization_id: 'org-2', role: 'Venue', notes: null, is_client: false },
+      ],
+      notUpdatable: [OWNER_ROW],
+    });
+    const result = await updateGigParticipants('gig-1', [
+      { id: OWNER_ROW, organization_id: 'org-1', role: 'Production', notes: 'owner note', is_client: true },
+      { id: ROW, organization_id: 'org-2', role: 'Venue', notes: 'settle the deposit' },
+    ], ctx, [OWNER_ROW, ROW]);
+    const updates = writes(db, 'update');
+    expect(updates).toHaveLength(1);
+    expect(updates[0].ops.find(o => o.method === 'eq')?.args).toEqual(['id', ROW]);
+    expect(updates[0].ops.find(o => o.method === 'update')?.args[0]).toEqual({ role: 'Venue', notes: 'settle the deposit', is_client: false });
+    expect(result.ids).toEqual([OWNER_ROW, ROW]);
+  });
+
+  it('treats empty notes and no notes as the same, so an untouched row is left alone', async () => {
+    const db = setup({ gig_participants: [{ id: ROW, organization_id: 'org-2', role: 'Venue', notes: null, is_client: false }] });
+    await updateGigParticipants('gig-1', [{ id: ROW, organization_id: 'org-2', role: 'Venue', notes: '' }], ctx, [ROW]);
+    expect(writes(db, 'update')).toHaveLength(0);
+  });
+
   it('a move the database refuses to remove doesn\'t add the new organization', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const db = setup({ refuse: 'delete' });
@@ -389,7 +418,6 @@ describe('participant writes (#175)', () => {
 });
 
 describe('removing an organization from a gig, and Inactive (#175)', () => {
-  const ctx = { organization_id: 'org-1', actor_display_name: 'Jane', actor_org_name: 'Org 1', gig_title: 'Gig' };
   const rows = [
     { id: 'p-a', gig_id: 'gig-1', organization_id: 'org-2', role: 'Sound' },
     { id: 'p-b', gig_id: 'gig-1', organization_id: 'org-2', role: 'Lighting' },
@@ -408,48 +436,29 @@ describe('removing an organization from a gig, and Inactive (#175)', () => {
   beforeEach(() => { consoleError = vi.spyOn(console, 'error').mockImplementation(() => {}); });
   afterEach(() => consoleError.mockRestore());
 
-  it("removes every one of the organization's roles on the gig, and logs each", async () => {
+  it("removes every one of the organization's roles on the gig, and leaves the log to the database", async () => {
     const db = setup();
-    await expect(removeGigParticipant('gig-1', 'org-2', ctx)).resolves.toEqual({ success: true });
+    await expect(removeGigParticipant('gig-1', 'org-2')).resolves.toEqual({ success: true });
     const [del] = writes(db, 'delete');
     expect(filters(del)).toEqual(expect.arrayContaining([['gig_id', 'gig-1'], ['organization_id', 'org-2']]));
-    expect(logActivity).toHaveBeenCalledTimes(2);
-    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
-      event_type: 'participant.removed', organization_id: 'org-1', entity_id: 'p-b', gig_id: 'gig-1',
-      context: expect.objectContaining({ organization_name: 'Sound Co', role: 'Lighting' }),
-    }));
-  });
-
-  // #175 review: the actor's organization is found among the gig's participants, not the one removed.
-  it("logs against the remover's own organization when no context is passed", async () => {
-    setup({
-      gig_participants: [...rows, { id: 'p-o', gig_id: 'gig-1', organization_id: 'org-1', role: 'Production' }],
-      gigs: { title: 'Gig' },
-      organization_members: [{ organization_id: 'org-1', role: 'Manager' }],
-      organizations: { 'org-1': 'Owner Co', 'org-2': 'Sound Co' },
-    });
-    await removeGigParticipant('gig-1', 'org-2');
-    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
-      event_type: 'participant.removed', organization_id: 'org-1',
-      context: expect.objectContaining({ actor_org_name: 'Owner Co', organization_name: 'Sound Co' }),
-    }));
+    expect(logActivity).not.toHaveBeenCalled();
   });
 
   it("passes on the database's reason when it won't remove the organization, and logs nothing", async () => {
-    setup({ writeError: { method: 'delete', error: { code: '23503', message: 'This organization has financials, kits or staff on the gig, so it can only be marked Inactive.' } } });
-    await expect(removeGigParticipant('gig-1', 'org-2', ctx)).rejects.toThrow(/only be marked Inactive/);
+    setup({ writeError: { method: 'delete', error: { code: '23503', message: "This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead." } } });
+    await expect(removeGigParticipant('gig-1', 'org-2')).rejects.toThrow(/Mark it Inactive instead/);
     expect(logActivity).not.toHaveBeenCalled();
   });
 
   it('a removal the database silently refuses is reported, not taken as done', async () => {
     setup({ refuse: 'delete' });
-    await expect(removeGigParticipant('gig-1', 'org-2', ctx)).rejects.toThrow(/permission/i);
+    await expect(removeGigParticipant('gig-1', 'org-2')).rejects.toThrow(/permission/i);
     expect(logActivity).not.toHaveBeenCalled();
   });
 
   it("says so when the organization isn't on the gig, and deletes nothing", async () => {
     const db = setup();
-    await expect(removeGigParticipant('gig-1', 'org-9', ctx)).rejects.toThrow(/not on this gig/i);
+    await expect(removeGigParticipant('gig-1', 'org-9')).rejects.toThrow(/not on this gig/i);
     expect(writes(db, 'delete')).toHaveLength(0);
   });
 

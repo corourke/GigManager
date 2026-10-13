@@ -534,14 +534,21 @@ Organizations participating in a gig (venue, act, production, etc.)
 - Composite unique constraint on (gig_id, organization_id, role)
 - `is_client` is orthogonal to `role` and deliberately has no uniqueness constraint (split billing / co-promotion)
 - RLS is **ENABLED** on this table. Users can view participants for accessible gigs. Admins/Managers of an active participant can add participants and change role, notes and `is_client`. A participation's gig and organization never change (remove it and add another).
-- **Inactive** (#175): the role is kept; the organization still manages its own staffing, financials, kits and contacts on the gig, but is read-only on the gig's shared details, its own role, notes and client flag, the gig's schedule (`gig_schedule_entries`) and other organizations' contacts for the gig (Cameron, 10-12). The owner's Admins and Managers, or the organization's own, mark it Inactive or reactivate it. The owner is never Inactive, and a participation can't be added already Inactive.
+- **Inactive** (#175; redefined by Cameron 10-13, migration 20261021000000): the organization is being removed from the gig. In Cameron's words: "some of its records (such as financial) can be maintained in case there are sunk costs and agreements to unravel or notes to preserve, but otherwise staff and equipment should be released and the organization should have no interest or ability to change other aspects of the gig."
+  - **Release first:** marking it Inactive is refused (`23514`) while it has `gig_staff_slots` (and so staff) or `gig_kit_assignments` on the gig.
+  - **While Inactive** it keeps its own `gig_financials` and its own participant `notes`, and can reactivate itself or leave. It can't add staff slots or kit assignments on the gig, or move one onto it (`gig_inactive_no_staff_or_kits`, `42501`); can't change its role or client flag; and every contact on the gig, its own included, is read-only (`gig_participant_contacts_inactive_rule`). The shared details and schedule are read-only as before.
+  - Nothing of an Inactive organization counts in conflict checks: it has no staff or kits on the gig, and participant conflicts skip Inactive rows.
+  - The owner's Admins and Managers, or the organization's own, mark it Inactive or reactivate it. The owner is never Inactive, and a participation can't be added already Inactive. While it's Inactive, it isn't given another role on the gig (`gig_participants_inactive_no_new_role`, `23514`).
+  - **Gig History:** a statement-level trigger (`gig_participants_log_inactive`) writes one `participant.inactivated` or `participant.reactivated` entry when an organization's state on the gig changes (Inactive while any of its roles is), attributed like removals (below). Changing one of two roles while the other stays Inactive logs nothing; role or notes edits log nothing.
   - Inactive is per organization: if any of its roles on the gig is Inactive, it's Inactive on the gig (`user_can_manage_gig_active`). The app marks and reactivates all of an organization's rows together.
-- The helper functions behind these rules (`user_can_manage_gig_active`, `user_manages_gig_owner`, `org_is_claimed`, `user_can_delete_gig`) can be called only by signed-in users.
+- The helper functions behind these rules (`user_can_manage_gig_active`, `user_manages_gig_owner`, `org_is_claimed`, `user_can_delete_gig`) can be called only by signed-in users; `gig_activity_actor_org` and `log_participant_event` only by the triggers.
 - **Removing an organization** (#175): by the owner's Admins and Managers or the organization's own; an unclaimed record (a venue or act nobody has claimed) by any active participant's Admin or Manager. Dropping one of an organization's roles is always allowed; when its last role goes (`gig_participants_after_remove`):
   - the owner's can't be removed;
-  - an organization with financials, kit assignments or staff slots on the gig can't be removed (it can be marked Inactive);
+  - an organization with kit assignments or staff slots on the gig can't be removed: the message says to release its staff and equipment, then mark it Inactive;
+  - one with financials only can't be removed either: the message says to mark it Inactive, or, already Inactive, that it stays Inactive to keep them;
   - otherwise its `inventory_tracking` and `gig_participant_contacts` rows for the gig are deleted and its purchases' `gig_id` is set to null.
   Rows removed because the gig or the organization is being deleted skip these checks.
+- **Removals are logged by the database** (#175, migration 20261021000000): a statement-level trigger (`gig_participants_log_removed`) writes, through `log_participant_event`, one `participant.removed` entry to `activity_log` per organization the statement removed roles of; a refused removal rolls it back. The context has `actor_display_name` (from `users`), `actor_org_name`, `gig_title`, `organization_name`, `role` (the roles removed, comma-separated) and `left`. An entry is attributed to the owner when the user is one of its Admins or Managers; otherwise to the organization removed when the user belongs to it; otherwise to the user's Admin/Manager organization among the gig's participants (`gig_activity_actor_org`). `left` is true when the organization has no role left on the gig and the entry is attributed to it (its own Admin or Manager, not acting as the owner). Cascades and writes with no signed-in user log nothing. The app doesn't log removals itself.
 
 ---
 
@@ -1467,7 +1474,7 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 - `user_is_contact_status(p_user_id)`: True if the user's `user_status = 'contact'` (breaks RLS recursion between `users` and `organization_members`).
 - Organization-contact RPCs: `add_organization_contact`, `link_existing_person_to_organization`, `update_organization_contact`, `set_organization_primary_contact`, `unset_organization_primary_contact`, `remove_organization_contact`.
 - Gig-contact RPCs: `create_contact_person`, `add_gig_participant_contact`, `set_gig_participant_contact_primary`, `remove_gig_participant_contact` (the only write path for `gig_participant_contacts`).
-- `log_activity(p_organization_id, p_event_type, p_entity_type, p_entity_id, p_gig_id, p_context)`: The only write path for `activity_log`; returns the new row id.
+- `log_activity(p_organization_id, p_event_type, p_entity_type, p_entity_id, p_gig_id, p_context)`: The app's write path for `activity_log`; returns the new row id. (The #175 triggers `gig_participants_log_removed` and `gig_participants_log_inactive` also write participant entries directly.)
 - `kit_would_create_cycle(p_parent_kit_id, p_child_kit_id)`: True if nesting the child kit under the parent would create a cycle.
 - `kits_that_would_cycle(p_parent_kit_id, p_candidate_kit_ids)`: Batch form of the above for the kit picker (migration 20260826230000).
 - `get_kit_hierarchy_tree(p_kit_id)`: Returns (parent_kit_id, child_kit_id, quantity, depth) rows for a kit's nested structure; requires org membership.
@@ -1573,7 +1580,7 @@ All tables have RLS **ENABLED**. Access is controlled through a combination of R
 | `gig_participants` | Accessible gigs | Gig managers | Gig managers | Gig managers |
 | `gig_participant_contacts` | Accessible gigs | — (RPC only) | — (RPC only) | — (RPC only) |
 | `gig_schedule_entries` | Participating org members | Admin/Manager of participant | Admin/Manager of participant | Admin/Manager of participant |
-| `activity_log` | Accessible gigs (gig rows); org members (non-gig rows) | — (`log_activity` only) | — | — |
+| `activity_log` | Accessible gigs (gig rows); org members (non-gig rows) | — (`log_activity`, and the participant-removal trigger) | — | — |
 | `gig_financials` | Admin/Manager of owning org | Admin/Manager of owning org | Admin/Manager of owning org | Admin/Manager of owning org |
 | `purchases` | Admin/Manager | Admin/Manager | Admin/Manager | Admin/Manager |
 | `attachments` | Org members | Admin/Manager | Admin/Manager | Admin/Manager |

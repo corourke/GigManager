@@ -9,6 +9,8 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
   'gig.renamed',
   'participant.added',
   'participant.removed',
+  'participant.inactivated',
+  'participant.reactivated',
   'staffing.updated',
   'staffing.status_changed',
   'kit_assignment.added',
@@ -31,8 +33,8 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
 ];
 
 describe('ACTIVITY_EVENTS', () => {
-  it('contains exactly 28 event types', () => {
-    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(28);
+  it('contains exactly 30 event types', () => {
+    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(30);
   });
 
   it('contains all expected event type keys', () => {
@@ -125,6 +127,20 @@ describe('ACTIVITY_EVENTS', () => {
         { id: 'b', type: 'Bid Accepted', amount: 1000, date: '2026-07-29' },
       ],
     })).toBe('All day festival converted to Accepted from Informal Terms $1,800.00 (2026-07-22), Bid Accepted $1,000.00 (2026-07-29)');
+  });
+
+  // #175: the database logs removals, and marks an organization leaving the gig.
+  it('participant.removed says an organization left the gig', () => {
+    const cfg = ACTIVITY_EVENTS['participant.removed'];
+    expect(cfg.format({ ...ctx, organization_name: 'Sound Co', role: 'Sound', left: true })).toBe('Sound Co left the gig');
+    expect(cfg.format({ ...ctx, organization_name: 'Sound Co', role: 'Sound', left: false })).toBe('Sound Co removed as Sound participant');
+  });
+
+  // #175: the database logs Inactive and Reactivated, once per organization.
+  it('participant.inactivated and participant.reactivated read as sentences', () => {
+    expect(ACTIVITY_EVENTS['participant.inactivated'].format({ ...ctx, organization_name: 'Sound Co' })).toBe('Sound Co marked Inactive on the gig');
+    expect(ACTIVITY_EVENTS['participant.reactivated'].format({ ...ctx, organization_name: 'Sound Co' })).toBe('Sound Co reactivated on the gig');
+    expect(ACTIVITY_EVENTS['participant.inactivated'].entityType).toBe('participant');
   });
 
   it('schedule_entry.added format renders each added entry', () => {

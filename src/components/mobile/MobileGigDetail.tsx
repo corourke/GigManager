@@ -36,6 +36,7 @@ import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '../ui/utils';
+import { inactiveBannerText, isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
 import type { GigStatus } from '../../utils/supabase/types';
 import type { OrganizationRole } from '../../utils/supabase/types';
 
@@ -50,6 +51,9 @@ interface EditParticipant {
   organization_id: string;
   organization_name: string;
   role: string;
+  // Carried through the save: the service writes them from what it's sent (#175).
+  notes?: string | null;
+  is_client?: boolean;
 }
 
 const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; textColor: string; icon: React.ElementType }> = {
@@ -161,6 +165,8 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
         organization_id: p.organization?.id || p.organization_id,
         organization_name: p.organization?.name || '',
         role: p.role,
+        notes: p.notes ?? null,
+        is_client: p.is_client ?? false,
       }))
     );
 
@@ -217,7 +223,13 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       await updateGig(gigId, updatePayload);
       await updateGigParticipants(
         gigId,
-        editParticipants.map(p => ({ id: p.id, organization_id: p.organization_id, role: p.role as OrganizationRole })),
+        editParticipants.map(p => ({
+          id: p.id,
+          organization_id: p.organization_id,
+          role: p.role as OrganizationRole,
+          notes: p.notes ?? null,
+          is_client: p.is_client ?? false,
+        })),
         // Log History against the org the user is working as (issue #103).
         selectedOrganization ? { organization_id: selectedOrganization.id, actor_org_name: selectedOrganization.name } : undefined,
         // Only rows this screen loaded can be removed by it (#92).
@@ -362,6 +374,11 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       .map((a: any) => ({ ...a, roleName: slot.role }))
   );
 
+  // #175: the status is the gig owner's Admins' and Managers' to change. An organization
+  // Inactive on the gig is read-only on its shared details, which is all mobile edits.
+  const ownsGig = managesGigOwner(gig, selectedOrganization?.id, userRole);
+  const inactiveHere = isInactiveOn(gig, selectedOrganization?.id);
+
   const showActionButtons = (status: string) => status === 'Invited' || status === 'Requested';
   const showTimestamp = (status: string) => status === 'Confirmed' || status === 'Declined';
 
@@ -377,14 +394,14 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold truncate">{gig.title}</h1>
             <div className="flex items-center gap-2 mt-0.5">
-              <button onClick={() => setShowStatusMenu(!showStatusMenu)}>
+              <button onClick={() => ownsGig && setShowStatusMenu(!showStatusMenu)} disabled={!ownsGig}>
                 <span className={cn('inline-flex items-center rounded border px-1.5 py-0.5 font-medium cursor-pointer', statusConfig?.color)} style={{ fontSize: '11px', lineHeight: '1' }}>
                   {statusConfig?.label || gig.status}
                 </span>
               </button>
             </div>
           </div>
-          {canEdit && !isEditing && (
+          {canEdit && !inactiveHere && !isEditing && (
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Edit gig" onClick={handleStartEdit}>
               <Pencil className="w-4 h-4" />
             </Button>
@@ -412,7 +429,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
             </div>
           )}
         </div>
-        {showStatusMenu && (
+        {ownsGig && showStatusMenu && (
           <div className="mt-2 flex flex-wrap gap-1">
             {Object.entries(GIG_STATUS_CONFIG).map(([key, conf]) => (
               <button
@@ -434,6 +451,11 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       </div>
 
       <div className="flex-1 p-4 space-y-3 pb-12">
+        {inactiveHere && (
+          <div className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700">
+            {inactiveBannerText(selectedOrganization?.name ?? 'Your organization')}
+          </div>
+        )}
         {myAssignments.length > 0 && (
           <Card className="border-primary/20 bg-primary/5" style={{ gap: 0 }}>
             <CardContent className="px-3 py-2 space-y-1.5" style={{ paddingBottom: '8px' }}>

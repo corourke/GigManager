@@ -20,6 +20,8 @@ interface GigParticipantContactsListProps {
   organizationName: string;
   addDialogOpen: boolean;
   onAddDialogOpenChange: (open: boolean) => void;
+  /** Read-only: an organization Inactive on the gig viewing another's contacts (#175). */
+  readOnly?: boolean;
 }
 
 /**
@@ -40,6 +42,7 @@ export default function GigParticipantContactsList({
   organizationName,
   addDialogOpen,
   onAddDialogOpenChange,
+  readOnly = false,
 }: GigParticipantContactsListProps) {
   const { data: contacts = [], isLoading } = useGigParticipantContacts(gigId, organizationId);
   const { setPrimary, removeContact } = useGigParticipantContactMutations(gigId, organizationId);
@@ -85,8 +88,10 @@ export default function GigParticipantContactsList({
                 <button
                   type="button"
                   onClick={() => handleTogglePrimary(contact)}
-                  disabled={setPrimary.isPending}
-                  title={contact.is_primary_contact ? 'Click to unset primary contact for this gig' : 'Set as primary contact for this gig'}
+                  disabled={readOnly || setPrimary.isPending}
+                  title={readOnly
+                    ? (contact.is_primary_contact ? 'Primary contact for this gig' : 'Contact for this gig')
+                    : contact.is_primary_contact ? 'Click to unset primary contact for this gig' : 'Set as primary contact for this gig'}
                   className="shrink-0 cursor-pointer"
                 >
                   <Star
@@ -118,11 +123,13 @@ export default function GigParticipantContactsList({
                   </a>
                 )}
               </div>
-              <div className="hidden group-hover:flex items-center gap-1 shrink-0">
-                <button type="button" onClick={() => setRemovingContact(contact)} title="Remove contact">
-                  <Trash2 className="w-3 h-3 text-gray-400 hover:text-red-600" />
-                </button>
-              </div>
+              {!readOnly && (
+                <div className="hidden group-hover:flex items-center gap-1 shrink-0">
+                  <button type="button" onClick={() => setRemovingContact(contact)} title="Remove contact">
+                    <Trash2 className="w-3 h-3 text-gray-400 hover:text-red-600" />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

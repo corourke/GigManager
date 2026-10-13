@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigParticipantsSection from './GigParticipantsSection';
 import { getGig, updateGigParticipants } from '../../services/gig.service';
@@ -54,6 +55,15 @@ vi.mock('../ui/select', () => ({
   SelectContent: ({ children }: any) => <>{children}</>,
   SelectItem: ({ value, children }: any) => <option value={value}>{children}</option>,
 }));
+
+vi.mock('../../services/gigParticipant.service', () => ({
+  setGigParticipantInactive: vi.fn().mockResolvedValue({ success: true }),
+  removeGigParticipant: vi.fn().mockResolvedValue({ success: true }),
+}));
+import { setGigParticipantInactive, removeGigParticipant } from '../../services/gigParticipant.service';
+import { toast } from 'sonner';
+
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() } }));
 
 vi.mock('../../services/organization.service', () => ({
   getOrganizationContacts: vi.fn().mockResolvedValue([]),
@@ -293,18 +303,23 @@ describe('GigParticipantsSection deletes only rows it loaded (#92)', () => {
     }));
   });
 
-  it('passes the rows it loaded, so a removed one is deleted and rows added elsewhere are not', async () => {
+  // #175: a saved organization is removed right away (removeGigParticipant), and the
+  // section's later saves don't try to delete it again.
+  it('removes a saved organization right away, and later saves leave it out of the rows to delete', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<GigParticipantsSection {...props} />);
     await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());
 
     fireEvent.click(screen.getAllByTitle('Remove participant')[1]);
 
-    await waitFor(() => expect(updateGigParticipants).toHaveBeenCalledTimes(1), { timeout: 3000 });
-    expect(calls()[0][1].map((p) => p.id)).toEqual([MINE]);
-    expect(calls()[0][3]).toEqual([MINE, OTHER]);
+    await waitFor(() => expect(removeGigParticipant).toHaveBeenCalledWith('test-gig-id', 'org-3'));
+    await waitFor(() => expect(screen.queryByText('Venue Co')).not.toBeInTheDocument());
+    // A save after the removal (if any) must not list the removed row among those it loaded.
+    for (const call of calls()) expect(call[3]).not.toContain(OTHER);
   });
 
-  it('deletes a row it added on an earlier save once the user removes it', async () => {
+  it('removes a row it added on an earlier save right away too', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<GigParticipantsSection {...props} />);
     await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());
 
@@ -317,7 +332,204 @@ describe('GigParticipantsSection deletes only rows it loaded (#92)', () => {
     const removes = screen.getAllByTitle('Remove participant');
     fireEvent.click(removes[removes.length - 1]);
 
-    await waitFor(() => expect(calls().at(-1)![1].map((p) => p.id)).toEqual([MINE, OTHER]), { timeout: 3000 });
-    expect(calls().at(-1)![3]).toEqual([MINE, OTHER, NEW]);
+    await waitFor(() => expect(removeGigParticipant).toHaveBeenCalledWith('test-gig-id', 'org-2'));
+  });
+
+  it('drops a row that was never saved without asking the database', async () => {
+    render(<GigParticipantsSection {...props} />);
+    await waitFor(() => expect(screen.getByText('Venue Co')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Add Participant'));
+    const removes = screen.getAllByTitle('Remove participant');
+    fireEvent.click(removes[removes.length - 1]);
+    expect(removeGigParticipant).not.toHaveBeenCalled();
+    expect(screen.queryByText('Mock Select Org')).not.toBeInTheDocument();
+  });
+});
+
+// #175: the owner is marked; an organization can be Inactive on the gig (the owner's Admins and
+// Managers, or its own, toggle it; never the owner). While the user's organization is
+// Inactive, the gig's participants are read-only to it.
+describe('GigParticipantsSection: owner and Inactive (#175)', () => {
+  const UUID = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
+  const gig = (inactiveB = false, inactiveO = false) => ({
+    owner_organization_id: 'org-o',
+    participants: [
+      { id: UUID(1), organization_id: 'org-o', role: 'Production', notes: '', is_client: false, inactive: inactiveO, organization: { id: 'org-o', name: 'Owner Co' } },
+      { id: UUID(2), organization_id: 'org-b', role: 'Sound', notes: '', is_client: false, inactive: inactiveB, organization: { id: 'org-b', name: 'Sound Co' } },
+    ],
+  });
+  const props = (orgId: string, orgName: string, userRole = 'Manager') => ({
+    gigId: 'g1', currentOrganizationId: orgId, currentOrganizationName: orgName,
+    currentOrganizationRole: 'Production' as const, userRole,
+  });
+  const rowOf = (name: string) => screen.getByText(name).closest('.py-2') as HTMLElement;
+  const openMenu = async (name: string) => {
+    const user = userEvent.setup();
+    await user.click(within(rowOf(name)).getByTitle('More actions'));
+    return user;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  it("marks the owner's row and an Inactive row", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    expect(within(rowOf('Owner Co')).getByText('Owner')).toBeInTheDocument();
+    expect(within(rowOf('Sound Co')).getByText('Inactive')).toBeInTheDocument();
+    expect(within(rowOf('Owner Co')).queryByText('Inactive')).not.toBeInTheDocument();
+  });
+
+  it("lets the owner's Manager mark another organization Inactive", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig() as any);
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    const user = await openMenu('Sound Co');
+    await user.click(await screen.findByRole('menuitem', { name: /Mark Inactive/ }));
+    await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-b', true));
+    expect(await within(rowOf('Sound Co')).findByText('Inactive')).toBeInTheDocument();
+  });
+
+  it("offers Reactivate on an Inactive organization's row", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    const user = await openMenu('Sound Co');
+    await user.click(await screen.findByRole('menuitem', { name: /Reactivate/ }));
+    await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-b', false));
+  });
+
+  it("never offers Mark Inactive on the owner's row", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig() as any);
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    await openMenu('Owner Co');
+    expect(await screen.findByRole('menuitem', { name: /View Organization/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Mark Inactive/ })).not.toBeInTheDocument();
+  });
+
+  it("doesn't let a third organization mark another Inactive, nor the organization's Staff", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig() as any);
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co', 'Staff')} />);
+    await screen.findByText('Sound Co');
+    await openMenu('Sound Co');
+    expect(await screen.findByRole('menuitem', { name: /View Organization/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Mark Inactive/ })).not.toBeInTheDocument();
+  });
+
+  it('makes the participants read-only while my organization is Inactive', async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    render(<GigParticipantsSection {...props('org-b', 'Sound Co')} />);
+    await screen.findByText('Owner Co');
+    expect(screen.queryByText('Add Participant')).not.toBeInTheDocument();
+    for (const select of screen.getAllByRole('combobox', { name: 'Role' })) expect(select).toBeDisabled();
+    for (const button of screen.queryAllByTitle('Remove participant')) expect(button).toBeDisabled();
+  });
+
+  it('lets my Inactive organization reactivate itself from its own row', async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    render(<GigParticipantsSection {...props('org-b', 'Sound Co')} />);
+    await screen.findByText('Owner Co');
+    const user = await openMenu('Sound Co');
+    await user.click(await screen.findByRole('menuitem', { name: /Reactivate/ }));
+    await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-b', false));
+  });
+
+  it("doesn't offer Notes or Add Contact on another organization's row while mine is Inactive", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    render(<GigParticipantsSection {...props('org-b', 'Sound Co')} />);
+    await screen.findByText('Owner Co');
+    await openMenu('Owner Co');
+    expect(await screen.findByRole('menuitem', { name: /View Organization/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Add Contact/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Notes/ })).not.toBeInTheDocument();
+  });
+
+  // Cameron 10-13: while Inactive, an organization keeps only its financials and notes.
+  it('offers Notes on my own row while Inactive, but not Add Contact', async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    render(<GigParticipantsSection {...props('org-b', 'Sound Co')} />);
+    await screen.findByText('Owner Co');
+    await openMenu('Sound Co');
+    expect(await screen.findByRole('menuitem', { name: /Notes/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Add Contact/ })).not.toBeInTheDocument();
+  });
+
+  it("explains what Mark Inactive means before marking another organization", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig() as any);
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    const user = await openMenu('Sound Co');
+    await user.click(await screen.findByRole('menuitem', { name: /Mark Inactive/ }));
+    const asked = vi.mocked(window.confirm).mock.calls.at(-1)?.[0] as string;
+    expect(asked).toMatch(/being removed from the gig/);
+    expect(asked).toMatch(/Release its staff and equipment first/);
+  });
+
+  // #175 (Cameron 10-13): Remove runs right away, behind a confirmation.
+  it('removes a saved organization right away, after confirming', async () => {
+    vi.mocked(getGig).mockResolvedValue(gig() as any);
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    fireEvent.click(within(rowOf('Sound Co')).getByTitle('Remove participant'));
+    await waitFor(() => expect(removeGigParticipant).toHaveBeenCalledWith('g1', 'org-b'));
+    expect(vi.mocked(window.confirm).mock.calls[0][0]).toMatch(/Remove Sound Co from this gig/);
+    await waitFor(() => expect(screen.queryByText('Sound Co')).not.toBeInTheDocument());
+    expect(updateGigParticipants).not.toHaveBeenCalled();
+  });
+
+  it("removes nothing when the confirmation is declined", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig() as any);
+    vi.mocked(window.confirm).mockReturnValue(false);
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    fireEvent.click(within(rowOf('Sound Co')).getByTitle('Remove participant'));
+    expect(removeGigParticipant).not.toHaveBeenCalled();
+    expect(screen.getByText('Sound Co')).toBeInTheDocument();
+  });
+
+  it("keeps the row and offers Mark Inactive when the database refuses for the organization's financial records", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig() as any);
+    vi.mocked(removeGigParticipant).mockRejectedValueOnce(new Error("This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead."));
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    fireEvent.click(within(rowOf('Sound Co')).getByTitle('Remove participant'));
+    await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-b', true));
+    expect(screen.getByText('Sound Co')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['it has staff or equipment on the gig', false, "This organization has staff or equipment on the gig, so it can't be removed. Release its staff and equipment, then mark it Inactive."],
+    ['it already is', true, "This organization has financial records on the gig, so it can't be removed; it stays Inactive to keep them."],
+  ])("doesn't offer Mark Inactive when %s", async (_why, inactiveB, message) => {
+    vi.mocked(getGig).mockResolvedValue(gig(inactiveB) as any);
+    vi.mocked(removeGigParticipant).mockRejectedValueOnce(new Error(message));
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    fireEvent.click(within(rowOf('Sound Co')).getByTitle('Remove participant'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message));
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(setGigParticipantInactive).not.toHaveBeenCalled();
+    expect(screen.getByText('Sound Co')).toBeInTheDocument();
+  });
+
+  it("doesn't offer Mark Inactive on an already Inactive row, even if a message suggests it", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    vi.mocked(removeGigParticipant).mockRejectedValueOnce(new Error("This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead."));
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    fireEvent.click(within(rowOf('Sound Co')).getByTitle('Remove participant'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(setGigParticipantInactive).not.toHaveBeenCalled();
+  });
+
+  it("doesn't offer removal on the owner's row", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig() as any);
+    render(<GigParticipantsSection {...props('org-b', 'Sound Co')} />);
+    await screen.findByText('Owner Co');
+    expect(within(rowOf('Owner Co')).getByTitle('Remove participant')).toBeDisabled();
   });
 });

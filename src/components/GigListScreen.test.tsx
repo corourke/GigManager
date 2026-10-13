@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GigListScreen from './GigListScreen';
 
@@ -31,6 +31,7 @@ Object.defineProperty(window, 'localStorage', {
 const now = Date.now();
 const futureGig = {
   id: 'gig-future',
+  owner_organization_id: 'org-1',
   title: 'Upcoming Show',
   status: 'Booked',
   start: new Date(now + 86400000).toISOString(),
@@ -43,6 +44,7 @@ const futureGig = {
 };
 const pastGig = {
   id: 'gig-past',
+  owner_organization_id: 'org-1',
   title: 'Old Show',
   status: 'Completed',
   start: new Date(now - 172800000).toISOString(),
@@ -334,6 +336,39 @@ describe('GigListScreen', () => {
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
     });
 
+    // #175: only the gig owner's Admins and Managers duplicate it.
+    it("doesn't offer Duplicate on a gig another organization owns", async () => {
+      vi.mocked(getGigsForOrganization).mockResolvedValue([{ ...futureGig, owner_organization_id: 'org-other' }, pastGig]);
+      await openRowMenu('Admin');
+      expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Duplicate' })).not.toBeInTheDocument();
+    });
+
+    // #175 (Cameron 10-13): Delete is disabled with its reason, not hidden, when it would be refused.
+    it("is disabled on a gig another organization owns, with the reason shown on selecting it", async () => {
+      vi.mocked(getGigsForOrganization).mockResolvedValue([{ ...futureGig, owner_organization_id: 'org-other' }, pastGig]);
+      await openRowMenu('Admin');
+      const item = screen.getByRole('menuitem', { name: 'Delete' });
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      await userEvent.setup().click(item);
+      expect(await screen.findByText("Only an Admin of the gig's owner organization can delete it.")).toBeInTheDocument();
+    });
+
+    it('is disabled when another claimed organization is on the gig (already loaded with the row)', async () => {
+      vi.mocked(getGigsForOrganization).mockResolvedValue([{
+        ...futureGig,
+        participants: [
+          { organization_id: 'org-1', role: 'Production', organization: { id: 'org-1', name: 'Test Org', claimed: true } },
+          { organization_id: 'org-2', role: 'Sound', organization: { id: 'org-2', name: 'Sound Co', claimed: true } },
+        ],
+      }, pastGig]);
+      await openRowMenu('Admin');
+      const item = screen.getByRole('menuitem', { name: 'Delete' });
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      await userEvent.setup().click(item);
+      expect(await screen.findByText(/other claimed organizations participating/)).toBeInTheDocument();
+    });
+
     it('is not offered to Managers, who can still edit and duplicate', async () => {
       await openRowMenu('Manager');
       expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeInTheDocument();
@@ -392,5 +427,22 @@ describe('GigListScreen', () => {
 
       expect(onViewGig).toHaveBeenCalledWith('gig-future', true);
     });
+  });
+
+  // #175: a gig the organization is Inactive on is tagged in the list.
+  it('tags a gig the organization is Inactive on', async () => {
+    vi.mocked(getGigsForOrganization).mockResolvedValue([{
+      ...futureGig,
+      owner_organization_id: 'org-other',
+      participants: [{ organization_id: 'org-1', role: 'Sound', inactive: true, organization: { id: 'org-1', name: 'Test Org' } }],
+    }, pastGig]);
+    render(
+      <GigListScreen organization={organization} user={user} userRole="Admin" onBack={noop} onCreateGig={noop}
+        onViewGig={noop} onEditGig={noop} onNavigateToDashboard={noop} onNavigateToGigs={noop}
+        onNavigateToAssets={noop} onSwitchOrganization={noop} onLogout={noop} />
+    );
+    const titles = await screen.findAllByText('Upcoming Show');
+    const row = titles.map((t) => t.closest('tr')).find(Boolean) as HTMLElement;
+    expect(within(row).getByText('Inactive')).toBeInTheDocument();
   });
 });
