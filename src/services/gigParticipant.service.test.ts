@@ -445,8 +445,8 @@ describe('removing an organization from a gig, and Inactive (#175)', () => {
   });
 
   it("passes on the database's reason when it won't remove the organization, and logs nothing", async () => {
-    setup({ writeError: { method: 'delete', error: { code: '23503', message: 'This organization has financials, kits or staff on the gig, so it can only be marked Inactive.' } } });
-    await expect(removeGigParticipant('gig-1', 'org-2')).rejects.toThrow(/only be marked Inactive/);
+    setup({ writeError: { method: 'delete', error: { code: '23503', message: "This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead." } } });
+    await expect(removeGigParticipant('gig-1', 'org-2')).rejects.toThrow(/Mark it Inactive instead/);
     expect(logActivity).not.toHaveBeenCalled();
   });
 

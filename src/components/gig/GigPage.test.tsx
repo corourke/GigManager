@@ -82,6 +82,9 @@ vi.mock('../../services/gigParticipant.service', () => ({
   removeGigParticipant: vi.fn().mockResolvedValue({ success: true }),
 }));
 import { setGigParticipantInactive, removeGigParticipant } from '../../services/gigParticipant.service';
+import { toast } from 'sonner';
+
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() } }));
 
 const baseProps = {
   gigId: 'g1',
@@ -283,16 +286,40 @@ describe('GigPage (#12)', () => {
       await waitFor(() => expect(baseProps.onBack).toHaveBeenCalled());
     });
 
-    it('offers to mark Inactive instead when the organization has data on the gig', async () => {
+    it('offers to mark Inactive instead when the organization has financial records on the gig', async () => {
       vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
-      vi.mocked(removeGigParticipant).mockRejectedValueOnce(
-        new Error('This organization has financials, kits or staff on the gig, so it can only be marked Inactive.'));
+      vi.mocked(removeGigParticipant).mockRejectedValueOnce(new Error("This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead."));
       const confirmSpy = vi.mocked(window.confirm);
       const user = await open('Manager');
       await user.click(await screen.findByRole('menuitem', { name: /Leave Gig/ }));
       await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-1', true));
-      expect(confirmSpy.mock.calls.at(-1)?.[0]).toMatch(/only be marked Inactive[\s\S]*Mark Northwest Sound Co Inactive\?/);
+      expect(confirmSpy.mock.calls.at(-1)?.[0]).toMatch(/Mark it Inactive instead[\s\S]*Mark Northwest Sound Co Inactive\?/);
       expect(baseProps.onBack).not.toHaveBeenCalled();
+    });
+
+    it("doesn't offer Mark Inactive while the organization has staff or equipment on the gig: it says to release them", async () => {
+      vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
+      vi.mocked(removeGigParticipant).mockRejectedValueOnce(new Error("This organization has staff or equipment on the gig, so it can't be removed. Release its staff and equipment, then mark it Inactive."));
+      const confirmSpy = vi.mocked(window.confirm);
+      const user = await open('Manager');
+      await user.click(await screen.findByRole('menuitem', { name: /Leave Gig/ }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("This organization has staff or equipment on the gig, so it can't be removed. Release its staff and equipment, then mark it Inactive."));
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+      expect(setGigParticipantInactive).not.toHaveBeenCalled();
+    });
+
+    it("doesn't offer Mark Inactive when the organization already is", async () => {
+      vi.mocked(getGig).mockResolvedValue({
+        ...ownedByVenue,
+        participants: gig.participants.map((p) => (p.organization_id === 'org-1' ? { ...p, inactive: true } : p)),
+      } as any);
+      vi.mocked(removeGigParticipant).mockRejectedValueOnce(new Error("This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead."));
+      const confirmSpy = vi.mocked(window.confirm);
+      const user = await open('Manager');
+      await user.click(await screen.findByRole('menuitem', { name: /Leave Gig/ }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead."));
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+      expect(setGigParticipantInactive).not.toHaveBeenCalled();
     });
 
     it('lets another participant mark itself Inactive, saying what that means', async () => {

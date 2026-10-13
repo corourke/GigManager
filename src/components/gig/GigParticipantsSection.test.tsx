@@ -61,6 +61,9 @@ vi.mock('../../services/gigParticipant.service', () => ({
   removeGigParticipant: vi.fn().mockResolvedValue({ success: true }),
 }));
 import { setGigParticipantInactive, removeGigParticipant } from '../../services/gigParticipant.service';
+import { toast } from 'sonner';
+
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() } }));
 
 vi.mock('../../services/organization.service', () => ({
   getOrganizationContacts: vi.fn().mockResolvedValue([]),
@@ -488,15 +491,39 @@ describe('GigParticipantsSection: owner and Inactive (#175)', () => {
     expect(screen.getByText('Sound Co')).toBeInTheDocument();
   });
 
-  it("keeps the row and offers Mark Inactive when the database refuses for the organization's data", async () => {
+  it("keeps the row and offers Mark Inactive when the database refuses for the organization's financial records", async () => {
     vi.mocked(getGig).mockResolvedValue(gig() as any);
-    vi.mocked(removeGigParticipant).mockRejectedValueOnce(
-      new Error('This organization has financials, kits or staff on the gig, so it can only be marked Inactive.'));
+    vi.mocked(removeGigParticipant).mockRejectedValueOnce(new Error("This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead."));
     render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
     await screen.findByText('Sound Co');
     fireEvent.click(within(rowOf('Sound Co')).getByTitle('Remove participant'));
     await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-b', true));
     expect(screen.getByText('Sound Co')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['it has staff or equipment on the gig', false, "This organization has staff or equipment on the gig, so it can't be removed. Release its staff and equipment, then mark it Inactive."],
+    ['it already is', true, "This organization has financial records on the gig, so it can't be removed; it stays Inactive to keep them."],
+  ])("doesn't offer Mark Inactive when %s", async (_why, inactiveB, message) => {
+    vi.mocked(getGig).mockResolvedValue(gig(inactiveB) as any);
+    vi.mocked(removeGigParticipant).mockRejectedValueOnce(new Error(message));
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    fireEvent.click(within(rowOf('Sound Co')).getByTitle('Remove participant'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message));
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(setGigParticipantInactive).not.toHaveBeenCalled();
+    expect(screen.getByText('Sound Co')).toBeInTheDocument();
+  });
+
+  it("doesn't offer Mark Inactive on an already Inactive row, even if a message suggests it", async () => {
+    vi.mocked(getGig).mockResolvedValue(gig(true) as any);
+    vi.mocked(removeGigParticipant).mockRejectedValueOnce(new Error("This organization has financial records on the gig, so it can't be removed. Mark it Inactive instead."));
+    render(<GigParticipantsSection {...props('org-o', 'Owner Co')} />);
+    await screen.findByText('Sound Co');
+    fireEvent.click(within(rowOf('Sound Co')).getByTitle('Remove participant'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(setGigParticipantInactive).not.toHaveBeenCalled();
   });
 
   it("doesn't offer removal on the owner's row", async () => {
