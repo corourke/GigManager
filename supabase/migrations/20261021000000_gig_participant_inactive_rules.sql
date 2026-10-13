@@ -12,17 +12,22 @@
 -- 3. While Inactive it keeps its own financials (gig_financials doesn't look at participation)
 --    and its own participant notes; its role, client flag and every contact on the gig, its
 --    own included, are read-only. It can still reactivate itself or leave.
--- 4. Gig History: one participant.removed entry per removed row, written with the removal (the
---    app's own entry was lost when an organization left: its member had lost access by then);
---    one participant.inactivated / participant.reactivated entry per organization whose flag
---    changes. Names come from the tables. Writes with no signed-in user log nothing.
+-- 4. While Inactive it isn't given another role on the gig (it's being removed).
+-- 5. Gig History: one participant.removed entry per organization a statement removes roles of,
+--    written with the removal (the app's own entry was lost when an organization left: its
+--    member had lost access by then); one participant.inactivated / participant.reactivated
+--    entry when an organization's state on the gig changes. Names come from the tables. Writes
+--    with no signed-in user log nothing.
 
 -- ── Whose name goes on an entry ────────────────────────────────────────────
--- The subject organization when the user belongs to it; otherwise the user's Admin or Manager
--- organization among the gig's participants, the owner first; otherwise none.
+-- The owner when the user is one of its Admins or Managers (acting as the owner); otherwise the
+-- subject organization when the user belongs to it; otherwise the user's Admin or Manager
+-- organization among the gig's participants; otherwise none.
 CREATE OR REPLACE FUNCTION public.gig_activity_actor_org(p_gig_id uuid, p_subject_org uuid, p_actor uuid)
 RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT CASE
+    WHEN public.user_is_admin_or_manager_of_org((SELECT owner_organization_id FROM gigs WHERE id = p_gig_id), p_actor)
+      THEN (SELECT owner_organization_id FROM gigs WHERE id = p_gig_id)
     WHEN public.user_is_member_of_org(p_subject_org, p_actor) THEN p_subject_org
     ELSE (
       SELECT om.organization_id
@@ -34,8 +39,8 @@ RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
       LIMIT 1)
   END
 $$;
-REVOKE EXECUTE ON FUNCTION public.gig_activity_actor_org(uuid, uuid, uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.gig_activity_actor_org(uuid, uuid, uuid) TO authenticated, service_role;
+-- Called only by log_participant_event.
+REVOKE EXECUTE ON FUNCTION public.gig_activity_actor_org(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
 
 -- Writes one participant entry to activity_log, with the names read from the tables.
 CREATE OR REPLACE FUNCTION public.log_participant_event(
@@ -60,33 +65,33 @@ BEGIN
 END $$;
 REVOKE EXECUTE ON FUNCTION public.log_participant_event(text, uuid, uuid, uuid, jsonb) FROM PUBLIC, anon, authenticated;
 
--- ── Removal: logged with the removal, before the last-role checks ──────────
--- A refused removal rolls its entry back. Cascades (the gig or the organization is gone) skip all.
+-- ── Removal: the last-role checks say what to do instead ───────────────────
+-- As in 20261020000000, with the refusal saying what to do: release staff and equipment, then
+-- mark Inactive; or mark Inactive; or, already Inactive, it stays so. Logging is per statement
+-- (below), so leaving with several roles is one entry.
 CREATE OR REPLACE FUNCTION public.gig_participants_after_remove()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_owner uuid;
 BEGIN
   SELECT owner_organization_id INTO v_owner FROM gigs WHERE id = OLD.gig_id;
-  IF v_owner IS NULL OR NOT EXISTS (SELECT 1 FROM organizations WHERE id = OLD.organization_id) THEN
-    RETURN NULL;
-  END IF;
-
-  IF auth.uid() IS NOT NULL THEN
-    PERFORM public.log_participant_event('participant.removed', OLD.gig_id, OLD.organization_id, OLD.id,
-      jsonb_build_object('role', OLD.role, 'left', public.user_is_member_of_org(OLD.organization_id, auth.uid())));
-  END IF;
-
-  -- The organization's last role on the gig: the checks and cleanup, as in 20261020000000.
-  IF EXISTS (SELECT 1 FROM gig_participants WHERE gig_id = OLD.gig_id AND organization_id = OLD.organization_id) THEN
+  IF v_owner IS NULL OR NOT EXISTS (SELECT 1 FROM organizations WHERE id = OLD.organization_id)
+     OR EXISTS (SELECT 1 FROM gig_participants WHERE gig_id = OLD.gig_id AND organization_id = OLD.organization_id) THEN
     RETURN NULL;
   END IF;
   IF OLD.organization_id = v_owner THEN
     RAISE EXCEPTION 'The owner organization can''t be removed from its gig.' USING ERRCODE = '23514';
   END IF;
-  IF EXISTS (SELECT 1 FROM gig_financials WHERE gig_id = OLD.gig_id AND organization_id = OLD.organization_id)
-     OR EXISTS (SELECT 1 FROM gig_kit_assignments WHERE gig_id = OLD.gig_id AND organization_id = OLD.organization_id)
+  IF EXISTS (SELECT 1 FROM gig_kit_assignments WHERE gig_id = OLD.gig_id AND organization_id = OLD.organization_id)
      OR EXISTS (SELECT 1 FROM gig_staff_slots WHERE gig_id = OLD.gig_id AND organization_id = OLD.organization_id) THEN
-    RAISE EXCEPTION 'This organization has financials, kits or staff on the gig, so it can only be marked Inactive.'
+    RAISE EXCEPTION 'This organization has staff or equipment on the gig, so it can''t be removed. Release its staff and equipment, then mark it Inactive.'
+      USING ERRCODE = '23503';
+  END IF;
+  IF EXISTS (SELECT 1 FROM gig_financials WHERE gig_id = OLD.gig_id AND organization_id = OLD.organization_id) THEN
+    IF OLD.inactive THEN
+      RAISE EXCEPTION 'This organization has financial records on the gig, so it can''t be removed; it stays Inactive to keep them.'
+        USING ERRCODE = '23503';
+    END IF;
+    RAISE EXCEPTION 'This organization has financial records on the gig, so it can''t be removed. Mark it Inactive instead.'
       USING ERRCODE = '23503';
   END IF;
   DELETE FROM inventory_tracking WHERE gig_id = OLD.gig_id AND organization_id = OLD.organization_id;
@@ -94,6 +99,54 @@ BEGIN
   UPDATE purchases SET gig_id = NULL WHERE gig_id = OLD.gig_id AND organization_id = OLD.organization_id;
   RETURN NULL;
 END $$;
+
+-- ── Gig History: removals ──────────────────────────────────────────────────
+-- Once per statement, one entry per (gig, organization) it removed roles of, naming them. A
+-- leave when the organization has no role left and the user acts for it (its Admin or Manager,
+-- not acting as the owner). A refused removal rolls its entry back with it. Cascades (the gig or
+-- the organization is gone) log nothing.
+CREATE OR REPLACE FUNCTION public.gig_participants_log_removed()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE c record;
+BEGIN
+  IF auth.uid() IS NULL THEN RETURN NULL; END IF;
+  FOR c IN
+    SELECT o.gig_id, o.organization_id, min(o.id::text)::uuid AS entity_id,
+           string_agg(o.role::text, ', ' ORDER BY o.role::text) AS roles
+    FROM old_rows o
+    WHERE EXISTS (SELECT 1 FROM gigs g WHERE g.id = o.gig_id AND g.owner_organization_id IS NOT NULL)
+      AND EXISTS (SELECT 1 FROM organizations WHERE id = o.organization_id)
+    GROUP BY o.gig_id, o.organization_id
+  LOOP
+    PERFORM public.log_participant_event('participant.removed', c.gig_id, c.organization_id, c.entity_id,
+      jsonb_build_object('role', c.roles, 'left',
+        NOT EXISTS (SELECT 1 FROM gig_participants WHERE gig_id = c.gig_id AND organization_id = c.organization_id)
+        AND public.user_is_admin_or_manager_of_org(c.organization_id, auth.uid())
+        AND public.gig_activity_actor_org(c.gig_id, c.organization_id, auth.uid()) = c.organization_id));
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+CREATE TRIGGER gig_participants_log_removed
+  AFTER DELETE ON public.gig_participants
+  REFERENCING OLD TABLE AS old_rows
+  FOR EACH STATEMENT EXECUTE FUNCTION public.gig_participants_log_removed();
+
+-- ── Inactive: no new role ──────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.gig_participants_inactive_no_new_role()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM gig_participants
+             WHERE gig_id = NEW.gig_id AND organization_id = NEW.organization_id AND inactive) THEN
+    RAISE EXCEPTION 'This organization is Inactive on the gig; reactivate it before giving it another role.'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER gig_participants_inactive_no_new_role
+  BEFORE INSERT ON public.gig_participants
+  FOR EACH ROW EXECUTE FUNCTION public.gig_participants_inactive_no_new_role();
 
 -- ── Participation updates ──────────────────────────────────────────────────
 -- As in 20261020000000, plus: Inactive only once staff and equipment are released; while
@@ -169,23 +222,36 @@ BEGIN
 END $$;
 
 -- ── Gig History: Inactive and Reactivated ──────────────────────────────────
--- Once per statement, one entry per (gig, organization) whose flag changed. Inactive sits on each
--- of an organization's roles, so a row-level trigger would log once per role. Role or notes
--- edits change no flag and log nothing.
+-- Once per statement, for each (gig, organization) whose flag changed on some row: one entry
+-- when the organization's state changed, Inactive meaning any of its roles is. Its state before
+-- is read from the rows the statement didn't touch plus the old rows, so changing one of two
+-- roles while the other stays Inactive logs nothing. Role or notes edits change no flag.
 CREATE OR REPLACE FUNCTION public.gig_participants_log_inactive()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE c record;
+DECLARE
+  c record;
+  v_before boolean;
+  v_after boolean;
 BEGIN
   IF auth.uid() IS NULL THEN RETURN NULL; END IF;
   FOR c IN
-    SELECT n.gig_id, n.organization_id, bool_or(n.inactive) AS now_inactive, min(n.id::text)::uuid AS entity_id
+    SELECT n.gig_id, n.organization_id, min(n.id::text)::uuid AS entity_id
     FROM new_rows n JOIN old_rows o ON o.id = n.id
+    WHERE n.inactive IS DISTINCT FROM o.inactive
     GROUP BY n.gig_id, n.organization_id
-    HAVING bool_or(n.inactive) IS DISTINCT FROM bool_or(o.inactive)
   LOOP
-    PERFORM public.log_participant_event(
-      CASE WHEN c.now_inactive THEN 'participant.inactivated' ELSE 'participant.reactivated' END,
-      c.gig_id, c.organization_id, c.entity_id);
+    v_after := EXISTS (SELECT 1 FROM gig_participants
+                       WHERE gig_id = c.gig_id AND organization_id = c.organization_id AND inactive);
+    v_before := EXISTS (SELECT 1 FROM old_rows
+                        WHERE gig_id = c.gig_id AND organization_id = c.organization_id AND inactive)
+             OR EXISTS (SELECT 1 FROM gig_participants p
+                        WHERE p.gig_id = c.gig_id AND p.organization_id = c.organization_id AND p.inactive
+                          AND NOT EXISTS (SELECT 1 FROM new_rows n WHERE n.id = p.id));
+    IF v_before IS DISTINCT FROM v_after THEN
+      PERFORM public.log_participant_event(
+        CASE WHEN v_after THEN 'participant.inactivated' ELSE 'participant.reactivated' END,
+        c.gig_id, c.organization_id, c.entity_id);
+    END IF;
   END LOOP;
   RETURN NULL;
 END $$;
