@@ -30,6 +30,8 @@ const USERS = {
   viewer: 'demo-viewer@gigwrangler.test',
   newuser: 'demo-newuser@gigwrangler.test',
   moderator: 'demo-moderator@gigwrangler.test',
+  // Cedar Hall's Viewer: another organization's view of a shared gig (#175).
+  venue: 'vera.holm@cedar-hall.example',
 };
 
 const args = process.argv.slice(2);

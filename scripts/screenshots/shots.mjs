@@ -288,6 +288,26 @@ export const shots = [
     target: (page) => [cardOf(page, 'Participants'), page.getByRole('menu')],
     pad: 8,
   },
+  // #175: a Manager of the owner sees Delete Gig grayed out, with its reason under it.
+  {
+    id: 'gigs/participating-organizations-delete-blocked',
+    page: 'gigs/participating-organizations.md',
+    user: 'manager',
+    sources: ['src/components/gig/GigPage.tsx', 'src/utils/gigOwnership.ts'],
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/gigs/${HARVEST_GALA}`);
+      await page.getByText('Owned by', { exact: false }).first().waitFor();
+      await page.getByRole('button', { name: 'More actions' }).first().click();
+      // The item is aria-disabled, so it takes a forced click to show the reason.
+      await page.getByRole('menuitem', { name: /Delete Gig/ }).click({ force: true });
+      await page.getByRole('note').waitFor();
+    },
+    // The header, from the title through the tabs, and the open menu.
+    clip: async (page) => {
+      const menu = await box(page.getByRole('menu'));
+      return { x: 0, y: 56, width: 1200, height: Math.max(menu.y + menu.height + 12, 180) - 56 };
+    },
+  },
   {
     id: 'gigs/documents-and-notes-section',
     page: 'gigs/documents-and-notes.md',
@@ -620,6 +640,39 @@ export const shots = [
     },
     target: (page) => page.locator('section[aria-labelledby="equipment-needed"]'),
     pad: 12,
+  },
+  // #175: Cedar Hall's Viewer on a gig where Cedar Hall is Inactive. The owner's Admin marks
+  // it Inactive first, through the participant row menu (dev keeps it until the next seed, so this runs after the other gig shots).
+  {
+    id: 'gigs/participating-organizations-inactive-banner',
+    page: 'gigs/participating-organizations.md',
+    user: 'venue',
+    sources: ['src/components/gig/GigPage.tsx', 'src/utils/gigOwnership.ts', 'src/components/gig/GigParticipantsSection.tsx'],
+    prepare: async (page, ctx) => {
+      const admin = await page.context().browser().newContext({ viewport: { width: 1200, height: 3000 } });
+      const a = await admin.newPage();
+      a.on('dialog', (d) => d.accept());
+      await a.goto(ctx.base);
+      await a.locator('#signin-email').fill(ctx.users.admin);
+      await a.locator('#signin-password').fill(ctx.password);
+      await a.getByRole('button', { name: 'Sign In' }).last().click();
+      await a.waitForURL((u) => !/\/(login)?$/.test(u.pathname), { timeout: 30000 });
+      await openEdit(a, ctx, SONGWRITER_SHOWCASE);
+      await cardOf(a, 'Participants').getByRole('button', { name: 'More actions' }).first().click();
+      const mark = a.getByRole('menuitem', { name: 'Mark Inactive' });
+      if (await mark.count()) {
+        await mark.click();
+        await a.getByText('Cedar Hall is Inactive on this gig').first().waitFor();
+      }
+      await admin.close();
+      await page.goto(`${ctx.base}/gigs/${SONGWRITER_SHOWCASE}`);
+      await page.getByText('is Inactive on this gig', { exact: false }).first().waitFor();
+    },
+    // From the header through the banner.
+    clip: async (page) => {
+      const banner = await box(page.getByText('is Inactive on this gig', { exact: false }).first());
+      return { x: 0, y: 56, width: 1200, height: banner.y + banner.height + 20 - 56 };
+    },
   },
   {
     id: 'financials/reporting-schedule-c',

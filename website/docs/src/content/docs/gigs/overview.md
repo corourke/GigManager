@@ -25,8 +25,9 @@ search, the sort order and the columns you've chosen with **Columns** all carry
 over. Admins and Managers also see **New Gig** and **Import**.
 
 To open a gig, select its title, or open the row's **⋯** menu and choose **View**.
-Admins and Managers also get **Edit** (opens the gig in edit mode) and **Duplicate**.
-Only an Admin of the gig's [owner](/gigs/participating-organizations/#the-gigs-owner), the organization it was created in, can delete it.
+Admins and Managers also get **Edit** (opens the gig in edit mode). Only Admins and
+Managers of the gig's [owner](/gigs/participating-organizations/#the-gigs-owner), the
+organization it was created in, get **Duplicate**, and only its Admins can delete it.
 
 ![The Gigs list on the Upcoming tab, with the date and status filters, Columns, and New Gig, Import and Export buttons above gigs showing their start, status, venue, act and tags](../../../assets/screenshots/gigs/overview-gig-list.png)
 
@@ -47,7 +48,9 @@ the gig from the calendar). Below the header are up to four tabs:
 
 **Print** offers a **Gig sheet**, a **Packing list** and, for Admins and Managers,
 a **Gig sheet with financials**. The **⋮** menu next to **Edit** has **Duplicate
-Gig** and, for Admins, **Delete Gig**.
+Gig** for the owner, **Mark Inactive** and **Leave Gig** for the other organizations
+on the gig, and **Delete Gig**. Delete Gig is grayed out when you can't delete the gig;
+select it to see why. See [The gig's owner](/gigs/participating-organizations/#the-gigs-owner).
 
 ## Editing a gig
 

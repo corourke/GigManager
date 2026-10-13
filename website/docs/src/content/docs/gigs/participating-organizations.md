@@ -42,7 +42,7 @@ To add one:
 
 On an existing contact, select the star to set or unset them as primary. Hover over the row and select **Remove contact** (trash), then **Remove** to confirm. This takes them off this gig only.
 
-![The Participants card in edit mode, each organization with its role and primary contact, and the venue's More actions menu open on Add Contact, Notes, View Organization and Edit Organization](../../../assets/screenshots/gigs/participating-organizations-contacts.png)
+![The Participants card in edit mode, each organization with its role and primary contact, an Owner badge on Demo Sound & Lighting, and the venue's More actions menu open on Add Contact, Notes, View Organization, Mark Inactive and Edit Organization](../../../assets/screenshots/gigs/participating-organizations-contacts.png)
 
 ## More actions
 
@@ -50,40 +50,49 @@ The **More actions** menu on a participant also has:
 
 - **Notes**: notes about this participant's part in the gig (for example, "Provides stage power").
 - **View Organization**: the organization's details and your notes. Admins also see **Edit Organization** here.
+- **Mark Inactive** or **Reactivate**: see [What Inactive means](#what-inactive-means).
 
 To take an organization off the gig, select **Remove participant** (trash). See [Taking an organization off a gig](#taking-an-organization-off-a-gig) for when you can.
 
 ## The gig's owner
 
-Every gig has an owner: the organization it was created in. When you create a gig, your organization owns it.
+Every gig has an owner: the organization it was created in. When you create a gig, your organization owns it. The gig's header shows it, for example "Owned by Demo Sound & Lighting", and in edit mode the owner's row in **Participants** has an **Owner** badge.
 
-Only the owner's Admins and Managers can:
-
-- change the gig's **status**, for example to **Cancelled**;
-- hand the gig over to another organization on it, which becomes the owner (it can't be one that's [Inactive](#what-inactive-means));
-- change which gig it's part of, for a gig that's part of a larger one.
-
-Admins and Managers of the other organizations can still edit the gig's shared details: its title, times, time zone, notes and tags.
+Only the owner's Admins and Managers can change the gig's **status**, for example to **Cancelled**, and duplicate it. Admins and Managers of the other organizations can still edit the gig's shared details: its title, times, time zone, schedule, notes and tags.
 
 Only an Admin of the owner can delete the gig, and only while no other [claimed](/getting-started/organizations/) organization is on it, Inactive ones included. A claimed organization has its own Admin in GigWrangler; a venue or act you added that nobody has claimed doesn't count. Otherwise, the owner sets the gig to **Cancelled** instead.
 
+When you can't delete a gig, **Delete Gig** in the **⋮** menu is grayed out. Select it to see why, such as "Only an Admin of the gig's owner organization can delete it."
+
+![The gig header with "Owned by Demo Sound & Lighting", and the ⋮ menu open: Duplicate Gig, then a grayed-out Delete Gig with "Only an Admin of the gig's owner organization can delete it." under it](../../../assets/screenshots/gigs/participating-organizations-delete-blocked.png)
+
 ## Taking an organization off a gig
 
-The owner's Admins and Managers can take any organization off the gig, and an organization's own Admins and Managers can take it off. A venue or act that nobody has claimed can be taken off by an Admin or Manager of any organization on the gig that isn't Inactive. The owner can't be taken off.
+- **The owner's Admins and Managers** can take any other organization off. In edit mode, select **Remove participant** (trash) on its row.
+- **Another organization's own Admins and Managers** can take it off with **Leave Gig** in the gig's **⋮** menu. Afterwards, the gig no longer appears in that organization's list.
+- **A venue or act that nobody has claimed** can be taken off by an Admin or Manager of any organization on the gig that isn't Inactive.
 
-An organization can come off only if it has no financials, kit assignments or staff slots on the gig. If it still has financials there, release its staff and kits and mark it [Inactive](#what-inactive-means) instead.
+The owner can't be taken off.
 
-When it comes off, its equipment scans and its contacts for the gig are deleted, and its purchases are no longer linked to the gig. If it has more than one role on the gig, such as **Venue** and **Act**, removing one role keeps the other, and nothing is deleted.
+An organization can come off only if it has no financials, kit assignments or staff slots on the gig. If it still has staff or equipment there, release them first. If it has financial records, GigWrangler says so and offers to [mark it Inactive](#what-inactive-means) instead.
+
+When it comes off, its equipment scans and its contacts for the gig are deleted, and its purchases are no longer linked to the gig. GigWrangler asks you to confirm first.
 
 ## What Inactive means
 
-**Inactive** means the organization is leaving the gig. It can't simply come off yet, usually because it has money to settle, such as a deposit or costs already paid, or notes worth keeping.
+**Inactive** means the organization is being removed from the gig. It stays on the gig only to settle what's left, such as a deposit, costs already paid, or notes worth keeping.
 
-- **Before:** the organization releases its own staff and kits from the gig. It can't be marked Inactive until it has.
-- **While Inactive:** it keeps its role on the gig, and it can still update its own financials and notes there. It can't change anything else: no staff, no equipment, and none of the gig's shared details, schedule or other organizations' contacts.
+- **Before:** the organization releases its own staff and equipment from the gig. It can't be marked Inactive until it has.
+- **While Inactive:** it keeps its role, and it can still update its own financials and its notes for the gig. Everything else is read-only for it, including its role, its contacts, the gig's shared details and schedule, and other organizations' contacts. It can't add staff or equipment, even when scanning on a phone.
 - **After:** it can be reactivated and take part again, or it can [leave the gig](#taking-an-organization-off-a-gig) once nothing ties it there.
 
-The gig's [History](/gigs/change-history/) records when an organization is marked Inactive and when it's reactivated. The owner is never Inactive.
+The owner's Admins and Managers mark another organization Inactive, or reactivate it, from **Mark Inactive** or **Reactivate** in its row's **More actions** menu in edit mode, where its row then has an **Inactive** badge. An organization's own Admins and Managers can also use **Mark Inactive** in the gig's **⋮** menu. GigWrangler asks you to confirm. The owner is never Inactive.
+
+While your organization is Inactive on a gig, a banner across the gig page says so, and Admins and Managers see **Reactivate** in it. In the gig list, the gig's title has an **Inactive** tag.
+
+![A gig opened by Cedar Hall, Owned by Demo Sound & Lighting, with the banner "Cedar Hall is Inactive on this gig: it is being removed. Its financial records and notes are kept; everything else is read-only."](../../../assets/screenshots/gigs/participating-organizations-inactive-banner.png)
+
+The gig's [History](/gigs/change-history/) records each change, such as "Brightwave Events marked Inactive on the gig", "… reactivated on the gig" and "… left the gig".
 
 ## What everyone sees
 
