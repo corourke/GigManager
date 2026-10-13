@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-13 04:45 UTC (coordinator: #284 (#175 PR 2) merged with Cameron's OK; the Equipment Lead started PR 3)
+- **Last updated:** 2026-10-13 15:10 UTC (coordinator: Cameron redefined Inactive for #175 PR 3; Delete/Cancel menu question pending)
 
 ---
 
@@ -87,7 +87,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 **Status 10-12 22:45 UTC:**
 - **In prod (Cameron's deploy 10-12):** #263, #264, #267, #269, #270, #271, #272, #273, #276.
 - **Merged, not yet in prod:** #268 (#186 Locations step; fixes #160), #282 (#278), #283 (#279), and #281 (#175 PR 1, merged 10-12 as 13a78ce) and #284 (#175 PR 2, merged 10-13 as 58e0974): **migration `20261020000000` and an edge-function deploy (`server`)**. The prod backfill dry run (read-only) resolves 99/99 gigs. The Docs Lead holds the Locations and Kits pages for them until the deploy.
-- **#281 (#175 PR 1):** merged 10-12 with Cameron's OK (dev has it). **PR 2 is #284, merged 10-13 (58e0974, Cameron's OK)** (services): independent review found no blockers; review fixes in at 5ce0e26 (CI green); `server` deployed to dev 10-13. **Cameron 10-13:** duplicate is owner-only (the owner's Admins and Managers; clear message for others; PR 3 hides the button); a duplicate leaves Inactive participants off; leaving a gig is logged through a small migration in PR 3 (design on #175 first). Items 1–2 landed in #284 (828e8b1). **PR 3 (UI) started 10-13:** the leave-log design comes first on #175, then the UI, plus the mobile participant-save bug. The Docs Lead is drafting the #175 rules, held until prod.
+- **#281 (#175 PR 1):** merged 10-12 with Cameron's OK (dev has it). **PR 2 is #284, merged 10-13 (58e0974, Cameron's OK)** (services): independent review found no blockers; review fixes in at 5ce0e26 (CI green); `server` deployed to dev 10-13. **Cameron 10-13:** duplicate is owner-only (the owner's Admins and Managers; clear message for others; PR 3 hides the button); a duplicate leaves Inactive participants off; leaving a gig is logged through a small migration in PR 3 (design on #175 first). Items 1–2 landed in #284 (828e8b1). **Cameron 10-13, Inactive redefined:** Inactive means the organization is being removed from the gig. It keeps and maintains its own financials and notes, but its staff and equipment are released, and it can't change anything else. Mark Inactive is refused until the org has released its own staff slots and kit assignments (release first, then Inactive). Gig History logs Inactive/Reactivated. In Participants, Remove runs right away behind a confirmation. Leave and Inactive are web-only this round. **Pending Cameron:** Delete vs Cancel in the gig menu (he asked for more context). PR 3 needs an updated migration design on #175 (coordinator reviews before code). **PR 3 (UI) started 10-13:** the leave-log design comes first on #175, then the UI, plus the mobile participant-save bug. The Docs Lead is drafting the #175 rules, held until prod.
 - Open question for Cameron later: should #265's warning also cover a case *added* at pack-out?
 
 **Released by Cameron 10-11 (answers recorded on each issue):**
