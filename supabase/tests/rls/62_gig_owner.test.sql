@@ -4,7 +4,7 @@
 --   Removing an organization: by the owner or by itself (an unclaimed venue or act by any
 --   participating Admin or Manager), only with no financials, kits or staff slots on the gig;
 --   removal deletes its scans and contacts there and unlinks its purchases. Otherwise it can be
---   marked Inactive (by the owner or itself, never the owner). An Inactive organization is
+--   marked Inactive (by the owner or itself, never the owner; see test 64 for the 10-13 rules). An Inactive organization is
 --   read-only on the gig's shared details until it's reactivated.
 -- Checks read as: rls_test.expect(label, <rows seen or affected, -1 = rejected>, expected).
 -- rls_test.run rolls each statement back; rls_test.act keeps it, for checks that read its effect.
@@ -164,9 +164,10 @@ DELETE FROM gig_participants WHERE gig_id = rls_test.u('gig') AND organization_i
 SELECT rls_test.act('b_admin', rls_test.set_part('gig', 'org_b', 'inactive = true'));
 SELECT rls_test.expect('An Inactive organization can''t edit the gig''s title',
   rls_test.run('b_admin', rls_test.set_gig('gig', $$title = 'Renamed'$$)), 0);
-SELECT rls_test.expect('An Inactive organization still adds its own staff slots',
+-- Cameron (10-13): Inactive means being removed; it adds no staff or equipment (test 64).
+SELECT rls_test.expect('An Inactive organization can''t add staff slots',
   rls_test.run('b_admin', format('INSERT INTO gig_staff_slots (gig_id, staff_role_id, organization_id) VALUES (%s, %s, %s)',
-    rls_test.id('gig'), rls_test.id('role'), rls_test.id('org_b'))), 1);
+    rls_test.id('gig'), rls_test.id('role'), rls_test.id('org_b'))), -1);
 SELECT rls_test.expect('The owner still edits the gig while B is Inactive',
   rls_test.run('a_manager', rls_test.set_gig('gig', $$title = 'Renamed'$$)), 1);
 -- Cameron (10-12): also read-only on the gig's schedule and on other organizations' contacts.
@@ -178,8 +179,8 @@ SELECT rls_test.expect('The owner still can',
   rls_test.run('a_manager', rls_test.add_schedule()), 1);
 SELECT rls_test.expect('An Inactive organization can''t add another organization''s contact on the gig',
   rls_test.run('b_admin', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_a'), rls_test.id('a_staff'))), -1);
-SELECT rls_test.expect('...but still manages its own contacts',
-  rls_test.run('b_admin', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_b'), rls_test.id('b_staff'))), 1);
+SELECT rls_test.expect('...nor its own (Cameron 10-13: financials and notes only)',
+  rls_test.run('b_admin', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_b'), rls_test.id('b_staff'))), -1);
 SELECT set_config('request.jwt.claim.sub', '', true);
 INSERT INTO rls_test.ids VALUES ('sched', '00000000-0000-0000-0000-000000000ec1');
 INSERT INTO gig_schedule_entries (id, gig_id, activity_type, start_time) VALUES (rls_test.u('sched'), rls_test.u('gig'), 'Doors', now());
@@ -198,8 +199,10 @@ SELECT rls_test.expect_state('The gig can''t be handed to an Inactive organizati
   rls_test.state('a_admin', rls_test.set_gig('gig', format('owner_organization_id = %s', rls_test.id('org_b')))), '23514');
 SELECT rls_test.expect('An active participant can add another organization''s contact',
   rls_test.run('a_manager', format('SELECT add_gig_participant_contact(%s, %s, %s)', rls_test.id('gig'), rls_test.id('org_b'), rls_test.id('b_staff'))), 1);
-SELECT rls_test.expect_state('An Inactive organization can''t change its own role or notes',
-  rls_test.state('b_admin', rls_test.set_part('gig', 'org_b', $$notes = 'n'$$)), '42501');
+SELECT rls_test.expect_state('An Inactive organization can''t change its own role',
+  rls_test.state('b_admin', rls_test.set_part('gig', 'org_b', $$role = 'Staging'$$)), '42501');
+SELECT rls_test.expect_state('...but keeps its own notes (Cameron 10-13)',
+  rls_test.state('b_admin', rls_test.set_part('gig', 'org_b', $$notes = 'n'$$)), '00000');
 SELECT rls_test.expect('An Inactive organization can reactivate itself',
   rls_test.run('b_admin', rls_test.set_part('gig', 'org_b', 'inactive = false')), 1);
 SELECT rls_test.expect('An Inactive claimed organization still keeps the owner from deleting the gig',
