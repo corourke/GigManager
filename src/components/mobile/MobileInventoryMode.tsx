@@ -164,13 +164,15 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       .catch(() => {});
     return () => { cancelled = true; };
   }, [selectedOrganization?.id]);
-  // Adding at pack-out (#185): Pack-Out and Load Truck, Staff or above; never while the
-  // organization is Inactive on the gig (#175). Removing what it added is still allowed.
-  const [orgInactive, setOrgInactive] = useState(false);
-  const canRemoveAdded = !!selectedMode.allowsAdHoc && isStaffOrAbove(userRole);
-  const canAddHere = canRemoveAdded && !orgInactive;
   const [locationInput, setLocationInput] = useState<string>(SCANNING_MODES[0].locationLabel);
   const [packingList, setPackingList] = useState<any>(null);
+  // Adding at pack-out (#185): Pack-Out and Load Truck, Staff or above; never while the selected
+  // organization is Inactive on the gig (#175), read from the gig's participants on the list.
+  // Removing what it added is still allowed.
+  const orgInactive = (packingList?.participants ?? [])
+    .some((p: any) => p.organization_id === selectedOrganization?.id && p.inactive);
+  const canRemoveAdded = !!selectedMode.allowsAdHoc && isStaffOrAbove(userRole);
+  const canAddHere = canRemoveAdded && !orgInactive;
   const [gigTitle, setGigTitle] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -255,7 +257,6 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       const gig = gigs.find((candidate: any) => candidate.id === id);
       if (gig) {
         setGigTitle(gig.title);
-        setOrgInactive((gig.participants ?? []).some((p: any) => p.organization_id === selectedOrganization?.id && p.inactive));
         return;
       }
 

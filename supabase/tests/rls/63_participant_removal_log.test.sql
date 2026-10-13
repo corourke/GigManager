@@ -1,7 +1,9 @@
 -- #175: removing an organization from a gig is logged in the database, in the same step as the
--- removal (coordinator review, 10-13). One `participant.removed` entry per removed row, with
--- `left` when the user belongs to the organization removed, attributed to the actor's
--- organization. A refused removal rolls its entry back; cascades and unsigned writes log nothing.
+-- removal (coordinator review, 10-13). One `participant.removed` entry per organization a
+-- statement removes roles of, naming them, with `left` when it has no role left and the user acts
+-- for it (not as the owner); attributed to the owner when the user is one of its Admins or
+-- Managers, else to the organization itself, else to the user's other participant organization.
+-- A refused removal rolls its entry back; cascades and unsigned writes log nothing.
 -- Checks read as: rls_test.expect(label, actual, expected).
 
 -- Runs a statement as the user and keeps its effect; returns rows affected, or -1 if refused.
