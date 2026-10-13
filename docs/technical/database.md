@@ -483,6 +483,7 @@ Main gig records with status, dates, and details
 | id | UUID | Primary key |
 | parent_gig_id | UUID | Reference to gigs.id for hierarchical relationships (nullable) |
 | hierarchy_depth | INTEGER | Depth level in gig hierarchy (default 0, NOT NULL) |
+| owner_organization_id | UUID | Reference to organizations.id: the organization the gig was created in (NOT NULL, ON DELETE RESTRICT; migration 20261020000000, #175) |
 | title | TEXT | Gig title/name (NOT NULL) |
 | start | TIMESTAMPTZ | Start date and time of the gig (NOT NULL) |
 | end | TIMESTAMPTZ | End date and time of the gig (NOT NULL) |
@@ -496,7 +497,12 @@ Main gig records with status, dates, and details
 | updated_at | TIMESTAMPTZ | Record last update timestamp (NOT NULL) |
 
 **Notes:**
-- Gigs are shared (participated in) by multiple organizations so there is no 'owning' organization.
+- Gigs are shared (participated in) by multiple organizations, and each has one **owner organization** (#175, migration 20261020000000): the organization it was created in. Existing gigs were backfilled from the `gig.created` activity entry, else the creator's organization among the participants, else the only participant; the migration fails if any gig can't be resolved.
+  - The owner is always an active participant: it has a participation on the gig and none of its rows is Inactive. Constraint triggers check this at commit (`gig_owner_is_active_participant`), so a gig and its participants can be written in either order. An organization that owns gigs can't be deleted.
+  - A child gig always has its parent's owner (trigger `gigs_a_owner_rules`): a gig only goes under a parent its owner owns, a child's owner can't be set apart from its parent's, and a new owner on a parent passes down to its children (which must have that owner on them).
+  - **Delete:** only an Admin of the owner, and only when no other *claimed* organization is on the gig (Inactive ones count; unclaimed venue and act records don't) and the gig has no child gigs (`user_can_delete_gig`). Otherwise the owner's Admins and Managers cancel it.
+  - **Status, owner and parent gig** (and `hierarchy_depth`): only the owner's Admins and Managers. A new owner must be an active participant.
+  - **Other fields** (title, times, timezone, notes, tags): Admins and Managers of any *active* participant. An Inactive organization is read-only on them until it's reactivated.
 - Gigs link to organizations via `gig_participants` with a `role` using `organization_role` enum values
 - Gig status transitions are recorded in `activity_log` (`event_type = 'gig.status_changed'`) by the application via the `log_activity` RPC — there is no longer a database trigger for this (migration 20260615000000)
 - Any status can transition to any other status (no restrictions)
@@ -505,7 +511,7 @@ Main gig records with status, dates, and details
 - `parent_gig_id` enables hierarchical relationships between gigs (e.g., main event with sub-events)
 - `hierarchy_depth` tracks the depth level in the hierarchy for performance and validation
 - Deleting a gig fires `trg_cleanup_attachments` (migration 20260831000100).
-- RLS is **ENABLED** on this table. Users can view gigs their organization participates in; Admins/Managers can update; Admins can delete. There is **no INSERT policy** (dropped in migration 20260613000000): gigs are created only through the SECURITY DEFINER `create_gig_complex` RPC, which requires `primary_organization_id` and that the caller is Admin/Manager of it.
+- RLS is **ENABLED** on this table. Users can view gigs their organization participates in; Admins/Managers of an active participant can update (with the owner-only fields above); an Admin of the owner can delete under the rule above. There is **no INSERT policy** (dropped in migration 20260613000000): gigs are created only through the SECURITY DEFINER `create_gig_complex` RPC, which requires `primary_organization_id` and that the caller is Admin/Manager of it. It stores that organization as the owner (for a child gig, the parent's owner, which must be the primary organization) and requires the owner among the participants.
 
 ---
 
@@ -521,12 +527,21 @@ Organizations participating in a gig (venue, act, production, etc.)
 | role | organization_role | Participant role (single value, NOT NULL) |
 | notes | TEXT | Long text field for freeform notes (Markdown-formatted, nullable) |
 | is_client | BOOLEAN | This participating org is (one of) the paying client(s) for the gig (default false, NOT NULL; migration 20260825180000) |
+| inactive | BOOLEAN | The organization is Inactive on this gig (default false, NOT NULL; migration 20261020000000, #175) |
 
 **Notes:**
 - `role` uses the `organization_role` enum values: Production, Sound, Lighting, Staging, Rentals, Venue, Act, Agency
 - Composite unique constraint on (gig_id, organization_id, role)
 - `is_client` is orthogonal to `role` and deliberately has no uniqueness constraint (split billing / co-promotion)
-- RLS is **ENABLED** on this table. Users can view participants for accessible gigs; Admins/Managers can manage.
+- RLS is **ENABLED** on this table. Users can view participants for accessible gigs. Admins/Managers of an active participant can add participants and change role, notes and `is_client`. A participation's gig and organization never change (remove it and add another).
+- **Inactive** (#175): the role is kept; the organization still manages its own staffing, financials, kits and contacts on the gig, but is read-only on the gig's shared details, its own role, notes and client flag, the gig's schedule (`gig_schedule_entries`) and other organizations' contacts for the gig (Cameron, 10-12). The owner's Admins and Managers, or the organization's own, mark it Inactive or reactivate it. The owner is never Inactive, and a participation can't be added already Inactive.
+  - Inactive is per organization: if any of its roles on the gig is Inactive, it's Inactive on the gig (`user_can_manage_gig_active`). The app marks and reactivates all of an organization's rows together.
+- The helper functions behind these rules (`user_can_manage_gig_active`, `user_manages_gig_owner`, `org_is_claimed`, `user_can_delete_gig`) can be called only by signed-in users.
+- **Removing an organization** (#175): by the owner's Admins and Managers or the organization's own; an unclaimed record (a venue or act nobody has claimed) by any active participant's Admin or Manager. Dropping one of an organization's roles is always allowed; when its last role goes (`gig_participants_after_remove`):
+  - the owner's can't be removed;
+  - an organization with financials, kit assignments or staff slots on the gig can't be removed (it can be marked Inactive);
+  - otherwise its `inventory_tracking` and `gig_participant_contacts` rows for the gig are deleted and its purchases' `gig_id` is set to null.
+  Rows removed because the gig or the organization is being deleted skip these checks.
 
 ---
 
@@ -572,7 +587,7 @@ Run-of-show / multi-act schedule entries for a gig (migrations 20260616000000, 2
 **Notes:**
 - The original `end_time > start_time` check (`schedule_entry_time_order`) was dropped in 20260617000000; an entry may have only a start time.
 - No `update_updated_at_column` trigger is attached; `updated_at` must be set by the writer.
-- RLS is **ENABLED**. SELECT for any member of a participating org; INSERT/UPDATE/DELETE for Admin/Manager of a participating org (inline `gig_participants` ⨝ `organization_members` checks).
+- RLS is **ENABLED**. SELECT for any member of a participating org; INSERT/UPDATE/DELETE for Admin/Manager of an *active* participating org (`user_can_manage_gig_active`, #175).
 
 ---
 
