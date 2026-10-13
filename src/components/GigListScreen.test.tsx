@@ -31,6 +31,7 @@ Object.defineProperty(window, 'localStorage', {
 const now = Date.now();
 const futureGig = {
   id: 'gig-future',
+  owner_organization_id: 'org-1',
   title: 'Upcoming Show',
   status: 'Booked',
   start: new Date(now + 86400000).toISOString(),
@@ -43,6 +44,7 @@ const futureGig = {
 };
 const pastGig = {
   id: 'gig-past',
+  owner_organization_id: 'org-1',
   title: 'Old Show',
   status: 'Completed',
   start: new Date(now - 172800000).toISOString(),
@@ -332,6 +334,14 @@ describe('GigListScreen', () => {
       await openRowMenu('Admin');
       expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeInTheDocument();
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+    });
+
+    // #175: only the gig owner's Admins and Managers duplicate it.
+    it("doesn't offer Duplicate on a gig another organization owns", async () => {
+      vi.mocked(getGigsForOrganization).mockResolvedValue([{ ...futureGig, owner_organization_id: 'org-other' }, pastGig]);
+      await openRowMenu('Admin');
+      expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Duplicate' })).not.toBeInTheDocument();
     });
 
     it('is not offered to Managers, who can still edit and duplicate', async () => {
