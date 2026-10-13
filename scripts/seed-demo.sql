@@ -283,14 +283,16 @@ SELECT g.*, pg_temp.day(g.wk, g.dow) AS gd FROM (VALUES
   (17, 'Brightwave Rooftop Mixer',             'Proposed',   1, 5, 1, 15.0, 19.0, 2, NULL, NULL,      6, 'program', 'near',  ARRAY[1,4],       ARRAY['Corporate'],            'Same night as the Songwriter Showcase: crew and PA need sorting before we confirm.')
 ) AS g(n, title, status, wk, dow, days, loadin, show, venue, act, act2, client, kind, fill, slots, tags, notes);
 
-INSERT INTO public.gigs (id, title, status, tags, start, "end", timezone, notes, created_by, updated_by, created_at, updated_at)
+-- Every gig is owned by the demo organization (#175), which is a participant on each.
+INSERT INTO public.gigs (id, title, status, tags, start, "end", timezone, notes, created_by, updated_by, created_at, updated_at, owner_organization_id)
 SELECT pg_temp.d(3, g.n), g.title, g.status::gig_status, g.tags,
        pg_temp.at(g.gd, g.loadin),
        pg_temp.at(g.gd + (g.days - 1), g.show + 3.5),
        'America/Los_Angeles', g.notes,
        pg_temp.d(2, CASE WHEN g.n % 3 = 0 THEN 2 ELSE 1 END), pg_temp.d(2, 2),
        pg_temp.at(LEAST(g.gd - 60, pg_temp.anchor() - (16 - g.n)), 11),
-       pg_temp.at(LEAST(g.gd + 3, pg_temp.anchor()), 12)
+       pg_temp.at(LEAST(g.gd + 3, pg_temp.anchor()), 12),
+       pg_temp.d(1, 1)
   FROM _g g;
 
 -- Participants. k: 1 venue, 2 act, 3 second act, 4 agency, 5 our org.

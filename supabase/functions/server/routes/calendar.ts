@@ -2,7 +2,7 @@ import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireGigAccess } from '../lib/gigAccess.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
-import { buildCalendarEvent } from '../lib/pure/calendarEvent.ts';
+import { buildCalendarEvent, calendarAudienceOrgIds } from '../lib/pure/calendarEvent.ts';
 
 // Google Calendar integration. All routes operate on the caller's own OAuth
 // tokens (per-user); sync-gig-all-users additionally requires gig access (Q-D).
@@ -139,7 +139,7 @@ export function registerCalendar(app: App) {
             return;
           }
 
-          const participantOrgIds = gig.participants?.map((p: any) => p.organization_id) || [];
+          const participantOrgIds = calendarAudienceOrgIds(gig.participants || []);
           const { data: orgMembers } = await supabaseAdmin
             .from('organization_members').select('user_id').in('organization_id', participantOrgIds);
           const assignedUserIds = gig.staff_assignments?.flatMap((s: any) => s.assignments?.map((a: any) => a.user_id)) || [];

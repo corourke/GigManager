@@ -184,6 +184,30 @@ describe('conflictDetection.service', () => {
       expect(result.conflicts[0].type).toBe('venue');
       expect(result.conflicts[0].details.venue_name).toBe('The Club');
     });
+
+    // #175: a gig an organization is Inactive on is left out of its conflict checks.
+    const otherGig = (inactive: boolean) => ({
+      id: 'gig-2', title: 'Other Gig', start: '2026-03-01T19:00:00Z', end: '2026-03-01T23:00:00Z',
+      participants: [{ role: 'Venue', inactive, organization: { id: 'org-venue', name: 'The Club' } }],
+    });
+    const run = async (currentInactive: boolean, otherInactive: boolean) => {
+      const tableResponses: Record<string, any> = {
+        gig_participants: { data: [{ organization_id: 'org-venue', role: 'Venue', inactive: currentInactive }], error: null },
+        gigs: { data: [otherGig(otherInactive)], error: null },
+      };
+      mockSupabase = { from: vi.fn().mockImplementation((table: string) => createQueryBuilder(tableResponses[table] || { data: [], error: null })) };
+      (createClient as any).mockReturnValue(mockSupabase);
+      const { checkParticipantConflicts } = await import('./conflictDetection.service');
+      return checkParticipantConflicts('gig-1', '2026-03-01T18:00:00Z', '2026-03-01T22:00:00Z');
+    };
+
+    it('leaves out an organization that is Inactive on this gig', async () => {
+      expect((await run(true, false)).conflicts).toEqual([]);
+    });
+
+    it('leaves out an organization that is Inactive on the other gig', async () => {
+      expect((await run(false, true)).conflicts).toEqual([]);
+    });
   });
 
   describe('checkEquipmentConflicts', () => {
@@ -363,6 +387,30 @@ describe('conflictDetection.service', () => {
       const venueConflicts = result.filter(c => c.type === 'venue');
       expect(venueConflicts.length).toBe(2);
       expect(venueConflicts[0].details.venue_name).toBe('The Club');
+    });
+
+    it('leaves out an organization on a gig it is Inactive on (#175)', async () => {
+      const gigs = [
+        { id: 'gig-1', title: 'Gig A', start: '2026-03-01T18:00:00Z', end: '2026-03-01T22:00:00Z' },
+        { id: 'gig-2', title: 'Gig B', start: '2026-03-01T20:00:00Z', end: '2026-03-02T00:00:00Z' },
+      ];
+      mockSupabase = createBatchMock([
+        {
+          table: 'gig_participants',
+          response: {
+            data: [
+              { gig_id: 'gig-1', role: 'Venue', inactive: false, organization: { id: 'org-venue', name: 'The Club' } },
+              { gig_id: 'gig-2', role: 'Venue', inactive: true, organization: { id: 'org-venue', name: 'The Club' } },
+            ],
+            error: null,
+          },
+        },
+      ]);
+      (createClient as any).mockReturnValue(mockSupabase);
+      const { checkAllConflictsForGigs } = await import('./conflictDetection.service');
+
+      const result = await checkAllConflictsForGigs(gigs, 'org-1');
+      expect(result.filter(c => c.type === 'venue')).toEqual([]);
     });
 
     it('should detect equipment conflicts between overlapping gigs', async () => {
