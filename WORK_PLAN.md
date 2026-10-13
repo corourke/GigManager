@@ -163,7 +163,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **For the coordinator:** can the owner's Admins and Managers still mark another organization Inactive (#281 allowed it), or only the organization itself, now that it must release its own staff and kits first? The draft avoids saying who until you confirm.
 - **Docs Lead status, 10-13 17:50 UTC (after Cameron's 10-13 deploy):**
   - **PR #287 (merged 10-13 18:38 UTC):** Locations for #268, re-checked and with the overview shot retaken.
-  - **PR #288:** Kits for #282/#283.
+  - **PR #288 (merged 10-13 18:38 UTC):** Kits for #282/#283.
   - Both are green-pending, with "Ready for coordinator re-review" posted.
   - The #175 owner/Inactive draft stays held for PR 3.
 - **Docs Lead status, 10-12 01:40 UTC.**
@@ -293,7 +293,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | published (PR #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Importing equipment from a spreadsheet (#276): example/template, invoice rows, units vs lots, kits by name, fix and retry |
 | `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come |
-| `equipment/kits.md` | published (PR #280) | 2026-10-12 (Docs Lead; audited against prod) | kit page (#273), editor, any lines, nesting, containers; 2 shots. #282/#283 update (Tracking Status "6 of 29" and tooltip; full editor shot with Kit Contents) in PR #288 (open) |
+| `equipment/kits.md` | published (PRs #280, #288) | 2026-10-13 (Docs Lead; matches prod 10-13) | kit page (#273), editor, any lines, nesting, containers; Tracking Status "6 of 29" and tooltip (#282); full editor shot with Kit Contents (#283) |
 | `equipment/location-explorer.md` | published (PRs #274, #287) | 2026-10-13 (Docs Lead; matches prod 10-13) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 update (Item filter and card, N of M, pieces, Move N, leave-the-case) published in PR #287 (merged 10-13), overview shot retaken |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
@@ -310,7 +310,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `getting-started/what-is-gigwrangler.md` | published | 2026-10-07 (Docs Lead, PR #164) | — |
 | `gigs/calendar-view.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/change-history.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
-| `gigs/conflict-detection.md` | published | 2026-10-12 (Docs Lead, PRs #235, #277; matches prod 10-12) | per-item conflicts, Equipment needed table, same-unit rule after #238, lot short/missing notes (#270) |
+| `gigs/conflict-detection.md` | published | 2026-10-12 (Docs Lead, PRs #235, #277; matches prod 10-12) | per-item conflicts, Equipment needed table, same-unit rule after #238, lot short/missing notes (#270); Inactive venue/act left out of conflicts (#175, technical doc #285) goes in the held `claude/docs-175-owner` draft |
 | `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
 | `gigs/documents-and-notes.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
 | `gigs/overview.md` | published | 2026-10-12 (Docs Lead, PR #277) | Delete is Admin-only (#271); #175 PR 1 (#281) owner rules held on `claude/docs-175-owner` (8abdd07) until prod; screenshots wait for #175 PR 3 |
