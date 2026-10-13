@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #286** (Equipment Lead, merged 10-14 with Cameron's OK after two independent reviews): #175 PR 3 of 3. Owner shown; Delete Gig disabled with its reason (Cameron's wording); status and Duplicate owner-only; Remove right away; Leave, Mark Inactive and Reactivate (web); Inactive per Cameron's 10-13 meaning (release staff and equipment first; only financials and notes after); Gig History logs removals, leaves, Inactive and Reactivated in the database; the mobile participant-notes fix. Migration `20261021000000` on dev; prod at the next deploy.
+
 - **Docs PRs #287, #288, #285** (merged 10-13 with Cameron's OK): Locations guide for #268, Kits guide for #282/#283, and the conflict-detection technical doc (Cancelled and Inactive skipped).
 
 - **Prod deploy, 10-13** (Cameron): #268, #282, #283, #281 (migration `20261020000000`), #284, plus the `server` function. Coordinator verified read-only: 99/99 gigs owned with active owners, no Inactive rows, the new build's strings, `server` updated 17:26 UTC. The Docs Lead is publishing the held Locations and Kits pages.

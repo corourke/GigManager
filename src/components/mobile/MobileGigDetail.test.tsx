@@ -11,6 +11,7 @@ const mockGig = {
   timezone: 'America/New_York',
   tags: ['festival', 'outdoor'],
   notes: 'Load-in at 2pm',
+  owner_organization_id: 'org-1',
   participants: [
     { id: 'p1', role: 'Venue', organization: { id: 'org-1', name: 'Madison Square Garden', city: 'New York', state: 'NY', phone_number: '555-1234' } },
     { id: 'p2', role: 'Act', organization: { id: 'org-2', name: 'The Rock Band' } },
@@ -165,6 +166,7 @@ describe('MobileGigDetail', () => {
   })
 
   it('shows status change options when status badge is clicked', async () => {
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: 'Manager', selectedOrganization: { id: 'org-1' } })
     render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
 
     await waitFor(() => {
@@ -177,6 +179,33 @@ describe('MobileGigDetail', () => {
       expect(screen.getByText('Date Hold')).toBeInTheDocument()
       expect(screen.getByText('Proposed')).toBeInTheDocument()
     })
+  })
+
+  // #175: the status is the gig owner's Admins' and Managers' to change.
+  it.each([
+    ["the owner's Staff", 'Staff', 'org-1'],
+    ["another participant's Admin", 'Admin', 'org-2'],
+  ])("doesn't let %s change the status", async (_who, role, orgId) => {
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: role, selectedOrganization: { id: orgId } })
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('Booked'))
+
+    expect(screen.queryByText('Date Hold')).not.toBeInTheDocument()
+  })
+
+  // #175: an organization Inactive on the gig is read-only on its shared details.
+  it('tells an Inactive organization so, and offers no edit', async () => {
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: 'Admin', selectedOrganization: { id: 'org-2', name: 'The Rock Band' } })
+    vi.mocked(getGig).mockResolvedValue({
+      ...mockGig,
+      participants: [mockGig.participants[0], { ...mockGig.participants[1], organization_id: 'org-2', inactive: true }],
+    } as unknown as Awaited<ReturnType<typeof getGig>>)
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+
+    expect(await screen.findByText('The Rock Band is Inactive on this gig: it is being removed. Its financial records and notes are kept; everything else is read-only.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /edit gig/i })).not.toBeInTheDocument()
   })
 
   it('renders Participants section heading instead of Organizations', async () => {
@@ -394,6 +423,35 @@ describe('MobileGigDetail', () => {
 
       await waitFor(() => expect(updateGigParticipants).toHaveBeenCalled())
       expect(vi.mocked(updateGigParticipants).mock.calls[0][3]).toEqual(['p1', 'p2'])
+    })
+
+    // #175: the save used to send only id, organization and role, and the service writes
+    // notes and the client flag from what it's sent, so every mobile edit cleared them.
+    it("keeps each participant's notes and client flag when saving", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: 'user-1' },
+        userRole: 'Admin',
+        selectedOrganization: { id: 'org-1', name: 'Org One' },
+      })
+      vi.mocked(getGig).mockResolvedValue({
+        ...mockGig,
+        participants: [
+          { ...mockGig.participants[0], organization_id: 'org-1', notes: 'Dock B', is_client: true },
+          { ...mockGig.participants[1], organization_id: 'org-2', notes: null, is_client: false },
+        ],
+      } as unknown as Awaited<ReturnType<typeof getGig>>)
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+      await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+      await waitFor(() => expect(screen.getByPlaceholderText('Gig title')).toBeInTheDocument())
+
+      fireEvent.click(screen.getByText('Save'))
+
+      await waitFor(() => expect(updateGigParticipants).toHaveBeenCalled())
+      expect(vi.mocked(updateGigParticipants).mock.calls[0][1]).toEqual([
+        expect.objectContaining({ id: 'p1', notes: 'Dock B', is_client: true }),
+        expect.objectContaining({ id: 'p2', notes: null, is_client: false }),
+      ])
     })
 
     it('shows toast error and stays in edit mode when updateGig rejects', async () => {

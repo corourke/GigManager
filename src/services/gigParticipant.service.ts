@@ -42,7 +42,7 @@ export async function updateGigParticipants(
 
     const { data: existingParticipants, error: fetchError } = await supabase
       .from('gig_participants')
-      .select('id, organization_id, role')
+      .select('id, organization_id, role, notes, is_client')
       .eq('gig_id', gigId);
 
     if (fetchError) throw fetchError;
@@ -63,6 +63,7 @@ export async function updateGigParticipants(
 
     const existingIds = (existingParticipants ?? []).map(p => p.id);
     const existingOrg = new Map((existingParticipants ?? []).map(p => [p.id, p.organization_id]));
+    const existingById = new Map((existingParticipants ?? []).map(p => [p.id, p as any]));
     const incomingIds = participants
       .filter(p => p.id && UUID_REGEX.test(p.id))
       .map(p => p.id!);
@@ -83,10 +84,7 @@ export async function updateGigParticipants(
       }
     }
 
-    // Logged once the rows are gone.
-    if (idsToDelete.length > 0 && effectiveCtx) {
-      await logRemovals(supabase, gigId, effectiveCtx, (existingParticipants ?? []).filter(p => idsToDelete.includes(p.id)));
-    }
+    // Removals are logged by the database, in the same step as the delete (#175).
 
     const ids: Array<string | undefined> = [];
     for (const participant of participants) {
@@ -98,6 +96,14 @@ export async function updateGigParticipants(
       };
 
       if (isDbId && existingIds.includes(participant.id!) && !moved.has(participant.id!)) {
+        // Only rows that changed are written: a user may not be allowed to change the others
+        // (an Inactive organization keeps only its own notes, #175), and an unchanged row needs nothing.
+        const before = existingById.get(participant.id!);
+        if (before && before.role === changes.role && (before.notes || null) === changes.notes
+            && (before.is_client ?? false) === changes.is_client) {
+          ids.push(participant.id);
+          continue;
+        }
         const { data: updated, error: updateError } = await supabase.from('gig_participants').update(changes).eq('id', participant.id!).select('id');
         if (updateError) throw updateError;
         if (!updated || updated.length === 0) {
@@ -142,48 +148,16 @@ export async function updateGigParticipants(
   }
 }
 
-/** Logs `participant.removed` for each removed row. */
-async function logRemovals(
-  supabase: ReturnType<typeof getSupabase>,
-  gigId: string,
-  ctx: GigActivityCtx,
-  removedRows: Array<{ id: string; organization_id: string; role: string }>,
-) {
-  const orgIds = removedRows.map(r => r.organization_id).filter(Boolean);
-  let orgNameMap: Map<string, string> = new Map();
-  if (orgIds.length > 0) {
-    const { data: orgs } = await (supabase.from('organizations') as any).select('id, name').in('id', orgIds);
-    orgNameMap = new Map((orgs ?? []).map((o: any) => [o.id, o.name]));
-  }
-  for (const row of removedRows) {
-    try {
-      await logActivity({
-        organization_id: ctx.organization_id,
-        event_type: 'participant.removed',
-        entity_type: 'participant',
-        entity_id: row.id,
-        gig_id: gigId,
-        context: {
-          context_version: 1,
-          actor_display_name: ctx.actor_display_name,
-          actor_org_name: ctx.actor_org_name,
-          gig_title: ctx.gig_title,
-          organization_name: orgNameMap.get(row.organization_id) ?? '',
-          role: row.role
-        }
-      });
-    } catch (e) { console.error('Activity log failed:', e); }
-  }
-}
-
 /**
  * Remove an organization from a gig: all of its roles there (#175). The
  * database allows it only while the organization has no financials, kits or
  * staff slots on the gig, and never for the owner; its reason is passed on.
+ * The database logs the removal, marking it as leaving when the user belongs
+ * to the organization.
  */
-export async function removeGigParticipant(gigId: string, organizationId: string, activityCtx?: GigActivityCtxInput) {
+export async function removeGigParticipant(gigId: string, organizationId: string) {
   try {
-    const user = await getCurrentUser();
+    await getCurrentUser();
     const supabase = getSupabase();
 
     const { data: rows, error: fetchError } = await supabase
@@ -193,13 +167,6 @@ export async function removeGigParticipant(gigId: string, organizationId: string
       .eq('organization_id', organizationId);
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) throw new Error('This organization is not on this gig.');
-
-    let ctx: GigActivityCtx | null = null;
-    try {
-      // The actor's organization is found among all the gig's participants, not
-      // just the one being removed.
-      ctx = await resolveGigActivityCtx(supabase, user, gigId, activityCtx);
-    } catch (e) { console.error('Activity log context lookup failed:', e); }
 
     // .select() so a removal the database refuses (no rows, no error) isn't taken as done.
     const { data: deleted, error: deleteError } = await supabase
@@ -213,7 +180,7 @@ export async function removeGigParticipant(gigId: string, organizationId: string
       throw new Error('This organization could not be removed from the gig: you do not have permission to remove it.');
     }
 
-    if (ctx) await logRemovals(supabase, gigId, ctx, rows);
+    // Logged by the database, in the same step as the delete.
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'remove organization from gig');

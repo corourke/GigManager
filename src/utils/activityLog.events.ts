@@ -136,8 +136,26 @@ export const ACTIVITY_EVENTS = {
     label: 'Participant Removed',
     entityType: 'participant',
     calendarIndicator: false,
-    contextKeys: ['gig_title', 'organization_name', 'role'],
-    format: (ctx) => `${ctx.organization_name} removed as ${ctx.role} participant`,
+    contextKeys: ['gig_title', 'organization_name', 'role', 'left'],
+    // Logged by the database; `left` when the organization's own member removed it (#175).
+    format: (ctx) => ctx.left
+      ? `${ctx.organization_name} left the gig`
+      : `${ctx.organization_name} removed as ${ctx.role} participant`,
+  },
+  // Logged by the database, once per organization (#175).
+  'participant.inactivated': {
+    label: 'Participant Inactive',
+    entityType: 'participant',
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'organization_name'],
+    format: (ctx) => `${ctx.organization_name} marked Inactive on the gig`,
+  },
+  'participant.reactivated': {
+    label: 'Participant Reactivated',
+    entityType: 'participant',
+    calendarIndicator: false,
+    contextKeys: ['gig_title', 'organization_name'],
+    format: (ctx) => `${ctx.organization_name} reactivated on the gig`,
   },
   'staffing.updated': {
     label: 'Staffing Updated',

@@ -609,6 +609,20 @@ export async function updateGig(gigId: string, gigData: {
   }
 }
 
+/** How many child gigs a gig has (#175: a parent can't be deleted). */
+export async function countChildGigs(gigId: string): Promise<number> {
+  try {
+    const { count, error } = await getSupabase()
+      .from('gigs')
+      .select('id', { count: 'exact', head: true })
+      .eq('parent_gig_id', gigId);
+    if (error) throw error;
+    return count ?? 0;
+  } catch (err) {
+    return handleApiError(err, 'count child gigs');
+  }
+}
+
 /**
  * Why the database refused to delete a gig (#175): it has child gigs, another
  * claimed organization is on it, or the user isn't an Admin of its owner.

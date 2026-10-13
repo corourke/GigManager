@@ -164,8 +164,11 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       .catch(() => {});
     return () => { cancelled = true; };
   }, [selectedOrganization?.id]);
-  // Adding at pack-out (#185): Pack-Out and Load Truck, Staff or above.
-  const canAddHere = !!selectedMode.allowsAdHoc && isStaffOrAbove(userRole);
+  // Adding at pack-out (#185): Pack-Out and Load Truck, Staff or above; never while the
+  // organization is Inactive on the gig (#175). Removing what it added is still allowed.
+  const [orgInactive, setOrgInactive] = useState(false);
+  const canRemoveAdded = !!selectedMode.allowsAdHoc && isStaffOrAbove(userRole);
+  const canAddHere = canRemoveAdded && !orgInactive;
   const [locationInput, setLocationInput] = useState<string>(SCANNING_MODES[0].locationLabel);
   const [packingList, setPackingList] = useState<any>(null);
   const [gigTitle, setGigTitle] = useState<string | null>(null);
@@ -252,6 +255,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
       const gig = gigs.find((candidate: any) => candidate.id === id);
       if (gig) {
         setGigTitle(gig.title);
+        setOrgInactive((gig.participants ?? []).some((p: any) => p.organization_id === selectedOrganization?.id && p.inactive));
         return;
       }
 
@@ -1128,6 +1132,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               >
                 + Add
               </button>
+            ) : orgInactive && selectedMode.allowsAdHoc ? (
+              <span className="ml-2 text-xs text-muted-foreground">Inactive on this gig: nothing can be added.</span>
             ) : null}
           </div>
 
@@ -1193,7 +1199,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                     {assignment.kit?.name ?? 'Kit'} <span className="text-xs text-muted-foreground">· kit</span>
                     {assignment.contents_pending && <span className="block text-xs text-muted-foreground">Contents load when online</span>}
                   </span>
-                  {canAddHere && assignment.assigned_by === user?.id ? (
+                  {canRemoveAdded && assignment.assigned_by === user?.id ? (
                     <Button size="sm" variant="ghost" className="h-8" aria-label={`Remove ${assignment.kit?.name ?? 'kit'}`}
                       onClick={() => void removeAddedKit(assignment.kit_id)}>Remove</Button>
                   ) : null}

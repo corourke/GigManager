@@ -46,6 +46,9 @@ interface WhenAndScheduleProps {
   gigId: string;
   gigStart?: string | null;
   actParticipants: { id: string; organization?: { id: string; name: string } | null }[];
+  /** Read-only (an organization Inactive on the gig, #175): the times are disabled and `scheduleView` replaces the editor. */
+  readOnly?: boolean;
+  scheduleView?: ReactNode;
 }
 
 /**
@@ -53,7 +56,7 @@ interface WhenAndScheduleProps {
  * outside the gig widens the gig's start or end to cover it, except for an
  * all-day gig.
  */
-export function WhenAndScheduleCard({ gigId, gigStart, actParticipants }: WhenAndScheduleProps) {
+export function WhenAndScheduleCard({ gigId, gigStart, actParticipants, readOnly = false, scheduleView }: WhenAndScheduleProps) {
   const { getValues, setValue, watch } = useFormContext<BasicInfoFormData>();
   const timeZone = watch('timezone');
 
@@ -79,23 +82,25 @@ export function WhenAndScheduleCard({ gigId, gigStart, actParticipants }: WhenAn
         </span>
       }
     >
-      <GigWhenFields layout="row" />
-      <GigScheduleEditor
-        gigId={gigId}
-        gigStart={gigStart}
-        timeZone={timeZone}
-        actParticipants={actParticipants}
-        onEntriesChange={widen}
-      />
+      <GigWhenFields layout="row" disabled={readOnly} />
+      {readOnly ? scheduleView : (
+        <GigScheduleEditor
+          gigId={gigId}
+          gigStart={gigStart}
+          timeZone={timeZone}
+          actParticipants={actParticipants}
+          onEntriesChange={widen}
+        />
+      )}
     </GigSection>
   );
 }
 
 /** The gig's notes (Markdown) and its attachments. */
-export function NotesCard({ organizationId, gigId }: { organizationId: string; gigId: string }) {
+export function NotesCard({ organizationId, gigId, readOnly = false }: { organizationId: string; gigId: string; readOnly?: boolean }) {
   return (
     <GigSection title="Notes & attachments">
-      <GigNotesField showLabel={false} />
+      <GigNotesField showLabel={false} disabled={readOnly} />
       <AttachmentManager organizationId={organizationId} entityType="gig" entityId={gigId} title="" />
     </GigSection>
   );
