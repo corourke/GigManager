@@ -10,7 +10,7 @@ on a truck, at a venue or back in the warehouse. Every scan on the phone, and ev
 correction, updates it. Everyone in the organization can see it; Admins and Managers
 can also correct a record.
 
-![Locations: the filters, then Checked Out with the Staging Area and Truck groups, each listing equipment under its kit](../../../assets/screenshots/equipment/location-explorer-overview.png)
+![Locations: the Location, Gig, Item and Status filters, then Checked Out with the Staging Area (6 pieces) and Truck groups, each listing equipment under its kit, lots such as "XLR Cable, 50 ft 2 of 10"](../../../assets/screenshots/equipment/location-explorer-overview.png)
 
 ## Reading the page
 
