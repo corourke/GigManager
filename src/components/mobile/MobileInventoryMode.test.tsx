@@ -984,7 +984,6 @@ describe('MobileInventoryMode', () => {
       expect(inventoryTrackingService.addKitAtPackOut).toHaveBeenCalledWith(expect.objectContaining({ kit: index.kits[0] }))
     })
 
-    // #175 review: an organization Inactive on the gig adds no equipment to it.
     // #175 review: an organization Inactive on the gig adds no equipment to it. Read from the
     // gig's own participants on the packing list, for the organization selected.
     const participants = (inactive: boolean) => [
