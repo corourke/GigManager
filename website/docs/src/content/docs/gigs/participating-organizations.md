@@ -76,7 +76,7 @@ The owner can't be taken off.
 
 An organization can come off only if it has no financials, kit assignments or staff slots on the gig. If it still has staff or equipment there, release them first. If it has financial records, GigWrangler says so and offers to [mark it Inactive](#what-inactive-means) instead.
 
-When it comes off, its equipment scans and its contacts for the gig are deleted, and its purchases are no longer linked to the gig. GigWrangler asks you to confirm first.
+When it comes off, its equipment scans and its contacts for the gig are deleted, and its purchases are no longer linked to the gig. GigWrangler asks you to confirm, and the organization comes off as soon as you do; you don't need to select **Done**.
 
 ## What Inactive means
 
@@ -86,13 +86,15 @@ When it comes off, its equipment scans and its contacts for the gig are deleted,
 - **While Inactive:** it keeps its role, and it can still update its own financials and its notes for the gig. Everything else is read-only for it, including its role, its contacts, the gig's shared details and schedule, and other organizations' contacts. It can't add staff or equipment, even when scanning on a phone.
 - **After:** it can be reactivated and take part again, or it can [leave the gig](#taking-an-organization-off-a-gig) once nothing ties it there.
 
-The owner's Admins and Managers mark another organization Inactive, or reactivate it, from **Mark Inactive** or **Reactivate** in its row's **More actions** menu in edit mode, where its row then has an **Inactive** badge. An organization's own Admins and Managers can also use **Mark Inactive** in the gig's **⋮** menu. GigWrangler asks you to confirm. The owner is never Inactive.
+The owner's Admins and Managers mark another organization Inactive, or reactivate it, from **Mark Inactive** or **Reactivate** in its row's **More actions** menu in edit mode, where its row then has an **Inactive** badge. An organization's own Admins and Managers can also use **Mark Inactive** in the gig's **⋮** menu. GigWrangler asks you to confirm before marking an organization Inactive; reactivating happens right away. The owner is never Inactive.
+
+**Leave Gig**, **Mark Inactive** and **Reactivate** are on the web only, not in the phone app.
 
 While your organization is Inactive on a gig, a banner across the gig page says so, and Admins and Managers see **Reactivate** in it. In the gig list, the gig's title has an **Inactive** tag.
 
 ![A gig opened by Cedar Hall, Owned by Demo Sound & Lighting, with the banner "Cedar Hall is Inactive on this gig: it is being removed. Its financial records and notes are kept; everything else is read-only."](../../../assets/screenshots/gigs/participating-organizations-inactive-banner.png)
 
-The gig's [History](/gigs/change-history/) records each change, such as "Brightwave Events marked Inactive on the gig", "… reactivated on the gig" and "… left the gig".
+The gig's [History](/gigs/change-history/) records each change, such as "Brightwave Events marked Inactive on the gig", "… reactivated on the gig", "… left the gig", or, when the owner takes it off, "Neon Orchard removed as Act participant".
 
 ## What everyone sees
 
