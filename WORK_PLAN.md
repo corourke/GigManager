@@ -25,9 +25,10 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 - **Phone update notice (Cameron 10-14, approved):** the installed phone app doesn't announce new versions. Causes found: prod serves `/sw.js` with a 4-hour browser cache (Cloudflare zone setting), and iOS often skips the `controllerchange` event. **PR #291 merged 10-14 (b78067b, Cameron's OK):** a no-cache `/version.json` check on foreground and every 30 min, the same Reload banner, and `public/_headers`. Cameron may need a Cloudflare Cache Rule to bypass cache for `/sw.js`, `/registerSW.js` and `/version.json`.
 
+- **#186 Maintenance and tracking override released to the Equipment Lead (Cameron, 10-14).** It starts after the phone list status-gate fix. The plan and migration design go on #186 for review first. #183 D2 and the #135 audit remain unreleased.
+
 ## 2. Waiting on Cameron
 
-0. **Pick the Equipment Lead's next item:** #186 Maintenance/override (needs a migration; unpauses #20 after), #183 D2 (import summary cards, grouped column guide), or the #135 2026 purchase-data audit (with Cameron).
 1. *(none blocking; bundle size is being handled in §3c)*
 2. **Sentry (optional):** `VITE_SENTRY_DSN` is live in the prod web app (10-09). Still optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check.
 
