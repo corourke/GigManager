@@ -281,8 +281,8 @@
       "src/services/conflictDetection.service.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-10",
-    "appCommit": "0122c92"
+    "taken": "2026-10-13",
+    "appCommit": "380748b"
   },
   "gigs/creating-a-gig-form": {
     "page": "gigs/creating-a-gig.md",
@@ -325,8 +325,8 @@
       "src/components/layout/PageHeader.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-10",
-    "appCommit": "0122c92"
+    "taken": "2026-10-13",
+    "appCommit": "380748b"
   },
   "gigs/participating-organizations-add": {
     "page": "gigs/participating-organizations.md",
@@ -335,8 +335,8 @@
       "src/components/gig/GigParticipantsSection.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-10",
-    "appCommit": "0122c92"
+    "taken": "2026-10-13",
+    "appCommit": "380748b"
   },
   "gigs/participating-organizations-contacts": {
     "page": "gigs/participating-organizations.md",
@@ -345,8 +345,31 @@
       "src/components/gig/GigParticipantsSection.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-10",
-    "appCommit": "0122c92"
+    "taken": "2026-10-13",
+    "appCommit": "380748b"
+  },
+  "gigs/participating-organizations-delete-blocked": {
+    "page": "gigs/participating-organizations.md",
+    "user": "manager",
+    "sources": [
+      "src/components/gig/GigPage.tsx",
+      "src/utils/gigOwnership.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-13",
+    "appCommit": "380748b"
+  },
+  "gigs/participating-organizations-inactive-banner": {
+    "page": "gigs/participating-organizations.md",
+    "user": "venue",
+    "sources": [
+      "src/components/gig/GigPage.tsx",
+      "src/utils/gigOwnership.ts",
+      "src/components/gig/GigParticipantsSection.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-13",
+    "appCommit": "380748b"
   },
   "gigs/schedule-editor": {
     "page": "gigs/schedule.md",

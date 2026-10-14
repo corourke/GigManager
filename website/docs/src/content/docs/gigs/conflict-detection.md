@@ -15,7 +15,7 @@ and you can still save and keep working.
 Two gigs conflict when their times overlap, including gigs where one ends just as the next starts, and they share any of these:
 
 - **Staff:** the same person is assigned to both gigs.
-- **Venue or act:** the same organization is a participant with the **Venue** role, or the **Act** role, on both gigs.
+- **Venue or act:** the same organization is a participant with the **Venue** role, or the **Act** role, on both gigs. An organization that's [Inactive](/gigs/participating-organizations/#what-inactive-means) on a gig doesn't count.
 - **Equipment:** the gigs need more of an item than you have free. GigWrangler counts how many of each item the kits on each gig ask for, whether specific units or "any" lines such as "4 × any Halden HX-12P Powered Speaker", and adds up the gigs that are on at the same moment. If that's more than you have free, it's flagged. **Free** means units that are Active and not retired, not counting any packed inside a container kit. Only your own organization's kits count.
 - **The same unit:** a tracked unit (one with a serial number or tag) that's in kits on both gigs is flagged too, even when it comes in different kits. A container kit, such as the "Mic Case", counts as one unit. For example, the "Full Band Sound Package" contains the "Main PA" kit, so assigning the package to one gig and the Main PA to an overlapping gig adds "Equipment conflict with kits: Main PA: 4 Top / 2 Sub (Voltline PD-20 Power Distribution (#DSL-0211))". Items and lots, such as cables and stands, show only under "Not enough equipment", when there aren't enough of them.
 

@@ -64,8 +64,14 @@ The columns you choose are remembered in this browser.
 
 Select a gig's title to open it. You can also open the **⋯** menu at the end of the
 row and choose **View**. Admins and Managers also see **Edit** (opens the gig in edit
-mode) and **Duplicate** in that menu, and Admins see **Delete**, which asks you to
-confirm before it removes the gig.
+mode), and for gigs your organization [owns](/gigs/participating-organizations/#the-gigs-owner),
+**Duplicate**. Admins see **Delete**, which asks you to confirm before it removes the
+gig. Only an Admin of the gig's owner can delete it, and only while no other claimed
+organization (one with its own Admin) is on it; otherwise **Delete** is grayed out, and
+selecting it shows why.
+
+A gig your organization is [Inactive](/gigs/participating-organizations/#what-inactive-means)
+on has an **Inactive** tag after its title.
 
 ![A gig row's ⋯ menu open, showing View, Edit, Duplicate and Delete](../../../assets/screenshots/gigs/the-gig-list-row-menu.png)
 
