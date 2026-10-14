@@ -1,5 +1,5 @@
 
-  import { defineConfig } from 'vite';
+  import { defineConfig, type Plugin } from 'vite';
   import react from '@vitejs/plugin-react-swc';
   import tailwindcss from '@tailwindcss/vite';
   import path from 'path';
@@ -11,10 +11,28 @@
     ? { cert: fs.readFileSync(path.resolve(__dirname, '.certs/cert.pem')), key: fs.readFileSync(path.resolve(__dirname, '.certs/key.pem')) }
     : undefined;
 
+  // One timestamp per build: the app shows it as __BUILD_TIMESTAMP__ and
+  // build/version.json publishes it, so an open app can tell a newer build is
+  // live (src/hooks/useAppUpdateNotice.ts).
+  const buildTimestamp = new Date().toISOString();
+
+  const versionFilePlugin = (): Plugin => ({
+    name: 'gigwrangler-version-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ build: buildTimestamp }),
+      });
+    },
+  });
+
   export default defineConfig({
     plugins: [
       tailwindcss(),
       react(),
+      versionFilePlugin(),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
@@ -54,7 +72,9 @@
           // public/static/404.html is Cloudflare's not-found page for missing
           // chunks, never a page the app shows. (Restates Workbox's default
           // node_modules ignore, which setting globIgnores replaces.)
-          globIgnores: ['**/node_modules/**/*', 'static/404.html'],
+          // version.json must always come from the network, never the
+          // precache, or the version check would only ever see this build.
+          globIgnores: ['**/node_modules/**/*', 'static/404.html', 'version.json'],
         },
         devOptions: {
           enabled: true,
@@ -71,7 +91,7 @@
       },
     },
     define: {
-      __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
+      __BUILD_TIMESTAMP__: JSON.stringify(buildTimestamp),
     },
     build: {
       target: 'esnext',

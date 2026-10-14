@@ -1,0 +1,13 @@
+# Cloudflare Pages response headers.
+# The service worker and the version file must be revalidated on every
+# request, or an installed app keeps seeing the old version for hours after a
+# deploy (see src/hooks/useAppUpdateNotice.ts). A Cloudflare zone-level cache
+# rule can still override these; check with: curl -sI https://gigwrangler.com/sw.js
+/sw.js
+  Cache-Control: no-cache
+
+/registerSW.js
+  Cache-Control: no-cache
+
+/version.json
+  Cache-Control: no-cache
