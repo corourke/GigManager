@@ -207,7 +207,7 @@ describe('useAppUpdateNotice', () => {
       await act(async () => { vi.advanceTimersByTime(VERSION_CHECK_DELAY_MS); });
       await settle();
 
-      const options = vi.mocked(toast).mock.calls[0][1] as { action: { onClick: () => void } };
+      const options = vi.mocked(toast).mock.calls[0][1] as unknown as { action: { onClick: () => void } };
       await act(async () => { options.action.onClick(); });
       await settle();
 
