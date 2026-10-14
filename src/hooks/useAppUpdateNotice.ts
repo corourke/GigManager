@@ -7,6 +7,32 @@ export const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 /** How long after the app opens it first compares its build with the server's. */
 export const VERSION_CHECK_DELAY_MS = 5 * 1000;
 
+/** How long Reload waits for a new service worker to take over before reloading anyway. */
+export const RELOAD_WAIT_MS = 8 * 1000;
+
+/**
+ * sessionStorage key holding the build that was running when Reload was
+ * tapped. If the page comes back with that same build, the reload did not
+ * reach the new version (the browser still had the old service worker).
+ */
+export const RELOADED_FROM_BUILD_KEY = 'gigwrangler.reloadedFromBuild';
+
+function readReloadedFromBuild(): string | null {
+  try {
+    return sessionStorage.getItem(RELOADED_FROM_BUILD_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberReloadFromThisBuild(): void {
+  try {
+    sessionStorage.setItem(RELOADED_FROM_BUILD_KEY, __BUILD_TIMESTAMP__);
+  } catch {
+    // no storage: worst case the plain banner shows again after the reload
+  }
+}
+
 /**
  * Keeps an open app from running an old version for days.
  *
@@ -24,6 +50,12 @@ export const VERSION_CHECK_DELAY_MS = 5 * 1000;
  * which every build writes (see vite.config.ts), and shows the same banner
  * when the server's build differs from the one running. Any failure (offline,
  * an error status, or the dev server's HTML instead of JSON) is ignored.
+ *
+ * The service worker answers page loads from its precache, so reloading
+ * before a new worker has taken over just loads the old app again. Reload
+ * therefore fetches the new worker and waits (up to RELOAD_WAIT_MS) for it to
+ * take over. If the page still comes back with the old build, the banner says
+ * to close and reopen the app instead of offering Reload in a loop.
  */
 export function useAppUpdateNotice(): void {
   useEffect(() => {
@@ -33,22 +65,54 @@ export function useAppUpdateNotice(): void {
     const hadController = !!sw.controller;
     let active = true;
 
-    const reload = () => {
-      sw.getRegistration()
-        .then((registration) => {
-          // Workbox's worker takes over when told to; harmless if it already has.
-          registration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
-        })
-        .catch(() => {})
-        .finally(() => window.location.reload());
+    const waitForNewController = () =>
+      new Promise<void>((resolve) => {
+        const done = () => {
+          window.clearTimeout(timeout);
+          sw.removeEventListener('controllerchange', done);
+          resolve();
+        };
+        const timeout = window.setTimeout(done, RELOAD_WAIT_MS);
+        sw.addEventListener('controllerchange', done);
+      });
+
+    const reload = async () => {
+      try {
+        const registration = await sw.getRegistration();
+        if (registration) {
+          await registration.update().catch(() => {});
+          const waiting = registration.waiting;
+          if (waiting || registration.installing) {
+            // Workbox's worker takes over when told to; harmless if it already does.
+            waiting?.postMessage({ type: 'SKIP_WAITING' });
+            await waitForNewController();
+          }
+        }
+      } catch {
+        // no registration: reload anyway
+      }
+      rememberReloadFromThisBuild();
+      window.location.reload();
     };
 
     const showUpdateBanner = () => {
       toast('A new version of GigWrangler is ready.', {
         id: 'app-update',
         duration: Infinity,
-        action: { label: 'Reload', onClick: reload },
+        action: { label: 'Reload', onClick: () => void reload() },
       });
+    };
+
+    const showServerHasNewerBuild = () => {
+      if (readReloadedFromBuild() === __BUILD_TIMESTAMP__) {
+        // A Reload already brought back this same old build.
+        toast('Still updating — close and reopen the app.', {
+          id: 'app-update',
+          duration: Infinity,
+        });
+      } else {
+        showUpdateBanner();
+      }
     };
 
     const onControllerChange = () => {
@@ -72,7 +136,7 @@ export function useAppUpdateNotice(): void {
         const build = (data as { build?: unknown } | null)?.build;
         if (!active || typeof build !== 'string' || !build) return;
         if (build !== __BUILD_TIMESTAMP__) {
-          showUpdateBanner();
+          showServerHasNewerBuild();
           updateServiceWorker();
         }
       } catch {
