@@ -12,6 +12,11 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // vite.config.ts defines this at build time; tests get a fixed value so the
+  // version check (useAppUpdateNotice) has a known build to compare against.
+  define: {
+    __BUILD_TIMESTAMP__: JSON.stringify('test-build'),
+  },
   test: {
     globals: true,
     environment: 'jsdom',
