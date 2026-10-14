@@ -1,10 +1,12 @@
-import { render, act } from '@testing-library/react';
+import { render, act, cleanup } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { toast } from 'sonner';
 import {
   useAppUpdateNotice,
   UPDATE_CHECK_INTERVAL_MS,
   VERSION_CHECK_DELAY_MS,
+  RELOAD_WAIT_MS,
+  RELOADED_FROM_BUILD_KEY,
 } from './useAppUpdateNotice';
 
 vi.mock('sonner', () => ({ toast: vi.fn() }));
@@ -12,6 +14,7 @@ vi.mock('sonner', () => ({ toast: vi.fn() }));
 type FakeRegistration = {
   update: ReturnType<typeof vi.fn>;
   waiting: { postMessage: ReturnType<typeof vi.fn> } | null;
+  installing: object | null;
 };
 
 // A stand-in for navigator.serviceWorker: an event target with a controller
@@ -21,7 +24,11 @@ function fakeServiceWorker(controller: object | null) {
     controller: object | null;
     getRegistration: () => Promise<FakeRegistration>;
   };
-  const registration: FakeRegistration = { update: vi.fn().mockResolvedValue(undefined), waiting: null };
+  const registration: FakeRegistration = {
+    update: vi.fn().mockResolvedValue(undefined),
+    waiting: null,
+    installing: null,
+  };
   target.controller = controller;
   target.getRegistration = vi.fn().mockResolvedValue(registration);
   return { sw: target, registration };
@@ -50,6 +57,7 @@ async function settle() {
 }
 
 const NEW_VERSION_MESSAGE = 'A new version of GigWrangler is ready.';
+const STILL_UPDATING_MESSAGE = 'Still updating — close and reopen the app.';
 
 describe('useAppUpdateNotice', () => {
   let original: PropertyDescriptor | undefined;
@@ -66,6 +74,7 @@ describe('useAppUpdateNotice', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    sessionStorage.clear();
     original = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
     // By default the server runs the same build as this page.
     fetchMock = vi.fn().mockResolvedValue(jsonResponse({ build: __BUILD_TIMESTAMP__ }));
@@ -198,21 +207,95 @@ describe('useAppUpdateNotice', () => {
       expect(fetchMock.mock.calls[1][0]).not.toBe(url);
     });
 
-    it('Reload tells a waiting service worker to take over, then reloads', async () => {
-      const { registration } = install({});
+    // Opens the app with a newer build on the server and returns the banner's Reload.
+    async function showBannerForNewBuild() {
+      fetchMock.mockResolvedValue(jsonResponse({ build: 'a-newer-build' }));
+      render(<Probe />);
+      await act(async () => { vi.advanceTimersByTime(VERSION_CHECK_DELAY_MS); });
+      await settle();
+      const options = vi.mocked(toast).mock.calls.at(-1)![1] as unknown as { action: { onClick: () => void } };
+      return options.action.onClick;
+    }
+
+    it('Reload fetches the new service worker and waits for it to take over before reloading', async () => {
+      const { sw, registration } = install({});
       const waiting = { postMessage: vi.fn() };
-      registration.waiting = waiting;
+      // update() finds the new worker, which then waits to take over.
+      registration.update.mockImplementation(async () => { registration.waiting = waiting; });
+      const onReload = await showBannerForNewBuild();
+      registration.update.mockClear();
+
+      await act(async () => { onReload(); });
+      await settle();
+
+      expect(registration.update).toHaveBeenCalledTimes(1);
+      expect(waiting.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+      // Reloading now would load the old precached app again.
+      expect(reload).not.toHaveBeenCalled();
+
+      await act(async () => { sw.dispatchEvent(new Event('controllerchange')); });
+      await settle();
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('Reload waits for an installing worker too, and reloads anyway after the timeout', async () => {
+      const { registration } = install({});
+      registration.update.mockImplementation(async () => { registration.installing = {}; });
+      const onReload = await showBannerForNewBuild();
+
+      await act(async () => { onReload(); });
+      await settle();
+      await act(async () => { vi.advanceTimersByTime(RELOAD_WAIT_MS - 100); });
+      await settle();
+      expect(reload).not.toHaveBeenCalled();
+
+      await act(async () => { vi.advanceTimersByTime(100); });
+      await settle();
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(RELOAD_WAIT_MS).toBeGreaterThanOrEqual(5000);
+      expect(RELOAD_WAIT_MS).toBeLessThanOrEqual(10000);
+    });
+
+    it('Reload reloads at once when no new worker turns up', async () => {
+      install({});
+      const onReload = await showBannerForNewBuild();
+
+      await act(async () => { onReload(); });
+      await settle();
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('after a Reload that left the old app running, says to close and reopen instead of offering Reload again', async () => {
+      install({});
+      const onReload = await showBannerForNewBuild();
+      await act(async () => { onReload(); });
+      await settle();
+      expect(reload).toHaveBeenCalledTimes(1);
+      cleanup();
+      vi.mocked(toast).mockClear();
+
+      // The reload brought back the same (old) build; the server still has a newer one.
+      render(<Probe />);
+      await act(async () => { vi.advanceTimersByTime(VERSION_CHECK_DELAY_MS); });
+      await settle();
+
+      expect(toast).toHaveBeenCalledTimes(1);
+      const [message, options] = vi.mocked(toast).mock.calls[0];
+      expect(message).toBe(STILL_UPDATING_MESSAGE);
+      expect(options).toEqual(expect.objectContaining({ id: 'app-update' }));
+      expect((options as { action?: unknown }).action).toBeUndefined();
+    });
+
+    it('a Reload that did load a newer build does not stop later new versions from offering Reload', async () => {
+      install({});
+      // An earlier Reload in this session came from an older build than this one.
+      sessionStorage.setItem(RELOADED_FROM_BUILD_KEY, 'an-older-build');
       fetchMock.mockResolvedValue(jsonResponse({ build: 'a-newer-build' }));
       render(<Probe />);
       await act(async () => { vi.advanceTimersByTime(VERSION_CHECK_DELAY_MS); });
       await settle();
 
-      const options = vi.mocked(toast).mock.calls[0][1] as unknown as { action: { onClick: () => void } };
-      await act(async () => { options.action.onClick(); });
-      await settle();
-
-      expect(waiting.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
-      expect(reload).toHaveBeenCalledTimes(1);
+      expect(toast).toHaveBeenCalledWith(NEW_VERSION_MESSAGE, expect.objectContaining({ id: 'app-update' }));
     });
   });
 });
