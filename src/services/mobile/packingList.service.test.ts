@@ -353,4 +353,17 @@ describe('packingListService.fetchGigPackingList', () => {
     const result: any = await packingListService.fetchGigPackingList('gig-1');
     expect(result.kits.map((k: any) => [k.kit_id, k.added_at_pack_out, k.assigned_by])).toEqual([['rack', false, 'mgr'], ['case', true, 'user-1']]);
   });
+
+  // #175 review: the phone reads Inactive from the gig's own participants, cached with the list.
+  it("carries each participant's Inactive flag for the gig", async () => {
+    const tableResponses: Record<string, any> = {
+      gig_kit_assignments: { data: [], error: null },
+      gigs: { data: { title: 'Test Gig', participants: [{ organization_id: 'org-1', inactive: true }] }, error: null },
+    };
+    const { createClient } = await import('../../utils/supabase/client');
+    vi.mocked(createClient).mockReturnValue(createSupabaseMock(tableResponses, { data: [], error: null }) as any);
+    const { packingListService } = await import('./packingList.service');
+    const result: any = await packingListService.fetchGigPackingList('gig-1');
+    expect(result.participants).toEqual([{ organization_id: 'org-1', inactive: true }]);
+  });
 });

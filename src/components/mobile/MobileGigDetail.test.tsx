@@ -399,7 +399,7 @@ describe('MobileGigDetail', () => {
 
       await waitFor(() => {
         // History is logged against the org the user is working as (#103).
-        expect(updateGigParticipants).toHaveBeenCalledWith('gig-1', expect.any(Array), { organization_id: 'org-1', actor_org_name: 'Org One' }, ['p1', 'p2'])
+        expect(updateGigParticipants).toHaveBeenCalledWith('gig-1', expect.any(Array), { organization_id: 'org-1', actor_org_name: 'Org One' }, ['p1', 'p2'], expect.any(Array))
       })
     })
 
@@ -423,6 +423,11 @@ describe('MobileGigDetail', () => {
 
       await waitFor(() => expect(updateGigParticipants).toHaveBeenCalled())
       expect(vi.mocked(updateGigParticipants).mock.calls[0][3]).toEqual(['p1', 'p2'])
+      // …and their values as loaded, so only what the user changed is written (coordinator follow-up).
+      expect(vi.mocked(updateGigParticipants).mock.calls[0][4]).toEqual([
+        { id: 'p1', role: 'Venue', notes: null, is_client: false },
+        { id: 'p2', role: 'Act', notes: null, is_client: false },
+      ])
     })
 
     // #175: the save used to send only id, organization and role, and the service writes

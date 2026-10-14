@@ -401,6 +401,41 @@ describe('participant writes (#175)', () => {
     expect(result.ids).toEqual([OWNER_ROW, ROW]);
   });
 
+  // Coordinator follow-up: compare with what the caller loaded, not a fresh read. The owner
+  // changed its notes after B loaded the page; B's save sends the owner row as B loaded it.
+  describe('compares each row with what the caller loaded', () => {
+    const OWNER_ROW = '88888888-8888-4888-8888-888888888888';
+    const loaded = [
+      { id: OWNER_ROW, role: 'Production' as const, notes: 'old note', is_client: true },
+      { id: ROW, role: 'Venue' as const, notes: null, is_client: false },
+    ];
+    const sent = [
+      { id: OWNER_ROW, organization_id: 'org-1', role: 'Production' as const, notes: 'old note', is_client: true },
+      { id: ROW, organization_id: 'org-2', role: 'Venue' as const, notes: 'settle the deposit' },
+    ];
+    const db = (notUpdatable: string[] = []) => setup({
+      gig_participants: [
+        { id: OWNER_ROW, organization_id: 'org-1', role: 'Production', notes: 'changed by the owner', is_client: true },
+        { id: ROW, organization_id: 'org-2', role: 'Venue', notes: null, is_client: false },
+      ],
+      notUpdatable,
+    });
+
+    it("doesn't write a row the user didn't change over someone else's later change", async () => {
+      const d = db();
+      await updateGigParticipants('gig-1', sent, ctx, [OWNER_ROW, ROW], loaded);
+      const updates = writes(d, 'update');
+      expect(updates).toHaveLength(1);
+      expect(updates[0].ops.find(o => o.method === 'eq')?.args).toEqual(['id', ROW]);
+    });
+
+    it("so an Inactive organization's own notes save even when another row changed meanwhile", async () => {
+      db([OWNER_ROW]);
+      const result = await updateGigParticipants('gig-1', sent, ctx, [OWNER_ROW, ROW], loaded);
+      expect(result.ids).toEqual([OWNER_ROW, ROW]);
+    });
+  });
+
   it('treats empty notes and no notes as the same, so an untouched row is left alone', async () => {
     const db = setup({ gig_participants: [{ id: ROW, organization_id: 'org-2', role: 'Venue', notes: null, is_client: false }] });
     await updateGigParticipants('gig-1', [{ id: ROW, organization_id: 'org-2', role: 'Venue', notes: '' }], ctx, [ROW]);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,7 +14,7 @@ import { Textarea } from '../ui/textarea';
 import OrganizationSelector from '../OrganizationSelector';
 import GigParticipantContactsList from './GigParticipantContactsList';
 import { getGig, updateGigParticipants } from '../../services/gig.service';
-import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
+import { removeGigParticipant, setGigParticipantInactive, type LoadedParticipantRow } from '../../services/gigParticipant.service';
 import { canManage } from '../../utils/permissions';
 import { markInactiveConfirmText, offersMarkInactive } from '../../utils/gigOwnership';
 import type { UserRole } from '../../utils/supabase/constants';
@@ -104,6 +104,11 @@ export default function GigParticipantsSection({
 
   // The rows this form loaded or last saved: a save deletes only those the user removed (#92).
   const baseline = useRowBaseline();
+  // Those rows' values as loaded or last saved: a save writes only the rows the user changed (#175).
+  const baselineValues = useRef(new Map<string, LoadedParticipantRow>());
+  const rememberValues = (rows: LoadedParticipantRow[]) => {
+    baselineValues.current = new Map(rows.map((r) => [r.id, r]));
+  };
 
   const handleSave = useCallback(async (data: ParticipantsFormData) => {
     const rowsToSave = data.participants
@@ -121,8 +126,11 @@ export default function GigParticipantsSection({
     const { ids } = await updateGigParticipants(gigId, participantsData, {
       organization_id: currentOrganizationId,
       actor_org_name: currentOrganizationName,
-    }, baseline.ids());
+    }, baseline.ids(), baseline.ids().flatMap((id) => baselineValues.current.get(id) ?? []));
     baseline.saved(rowsToSave.map((p, i) => [p.id, ids[i]]));
+    rememberValues(participantsData.flatMap((p, i) => (ids[i]
+      ? [{ id: ids[i]!, role: p.role, notes: p.notes, is_client: p.is_client }]
+      : [])));
 
     // Rows inserted by this save still carry a client-side id (temp-…,
     // current-org). Swap in the database id, so the next autosave updates the
@@ -227,11 +235,13 @@ export default function GigParticipantsSection({
       }
 
       baseline.loaded(loadedParticipants.map((p: any) => p.id));
+      rememberValues(loadedParticipants.map((p: any) => ({ id: p.id, role: p.role, notes: p.notes || null, is_client: p.is_client ?? false })));
       reset({ participants: initialParticipants });
     } catch (error: any) {
       console.error('Error loading participants:', error);
       toast.error('Failed to load participants');
       baseline.loaded([]);
+      rememberValues([]);
       const allCurrentOrgRoles = currentOrganizationRoles && currentOrganizationRoles.length > 0
         ? currentOrganizationRoles
         : [currentOrganizationRole];
