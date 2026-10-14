@@ -27,9 +27,11 @@ const mockGigs = [
   },
 ]
 
+const auth = vi.hoisted(() => ({ role: 'Admin' as string | undefined }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     selectedOrganization: { id: 'org-1', name: 'Test Org' },
+    userRole: auth.role,
   }),
 }))
 
@@ -52,6 +54,7 @@ import { getGigsForOrganization } from '../../services/gig.service'
 describe('MobileGigList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    auth.role = 'Admin'
     vi.mocked(getGigsForOrganization).mockResolvedValue(mockGigs)
   })
 
@@ -243,5 +246,36 @@ describe('MobileGigList', () => {
     })
 
     document.body.removeChild(container)
+  })
+
+  // #175: only the owner's Admins and Managers change a gig's status, as on the gig page.
+  describe('status menu on the cards (#175)', () => {
+    const ownedBy = (owner: string) => [{ ...mockGigs[0], owner_organization_id: owner }]
+    const openMenu = async () => {
+      render(<MobileGigList onViewGig={vi.fn()} />)
+      await screen.findByText('Summer Festival')
+      fireEvent.click(screen.getByText('Booked'))
+    }
+
+    it.each(['Admin', 'Manager'])("opens for the owner's %s", async (role) => {
+      auth.role = role
+      vi.mocked(getGigsForOrganization).mockResolvedValue(ownedBy('org-1'))
+      await openMenu()
+      expect(screen.getByText('Change status:')).toBeInTheDocument()
+    })
+
+    it("doesn't open for the owner's Staff", async () => {
+      auth.role = 'Staff'
+      vi.mocked(getGigsForOrganization).mockResolvedValue(ownedBy('org-1'))
+      await openMenu()
+      expect(screen.queryByText('Change status:')).not.toBeInTheDocument()
+    })
+
+    it("doesn't open for another participant's Admin", async () => {
+      auth.role = 'Admin'
+      vi.mocked(getGigsForOrganization).mockResolvedValue(ownedBy('org-9'))
+      await openMenu()
+      expect(screen.queryByText('Change status:')).not.toBeInTheDocument()
+    })
   })
 })
