@@ -27,6 +27,8 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 - **#186 Maintenance and tracking override released to the Equipment Lead (Cameron, 10-14).** It starts after the phone list status-gate fix. The plan and migration design go on #186 for review first. #183 D2 and the #135 audit remain unreleased.
 
+- **Next prod deploy (Cameron 10-14: "let me know when"):** the coordinator tells Cameron when to run `./deploy_prod.sh`. Plan: deploy once the phone list status-gate fix merges, together with #291 and #289; if that fix stalls, deploy #291 and #289 without it. No migrations pending.
+
 ## 2. Waiting on Cameron
 
 1. *(none blocking; bundle size is being handled in §3c)*
