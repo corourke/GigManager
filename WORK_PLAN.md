@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-14 (coordinator: #289 and #290 merged with Cameron's OK; Equipment Lead on the phone list status gate; next big item awaits Cameron's pick)
+- **Last updated:** 2026-10-16 (triage: docs pass, PR #294); previously 2026-10-14 (coordinator: #289 and #290 merged with Cameron's OK; Equipment Lead on the phone list status gate; next big item awaits Cameron's pick)
 
 ---
 
@@ -301,7 +301,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 **Triage routine** (daily, ~09:00 UTC). Each run:
 1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.
 2. Build what §3c releases that has no PR yet: plan comment on the issue, failing test first.
-3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/technical/purchases-assets-expenses.md` (check it is still a pointer to `financials.md`), then `docs/technical/tenant-isolation-architecture.md`). Leave `website/docs/` to the Docs Lead.
+3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/technical/purchases-field-mapping.md`, then `docs/technical/schema-verification-2026-09.md`). Leave `website/docs/` to the Docs Lead.
 4. Don't manufacture activity: if nothing changed, commit nothing and post nothing.
 
 **Who updates which docs** (Cameron, 10-07):
