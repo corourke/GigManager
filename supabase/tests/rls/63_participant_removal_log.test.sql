@@ -2,7 +2,8 @@
 -- removal (coordinator review, 10-13). One `participant.removed` entry per organization a
 -- statement removes roles of, naming them, with `left` when it has no role left and the user acts
 -- for it (not as the owner); attributed to the owner when the user is one of its Admins or
--- Managers, else to the organization itself, else to the user's other participant organization.
+-- Managers, else to the organization removed when the user belongs to it, else to the user's
+-- Admin or Manager organization among the gig's participants (gig_activity_actor_org).
 -- A refused removal rolls its entry back; cascades and unsigned writes log nothing.
 -- Checks read as: rls_test.expect(label, actual, expected).
 

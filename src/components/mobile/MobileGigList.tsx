@@ -27,6 +27,7 @@ import type { OrganizationRole } from '../../utils/supabase/types';
 import { getAllTimezones } from '../../utils/timezones';
 import { parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import { isGigPast } from '../../utils/gigTimeframe';
+import { managesGigOwner } from '../../utils/gigOwnership';
 import { toast } from 'sonner';
 import {
   GigDateFilterDropdown,
@@ -53,7 +54,7 @@ const _GIG_STATUSES: { key: GigStatus; label: string }[] = [
 ];
 
 export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPositionChange }: MobileGigListProps) {
-  const { selectedOrganization } = useAuth();
+  const { selectedOrganization, userRole } = useAuth();
   const [gigs, setGigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -270,6 +271,7 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
                       key={gig.id}
                       gig={gig}
                       onViewGig={onViewGig}
+                      canChangeStatus={managesGigOwner(gig, selectedOrganization?.id, userRole)}
                       statusMenuOpen={statusMenuGigId === gig.id}
                       onToggleStatusMenu={(id) => setStatusMenuGigId(statusMenuGigId === id ? null : id)}
                       onStatusChange={handleStatusChange}
@@ -291,6 +293,7 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
                       gig={gig}
                       onViewGig={onViewGig}
                       isPast
+                      canChangeStatus={managesGigOwner(gig, selectedOrganization?.id, userRole)}
                       statusMenuOpen={statusMenuGigId === gig.id}
                       onToggleStatusMenu={(id) => setStatusMenuGigId(statusMenuGigId === id ? null : id)}
                       onStatusChange={handleStatusChange}
@@ -319,6 +322,7 @@ function GigListCard({
   gig,
   onViewGig,
   isPast,
+  canChangeStatus,
   statusMenuOpen,
   onToggleStatusMenu,
   onStatusChange,
@@ -327,6 +331,8 @@ function GigListCard({
   gig: any;
   onViewGig: (id: string) => void;
   isPast?: boolean;
+  /** The owner's Admins and Managers change a gig's status (#175). */
+  canChangeStatus: boolean;
   statusMenuOpen: boolean;
   onToggleStatusMenu: (id: string) => void;
   onStatusChange: (gigId: string, status: GigStatus) => void;
@@ -373,12 +379,13 @@ function GigListCard({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onToggleStatusMenu(gig.id);
+                if (canChangeStatus) onToggleStatusMenu(gig.id);
               }}
+              disabled={!canChangeStatus}
               className="flex items-center"
             >
               <span
-                className={cn('inline-flex items-center rounded border px-1.5 py-0.5 font-medium cursor-pointer', statusConfig?.color)}
+                className={cn('inline-flex items-center rounded border px-1.5 py-0.5 font-medium', canChangeStatus && 'cursor-pointer', statusConfig?.color)}
                 style={{ fontSize: '11px', lineHeight: '1' }}
               >
                 {statusConfig?.label || gig.status}
@@ -388,7 +395,7 @@ function GigListCard({
           </div>
         </div>
       </CardContent>
-      {statusMenuOpen && (
+      {canChangeStatus && statusMenuOpen && (
         <div className="border-t border-border/50 px-3 py-2 bg-muted/30">
           <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Change status:</p>
           <div className="flex flex-wrap gap-1">
