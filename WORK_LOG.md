@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PRs #293, #292, #294** (merged 10-17 with Cameron's OK): phone gig-list status menu limited to the owner's Admins and Managers (#175); #175 guide wording fixes; dated figures note in the tenant-isolation doc (triage).
+
 - **PRs #289, #290** (merged 10-14 with Cameron's OK after an independent review): #175 follow-ups (participant save compares with the rows the user loaded; phone hides "+ Add" for an Inactive org) and the #175 user guide (gig owner, Delete rules, Leave Gig, Inactive).
 
 - **PR #291** (coordinator's helper, merged 10-14 with Cameron's OK): the phone app announces new versions. A no-cache `/version.json` check runs on open, on foreground and every 30 min; Reload waits for the new worker, or says "close and reopen"; `public/_headers` asks for no-cache on `/sw.js`, `/registerSW.js` and `/version.json`.
