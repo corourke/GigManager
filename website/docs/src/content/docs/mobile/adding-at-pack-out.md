@@ -10,7 +10,9 @@ kit. You can add equipment to a gig while you pack, from the
 [Scanning](/mobile/field-inventory/) screen, and it's tracked like everything else.
 
 Admins, Managers and Staff can add equipment in the **Pack-Out** and **Load Truck**
-steps.
+steps. If your organization is
+[Inactive](/gigs/participating-organizations/#what-inactive-means) on the gig, nothing
+can be added.
 
 ## Adding by scanning
 
