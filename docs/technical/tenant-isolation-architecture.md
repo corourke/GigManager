@@ -4,6 +4,7 @@
 
 **Status**: Decided 2026-09-25: hosted, shared database (see "Decision" below). The options analysis is kept for context.
 **Last Updated**: 2026-09-25
+**Figures are as of 2026-09-25** (checked against the code 2026-10-16): the repo now has 73 migrations (the text says 42), the `server` function has 8 route files (`accessRequests`, `calendar`, `gigs`, `notifications`, `organizations`, `places`, `users`, `webauthn`) rather than ~6, and there is a third edge function, `health-check`, beside `server` and `ai-scan`. Policy and call-site counts below have not been recounted. The analysis and the decision are unaffected.
 **Related**: [security-scheme.md](./security-scheme.md), [database.md](./database.md), [tech-stack.md](./tech-stack.md), [server-endpoint-inventory.md](./server-endpoint-inventory.md), and [schema-verification-2026-09.md](./schema-verification-2026-09.md) — the committed write-up of the 2026‑09‑02 live-database verification that motivated this document (the confirmed `gig_financials`/staffing/kit-assignment cross-org leaks in §1's "requirement" are documented there in full, with the actual policy text).
 
 ---
