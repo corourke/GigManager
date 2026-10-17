@@ -193,6 +193,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **Docs Lead status, 10-14 21:00 UTC:** PR #290 is merged (ef7795d).
   - **PR #292** has the review nits: Remove is immediate; only Mark Inactive confirms; Leave and Inactive are web only; the phone pack-out line for an Inactive organization (true before and after #289); and the removal History line.
   - "Ready for coordinator re-review: 3d88231" is posted.
+  - **PR #292 merged 10-17 06:08 UTC.** No docs PRs are open, and no drafts are held.
 - **Docs Lead status, 10-12 01:40 UTC.**
   - **Published (PRs, ready for review):**
     - **PR #274:** Equipment → Locations (prod since 10-11), with a screenshot.
@@ -340,11 +341,11 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `gigs/conflict-detection.md` | published | 2026-10-12 (Docs Lead, PRs #235, #277; matches prod 10-12) | per-item conflicts, Equipment needed table, same-unit rule after #238, lot short/missing notes (#270); Inactive venue/act left out of conflicts (#175, technical doc #285) goes in the held `claude/docs-175-owner` draft |
 | `gigs/creating-a-gig.md` | published | 2026-10-07 (triage, PR #151); screenshots PR #166 | — |
 | `gigs/documents-and-notes.md` | published (PR #222) | 2026-10-08 (Docs Lead) | — |
-| `gigs/overview.md` | published | 2026-10-12 (Docs Lead, PR #277) | Delete is Admin-only (#271); #175 PR 1 (#281) owner rules published in PR #290 (merged 10-14); review nits in PR #292 (open) |
-| `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | The gig's owner, Taking an organization off a gig, Inactive organizations: #175 PR 1 (#281) owner rules published in PR #290 (merged 10-14); review nits in PR #292 (open) |
+| `gigs/overview.md` | published | 2026-10-12 (Docs Lead, PR #277) | Delete is Admin-only (#271); #175 PR 1 (#281) owner rules published in PR #290 (merged 10-14); review nits in PR #292 (merged 10-17) |
+| `gigs/participating-organizations.md` | published (PR #222) | 2026-10-07 (Docs Lead) | The gig's owner, Taking an organization off a gig, Inactive organizations: #175 PR 1 (#281) owner rules published in PR #290 (merged 10-14); review nits in PR #292 (merged 10-17) |
 | `gigs/schedule.md` | published (PR #222) | 2026-10-07 (Docs Lead) | — |
 | `gigs/staffing-and-participants.md` | published (PR #222) | 2026-10-09 (Docs Lead, PR #224) | — |
-| `gigs/the-gig-list.md` | published (PRs #222, #277) | 2026-10-12 (Docs Lead) | Delete is Admin-only (#271); #175 PR 1 (#281) owner rules published in PR #290 (merged 10-14); review nits in PR #292 (open) |
+| `gigs/the-gig-list.md` | published (PRs #222, #277) | 2026-10-12 (Docs Lead) | Delete is Admin-only (#271); #175 PR 1 (#281) owner rules published in PR #290 (merged 10-14); review nits in PR #292 (merged 10-17) |
 | `index.mdx` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes in |
 | `mobile/biometric-unlock.md` | draft | — | held |
 | `mobile/adding-at-pack-out.md` | published (PR #259) | 2026-10-11 (Docs Lead; matches prod 10-11) | scan or + Add, conflict check, Added at pack-out, offline; 1 phone shot |
