@@ -373,13 +373,13 @@ describe('validateAssetRow: units, lots and kits (#183 D)', () => {
     const r = validateAssetRow(equipment({ quantity: '', serial_number: 'A;B;C' }), 2);
     expect(r.isValid).toBe(true);
     expect(r.data.quantity).toBe('3');
-    expect(r.notes).toContain('Qty 3 (from serials)');
+    expect(r.notes).toEqual(['Quantity read as 3 from the serial list.']);
   });
 
   it('takes a blank quantity from the tags when there are no serials', () => {
     const r = validateAssetRow(equipment({ quantity: '', tag_number: 'MIC-0201;MIC-0202' }), 2);
     expect(r.data.quantity).toBe('2');
-    expect(r.notes).toContain('Qty 2 (from tags)');
+    expect(r.notes).toEqual(['Quantity read as 2 from the tag list.']);
   });
 
   it('keeps the kit on an equipment row', () => {
@@ -514,5 +514,24 @@ describe('generateAssetTemplate: grouped columns and a kit (#183 D)', () => {
     // The units example lists one serial per unit.
     const units = examples.find((r) => r[header.indexOf('serial_number')].includes(';'))!;
     expect(units[header.indexOf('serial_number')].split(';')).toHaveLength(Number(units[header.indexOf('quantity')]));
+  });
+});
+
+describe('ASSET_COLUMN_GUIDE: the screen’s grouped column guide (#183 D2, mockup 11)', () => {
+  it('describes every template column, in the template’s groups and order', async () => {
+    const { ASSET_COLUMN_GUIDE, ASSET_TEMPLATE_COLUMNS } = await import('./csvImport');
+    expect(ASSET_COLUMN_GUIDE.map((g) => g.group)).toEqual(['item', 'unit', 'line']);
+    for (const g of ASSET_COLUMN_GUIDE) {
+      expect(g.columns.map((c) => c.name)).toEqual([...ASSET_TEMPLATE_COLUMNS[g.group]]);
+      expect(g.title.trim()).not.toBe('');
+      expect(g.summary.trim()).not.toBe('');
+      for (const c of g.columns) expect(c.description.trim()).not.toBe('');
+    }
+  });
+
+  it('marks the columns every equipment row needs', async () => {
+    const { ASSET_COLUMN_GUIDE } = await import('./csvImport');
+    const required = ASSET_COLUMN_GUIDE.flatMap((g) => g.columns).filter((c) => c.required).map((c) => c.name);
+    expect(required).toEqual(['manufacturer_model', 'category', 'acquisition_date']);
   });
 });

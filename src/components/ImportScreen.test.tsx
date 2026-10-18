@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import micKitCsv from '../config/import-examples/mic-kit-purchase.csv?raw'
 import ImportScreen from './ImportScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
@@ -98,9 +99,83 @@ describe('ImportScreen assets import (#183 D)', () => {
       'source,acquisition_date,vendor,category,manufacturer_model,type,quantity,serial_number,kit,item_price',
       '1,2025-11-03,Sweetwater,Audio,Shure SM58,Vocal Mic,,A;B;C;D,Mic Kit 1,99',
     ])
-    expect(await screen.findByText('Qty 4 (from serials)')).toBeInTheDocument()
+    expect(await screen.findByText('Quantity read as 4 from the serial list.')).toBeInTheDocument()
     expect(await screen.findByText('Differs from the stored item (type). The stored item’s details are kept.')).toBeInTheDocument()
     expect(screen.getByText('Mic Kit 1 (new kit)')).toBeInTheDocument()
+  })
+})
+
+// #183 D2: the preview's summary cards, its notes, and the grouped column guide (mockup 11).
+describe('ImportScreen assets preview (#183 D2)', () => {
+  const upload = (container: HTMLElement, content: string) => {
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File([content], 'purchases.csv', { type: 'text/csv' })] } })
+  }
+  const assetsProps = { ...props, backLabel: 'Back to Assets', initialImportType: 'assets' as const }
+  const card = (name: string) => within(screen.getByRole('group', { name }))
+
+  beforeEach(() => {
+    vi.mocked(getItems).mockReset().mockResolvedValue([])
+  })
+
+  it('shows what the microphone example will create, before anything is saved', async () => {
+    const { container } = render(<ImportScreen {...assetsProps} />)
+    upload(container, micKitCsv)
+    await screen.findByRole('group', { name: 'Items' })
+
+    expect(card('Valid rows').getByText('5')).toBeInTheDocument()
+    expect(card('Invalid rows').getByText('0')).toBeInTheDocument()
+    expect(card('Items').getByText('3')).toBeInTheDocument()
+    expect(card('Items').getByText('3 new · 0 existing')).toBeInTheDocument()
+    expect(card('Creates').getByText('6 units, 1 lot')).toBeInTheDocument()
+    expect(card('Creates').getByText('16 pieces on 4 purchase lines in 1 purchase')).toBeInTheDocument()
+    expect(card('Kits').getByText('1')).toBeInTheDocument()
+    expect(card('Kits').getByText('New: Mic Kit 1')).toBeInTheDocument()
+    expect(importPurchases).not.toHaveBeenCalled()
+  })
+
+  it('counts a stored item as existing and lists the preview’s notes by row', async () => {
+    vi.mocked(getItems).mockResolvedValue([
+      { id: 'item-58', organization_id: 'org-1', manufacturer_model: 'Shure SM58', category: 'Audio', type: 'Dynamic Microphone', description: null, insurance_class: null, records: [] } as any,
+    ])
+    const { container } = render(<ImportScreen {...assetsProps} />)
+    upload(container, [
+      'source,acquisition_date,vendor,category,manufacturer_model,type,quantity,serial_number,item_price',
+      '1,2025-11-03,Sweetwater,Audio,Shure SM58,Vocal Mic,,A;B;C;D,99',
+    ].join('\n'))
+    expect(await screen.findByText('Row 2: Quantity read as 4 from the serial list.')).toBeInTheDocument()
+    expect(screen.getByText('Row 2: Differs from the stored item (type). The stored item’s details are kept.')).toBeInTheDocument()
+    expect(card('Items').getByText('0 new · 1 existing')).toBeInTheDocument()
+  })
+
+  it('counts the rows held back with an invalid row', async () => {
+    const { container } = render(<ImportScreen {...assetsProps} />)
+    upload(container, [
+      'source,acquisition_date,vendor,total_inv_amount,manufacturer_model,category,quantity,serial_number,item_price',
+      '0,2025-02-01,Vendor B,300,,,,,',
+      '1,,,,Item B1,Audio,1,,100',
+      '1,,,,Item B2,Audio,4,S1,50',
+    ].join('\n'))
+    await screen.findByRole('group', { name: 'Invalid rows' })
+    expect(card('Invalid rows').getByText('1')).toBeInTheDocument()
+    expect(card('Invalid rows').getByText('2 more rows held with it')).toBeInTheDocument()
+  })
+
+  it('has a grouped column guide next to the template download', async () => {
+    render(<ImportScreen {...assetsProps} />)
+    fireEvent.click(screen.getByRole('button', { name: /Template columns/ }))
+    for (const name of ['What it is', 'What we own: unit or lot', 'Purchase line']) {
+      expect(screen.getByRole('heading', { level: 3, name })).toBeInTheDocument()
+    }
+    const unitGroup = within(screen.getByRole('region', { name: 'What we own: unit or lot' }))
+    expect(unitGroup.getByText('kit')).toBeInTheDocument()
+    expect(unitGroup.getByText('serial_number')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'What it is' })).getByText('manufacturer_model')).toBeInTheDocument()
+  })
+
+  it('has no column guide for gigs', () => {
+    render(<ImportScreen {...props} />)
+    expect(screen.queryByRole('button', { name: /Template columns/ })).not.toBeInTheDocument()
   })
 })
 
