@@ -329,3 +329,63 @@ describe('the microphone example file (#183 D)', () => {
     expect(plan.summary).toEqual(expect.objectContaining({ purchases: 1, lines: 4, units: 6, lots: 1, pieces: 16, itemsNew: 3, kitsNew: ['Mic Kit 1'] }));
   });
 });
+
+// #183 D2: the summary cards and notes the screen shows before anything is saved (mockup 11).
+describe('the import summary (#183 D2)', () => {
+  const COLS = 'source,acquisition_date,vendor,total_inv_amount,manufacturer_model,category,type,quantity,serial_number,tag_number,kit,item_price';
+  const micKit = async () => (await parseAndValidateCSV<AssetRow>(file(micKitCsv, 'mic-kit-purchase.csv'), 'assets')).validRows;
+
+  it('counts what the microphone example makes: 3 new items, 6 units and a lot on 4 lines of 1 purchase, and a new kit', async () => {
+    const plan = buildAssetImportPlan(ORG, await micKit(), { items: [], kitNames: [] });
+    expect(plan.summary).toEqual({
+      purchases: 1, lines: 4, units: 6, lots: 1, pieces: 16,
+      itemsNew: 3, itemsMatched: 0,
+      kitsNew: ['Mic Kit 1'], kitsExisting: [],
+      rowsInvalid: 0, rowsHeld: 0,
+      notes: [],
+    });
+  });
+
+  it('counts a stored item and a stored kit as existing, matched like the database (case and spaces)', async () => {
+    const stored: ExistingItem = { id: 'item-58', manufacturer_model: 'SHURE  SM58', category: 'audio', type: 'Dynamic Microphone', description: 'Vocal mic', insurance_class: null };
+    const plan = buildAssetImportPlan(ORG, await micKit(), { items: [stored], kitNames: ['mic kit 1'] });
+    expect(plan.summary).toEqual(expect.objectContaining({ itemsNew: 2, itemsMatched: 1, kitsNew: [], kitsExisting: ['Mic Kit 1'], notes: [] }));
+  });
+
+  it('notes a matched item whose details differ, by row: the stored item isn’t changed', async () => {
+    const stored: ExistingItem = { id: 'item-58', manufacturer_model: 'Shure SM58', category: 'Audio', type: 'Dynamic Microphone', description: null, insurance_class: null };
+    const rows = await parse([COLS, '1,2025-11-03,Sweetwater,,Shure SM58,Audio,Vocal Mic,1,,MIC-1,,99']);
+    const plan = buildAssetImportPlan(ORG, rows, { items: [stored], kitNames: [] });
+    expect(plan.summary.notes).toEqual([{ rowIndex: 2, text: 'Differs from the stored item (type). The stored item’s details are kept.' }]);
+  });
+
+  it('notes a blank quantity read from the serial or tag list', async () => {
+    const rows = await parse([
+      COLS,
+      '0,2025-11-03,Sweetwater,500,,,,,,,,',
+      '1,,,,Shure SM58,Audio,,,A;B;C;D,,,99',
+      '1,,,,Shure Beta 52A,Audio,,,,MIC-0201;MIC-0202,,189',
+    ]);
+    const plan = buildAssetImportPlan(ORG, rows, { items: [], kitNames: [] });
+    expect(plan.summary.notes).toEqual([
+      { rowIndex: 3, text: 'Quantity read as 4 from the serial list.' },
+      { rowIndex: 4, text: 'Quantity read as 2 from the tag list.' },
+    ]);
+    expect(plan.summary.units).toBe(6);
+  });
+
+  it('counts rows with problems, and the rows of their purchase held back with them', async () => {
+    const result = await parseAll([
+      COLS,
+      '0,2025-01-01,Vendor A,110,,,,,,,,',
+      '1,,,,Item A1,Audio,,1,,,,100',
+      '0,2025-02-01,Vendor B,300,,,,,,,,',
+      '1,,,,Item B1,Audio,,1,,,,100',
+      '1,,,,Item B2,Audio,,4,S1,,,50', // 1 serial for quantity 4: invalid
+      '1,,,,Item B3,Audio,,2,,,,50',
+    ]);
+    expect(result.invalidRows.map((r) => r.rowIndex)).toEqual([6]);
+    const plan = buildAssetImportPlan(ORG, [...result.validRows, ...result.invalidRows], { items: [], kitNames: [] });
+    expect(plan.summary).toEqual(expect.objectContaining({ purchases: 1, lines: 1, lots: 1, itemsNew: 1, rowsInvalid: 1, rowsHeld: 3 }));
+  });
+});

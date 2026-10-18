@@ -73,6 +73,14 @@ export interface AssetImportSummary {
   itemsMatched: number;
   /** Kits the import will create, as first written in the file. */
   kitsNew: string[];
+  /** Stored kits the import adds to, as first written in the file. */
+  kitsExisting: string[];
+  /** Rows with problems, to fix before their purchase can be imported. */
+  rowsInvalid: number;
+  /** Valid rows held back with them: the other rows of their purchases. */
+  rowsHeld: number;
+  /** The notes on the rows to be saved, e.g. a quantity read from the serials, or a matched item that differs. */
+  notes: { rowIndex: number; text: string }[];
 }
 
 export interface AssetImportPlan {
@@ -122,10 +130,14 @@ export function buildAssetImportPlan(
   const newItems = new Map<string, { rowIndex: number; choice: ItemChoice }>();
   const matchedItems = new Set<string>();
   const newKits = new Map<string, string>();
+  const usedKits = new Map<string, string>();
 
   const purchases: PlannedPurchase[] = [];
   const plans: Record<number, RowPlan> = {};
-  const summary: AssetImportSummary = { purchases: 0, lines: 0, units: 0, lots: 0, pieces: 0, itemsNew: 0, itemsMatched: 0, kitsNew: [] };
+  const summary: AssetImportSummary = {
+    purchases: 0, lines: 0, units: 0, lots: 0, pieces: 0, itemsNew: 0, itemsMatched: 0,
+    kitsNew: [], kitsExisting: [], rowsInvalid: 0, rowsHeld: 0, notes: [],
+  };
 
   // The purchases, in file order, as processAssetRows grouped the rows.
   const groups = new Map<number, ParsedRow<AssetRow>[]>();
@@ -171,6 +183,7 @@ export function buildAssetImportPlan(
     };
 
     // Held or imported: nothing of it is saved now.
+    if (state === 'held') summary.rowsHeld += members.length - heldBy.length;
     if (state === 'held' || state === 'imported') {
       for (const row of members) {
         plans[row.rowIndex] = { rowIndex: row.rowIndex, purchaseIndex, lineIndex: null, item: null, creates: null, kit: kitOf(row.data), notes: [...(row.notes ?? [])] };
@@ -255,7 +268,10 @@ export function buildAssetImportPlan(
 
       // The kit each unit, or the lot, goes into as its own line.
       plan.kit = kitOf(d);
-      if (plan.kit?.isNew && !newKits.has(itemMatchKey(plan.kit.name))) newKits.set(itemMatchKey(plan.kit.name), plan.kit.name);
+      if (plan.kit) {
+        const kits = plan.kit.isNew ? newKits : usedKits;
+        if (!kits.has(itemMatchKey(plan.kit.name))) kits.set(itemMatchKey(plan.kit.name), plan.kit.name);
+      }
       purchase.units.push(...built);
       purchase.unitKits.push(...built.map(() => plan.kit?.name ?? null));
     }
@@ -264,5 +280,11 @@ export function buildAssetImportPlan(
   summary.itemsNew = newItems.size;
   summary.itemsMatched = matchedItems.size;
   summary.kitsNew = [...newKits.values()];
+  summary.kitsExisting = [...usedKits.values()];
+  summary.rowsInvalid = rows.filter((r) => !r.isValid).length;
+  summary.notes = Object.values(plans)
+    .filter((p) => p.creates)
+    .sort((a, b) => a.rowIndex - b.rowIndex)
+    .flatMap((p) => p.notes.map((text) => ({ rowIndex: p.rowIndex, text })));
   return { purchases, rows: plans, summary };
 }
