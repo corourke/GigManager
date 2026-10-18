@@ -9,9 +9,11 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-18 (triage: no open PRs, all issues blocked or unreleased; docs pass)
+- **Last updated:** 2026-10-18 (coordinator: prod deploy of #289/#291/#293 confirmed; #175 closed; Cameron asked to finish and close #162, #183, #186)
 
 ---
+
+- **Cameron 10-18: finish and close #162, #183, #186.** #186 Maintenance plan approved; Cameron's answers: the activity log for history; Staff+ can send, edit and return; **a piece flagged while out enters Maintenance only when it's home** (pending until the return); no home-to-home moves; no Dispose on the list. Equipment Lead posts the revised step-1 migration design next. #183 D2 (import preview cards and column guide) is being built by a coordinator helper on `claude/183-d2-import-preview`. #162 closes when both are done. **#175 closed 10-18.**
 
 ## 1. Open issues
 
@@ -31,6 +33,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 ## 2. Waiting on Cameron
 
+0. **Cloudflare cache rule (10-18):** bypass cache, or set Browser TTL to "respect origin", for `/sw.js`, `/registerSW.js` and `/version.json` on gigwrangler.com. Check: `curl -sI https://gigwrangler.com/sw.js` shows `cache-control: no-cache`.
 1. *(none blocking; bundle size is being handled in §3c)*
 2. **Sentry (optional):** `VITE_SENTRY_DSN` is live in the prod web app (10-09). Still optional: `SENTRY_API_TOKEN`, `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG` on prod for the health check's Sentry check.
 
@@ -92,7 +95,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 **Status 10-12 22:45 UTC:**
 - **In prod (Cameron's deploy 10-12):** #263, #264, #267, #269, #270, #271, #272, #273, #276.
-- **In prod (Cameron's deploy 10-13, verified read-only):** #268, #282, #283, #281, #284. Migration `20261020000000` (99/99 gigs owned, all owners active participants); build `index-Oni_LDm_.js`; `server` v35 deployed 17:26 UTC. **In prod 10-14 (verified read-only):** #286 with migration `20261021000000` (helpers not executable by signed-in users; 0 ownerless gigs), build `index-CGoXgCqZ.js`. **Merged, not yet in prod:** #291 (phone update notice), #289 (#175 follow-ups), #293 (phone list status menu owner-only). No migrations. **Cameron told to deploy 10-17.** After the deploy, the coordinator checks `curl -sI https://gigwrangler.com/sw.js` and tells Cameron whether the Cloudflare cache rule is needed.
+- **In prod (Cameron's deploy 10-13, verified read-only):** #268, #282, #283, #281, #284. Migration `20261020000000` (99/99 gigs owned, all owners active participants); build `index-Oni_LDm_.js`; `server` v35 deployed 17:26 UTC. **In prod 10-14 (verified read-only):** #286 with migration `20261021000000` (helpers not executable by signed-in users; 0 ownerless gigs), build `index-CGoXgCqZ.js`. **In prod (Cameron's deploy by 10-18, build `index-Dvoy84DF.js`):** #291, #289, #293. `/version.json` is served. **Merged, not yet in prod:** nothing. **Cloudflare:** `/sw.js` is still served with `max-age=14400` (the `_headers` no-cache is overridden by a zone setting), so Cameron needs a Cache Rule (see §2).
 - **#281 (#175 PR 1):** merged 10-12 with Cameron's OK (dev has it). **PR 2 is #284, merged 10-13 (58e0974, Cameron's OK)** (services): independent review found no blockers; review fixes in at 5ce0e26 (CI green); `server` deployed to dev 10-13. **Cameron 10-13:** duplicate is owner-only (the owner's Admins and Managers; clear message for others; PR 3 hides the button); a duplicate leaves Inactive participants off; leaving a gig is logged through a small migration in PR 3 (design on #175 first). Items 1–2 landed in #284 (828e8b1). **Cameron 10-13, Inactive redefined:** Inactive means the organization is being removed from the gig. It keeps and maintains its own financials and notes, but its staff and equipment are released, and it can't change anything else. Mark Inactive is refused until the org has released its own staff slots and kit assignments (release first, then Inactive). Gig History logs Inactive/Reactivated. In Participants, Remove runs right away behind a confirmation. Leave and Inactive are web-only this round. **Delete vs Cancel (Cameron 10-13):** Cancelled stays a status (no Cancel menu item). Delete Gig stays in the menu, disabled with a popover when other claimed organizations participate: "Delete gig is disabled as there are other claimed organizations participating -- you can Cancel the gig instead." Other refusals get their own reason. **PR 3 migration design approved by the coordinator 10-13** (one migration `20261021000000_gig_participant_inactive_rules.sql`: removal log, Inactive/Reactivated history, release-first rule, no new staff/kits while Inactive, own contacts read-only while Inactive — Cameron's "only financials and notes"); RLS tests 63 and 64. **#286 re-reviewed clean at 357d043 (CI green); migration `20261021000000` applied to dev 10-14. **Merged 10-14 (4ab55b4, Cameron's OK).** Follow-up PR with the Lead: stale-baseline participant save; mobile pack-out "+ Add" for an Inactive org. Earlier: **#286 (PR 3) review 10-13: fix first** — the migration's DB rules are enforced and tested; back to the Lead for an Inactive org's own-notes save, read-only staff/kit sections while Inactive, refusal copy, history-trigger edge cases and log once per leave (details to the Lead privately). Not yet on dev. **PR 3 (UI) started 10-13:** the leave-log design comes first on #175, then the UI, plus the mobile participant-save bug. The Docs Lead is drafting the #175 rules, held until prod.
 - Open question for Cameron later: should #265's warning also cover a case *added* at pack-out?
 
