@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Upload, Download, FileText, CheckCircle, XCircle, AlertCircle, Loader2, Save, RotateCcw } from 'lucide-react';
+import { Upload, Download, FileText, CheckCircle, XCircle, AlertCircle, Loader2, Save, RotateCcw, ChevronRight, Info, Package, Tag, Layers, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -15,6 +15,8 @@ import {
   TableRow,
 } from './ui/table';
 import { Badge } from './ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import { cn } from './ui/utils';
 import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
@@ -27,6 +29,8 @@ import {
   validateAssetRow,
   revalidateAssetRows,
   downloadAssetExample,
+  ASSET_COLUMN_GUIDE,
+  type AssetColumnGuideGroup,
   type ImportType,
   type ParsedRow,
   type GigRow,
@@ -38,7 +42,7 @@ import { createGig } from '../services/gig.service';
 import { importPurchases } from '../services/purchase.service';
 import { getItems } from '../services/equipmentItem.service';
 import { getKitOptions } from '../services/kit.service';
-import { buildAssetImportPlan, type AssetImportPlan, type ExistingItem, type PurchaseState } from '../utils/csvAssetImportPlan';
+import { buildAssetImportPlan, type AssetImportPlan, type AssetImportSummary, type ExistingItem, type PurchaseState } from '../utils/csvAssetImportPlan';
 import { searchOrganizations, createOrganization } from '../services/organization.service';
 import { createClient } from '../utils/supabase/client';
 import { 
@@ -535,6 +539,7 @@ export default function ImportScreen({
                 </p>
               </div>
             )}
+            {importType === 'assets' && <AssetColumnGuide />}
           </div>
         </Card>
 
@@ -646,22 +651,38 @@ export default function ImportScreen({
                 })()}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <div>
-                  <p className="font-medium text-green-900">{validRows.length}</p>
-                  <p className="text-sm text-green-700">Valid rows</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg">
-                <XCircle className="w-5 h-5 text-red-600" />
-                <div>
-                  <p className="font-medium text-red-900">{invalidRows.length}</p>
-                  <p className="text-sm text-red-700">Invalid rows</p>
-                </div>
-              </div>
-            </div>
+            {/* What the file will create, before anything is saved (mockup 11, #183 D2). */}
+            {(() => {
+              const summary = importType === 'assets' ? assetPlan?.summary : undefined;
+              const kits = summary ? [...summary.kitsNew, ...summary.kitsExisting] : [];
+              return (
+                <>
+                  <div className={cn('grid grid-cols-2 gap-3', !summary ? '' : kits.length ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-4')}>
+                    <SummaryCard label="Valid rows" icon={CheckCircle} tone="green" value={validRows.length} />
+                    <SummaryCard
+                      label="Invalid rows"
+                      icon={XCircle}
+                      tone="red"
+                      value={invalidRows.length}
+                      detail={summary?.rowsHeld
+                        ? `${plural(summary.rowsHeld, 'more row')} held with ${invalidRows.length === 1 ? 'it' : 'them'}`
+                        : undefined}
+                    />
+                    {summary && <AssetSummaryCards summary={summary} />}
+                  </div>
+                  {summary && summary.notes.length > 0 && (
+                    <ul aria-label="Notes on the rows" className="mt-3 space-y-1">
+                      {summary.notes.map((n) => (
+                        <li key={`${n.rowIndex}-${n.text}`} className="text-sm text-gray-700 flex items-start gap-2">
+                          <Info className="w-4 h-4 mt-0.5 shrink-0 text-sky-600" aria-hidden />
+                          {`Row ${n.rowIndex}: ${n.text}`}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              );
+            })()}
             {importType === 'assets' && purchasesIn('held').length > 0 && (
               <p className="text-sm text-amber-800 mt-3 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
@@ -1266,3 +1287,119 @@ export default function ImportScreen({
   );
 }
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+const CARD_TONES = {
+  green: { box: 'bg-green-50', label: 'text-green-800', value: 'text-green-900' },
+  red: { box: 'bg-red-50', label: 'text-red-800', value: 'text-red-900' },
+  gray: { box: 'bg-gray-50', label: 'text-gray-700', value: 'text-gray-900' },
+  sky: { box: 'bg-sky-50', label: 'text-sky-800', value: 'text-sky-900' },
+} as const;
+
+/** One card of the import summary (mockup 11). */
+function SummaryCard({ label, value, detail, icon: Icon, tone }: {
+  label: string;
+  value: string | number;
+  detail?: React.ReactNode;
+  icon?: React.ComponentType<{ className?: string }>;
+  tone: keyof typeof CARD_TONES;
+}) {
+  const t = CARD_TONES[tone];
+  return (
+    <div role="group" aria-label={label} className={cn('rounded-lg p-3', t.box)}>
+      <div className={cn('flex items-center gap-2 text-sm', t.label)}>
+        {Icon && <Icon className="w-4 h-4" />}
+        {label}
+      </div>
+      <div className={cn('text-2xl', t.value)}>{value}</div>
+      {detail && <div className="text-xs text-gray-500">{detail}</div>}
+    </div>
+  );
+}
+
+/** What an assets file will create: items new and existing, units and lots, lines, and kits (#183 D2). */
+function AssetSummaryCards({ summary: s }: { summary: AssetImportSummary }) {
+  const kits = s.kitsNew.length + s.kitsExisting.length;
+  return (
+    <>
+      <SummaryCard label="Items" tone="gray" value={s.itemsNew + s.itemsMatched} detail={`${s.itemsNew} new · ${s.itemsMatched} existing`} />
+      <SummaryCard
+        label="Creates"
+        tone="sky"
+        value={`${plural(s.units, 'unit')}, ${plural(s.lots, 'lot')}`}
+        detail={`${plural(s.pieces, 'piece')} on ${plural(s.lines, 'purchase line')} in ${plural(s.purchases, 'purchase')}`}
+      />
+      {kits > 0 && (
+        <SummaryCard
+          label="Kits"
+          tone="gray"
+          value={kits}
+          detail={(
+            <>
+              {s.kitsNew.length > 0 && <div>{`New: ${s.kitsNew.join(', ')}`}</div>}
+              {s.kitsExisting.length > 0 && <div>{`Adds to: ${s.kitsExisting.join(', ')}`}</div>}
+            </>
+          )}
+        />
+      )}
+    </>
+  );
+}
+
+const GUIDE_GROUP_STYLE: Record<AssetColumnGuideGroup['group'], { box: string; icons: React.ComponentType<{ className?: string }>[] }> = {
+  item: { box: 'border-gray-200 bg-gray-50', icons: [Package] },
+  unit: { box: 'border-sky-200 bg-sky-50/50', icons: [Tag, Layers] },
+  line: { box: 'border-green-200 bg-green-50/50', icons: [Receipt] },
+};
+
+/** The assets template's columns, grouped as in the template, with a word on each (mockup 11, #183 D2). */
+function AssetColumnGuide() {
+  return (
+    <Collapsible className="border-t pt-4">
+      <CollapsibleTrigger asChild>
+        <button type="button" className="group flex items-center gap-2 text-sm font-medium text-gray-900 hover:text-sky-700">
+          <ChevronRight className="w-4 h-4 transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+          Template columns: one row per unit or lot
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {ASSET_COLUMN_GUIDE.map((g) => {
+            const style = GUIDE_GROUP_STYLE[g.group];
+            const headingId = `import-columns-${g.group}`;
+            return (
+              <section key={g.group} aria-labelledby={headingId} className={cn('rounded-lg border p-3', style.box)}>
+                <h3 id={headingId} className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+                  {style.icons.map((Icon, i) => <Icon key={i} className="w-3.5 h-3.5 text-gray-600" aria-hidden />)}
+                  {g.title}
+                </h3>
+                <p className="text-xs text-gray-600 mb-2">{g.summary}</p>
+                <dl className="space-y-1.5">
+                  {g.columns.map((c) => (
+                    <div key={c.name}>
+                      <dt>
+                        <code className={cn(
+                          'inline-flex items-center rounded border bg-white px-1.5 py-0.5 font-mono text-[11.5px]',
+                          c.required ? 'border-gray-400 font-semibold text-gray-900' : 'border-gray-200 text-gray-700',
+                        )}>
+                          {c.name}
+                        </code>
+                        {c.required && <span className="sr-only"> (required)</span>}
+                      </dt>
+                      <dd className="text-xs text-gray-600 mt-0.5">{c.description}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Columns in bold are needed: a model and category on every equipment row, and a date on every purchase. Files are read by column name, so the order doesn’t matter.
+          Not imported: <span className="font-mono">status</span> (imported equipment is Active), and{' '}
+          <span className="font-mono">retired_on</span> and <span className="font-mono">liquidation_amt</span> (record sales and retirements on the equipment page).
+        </p>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}

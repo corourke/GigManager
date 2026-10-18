@@ -1,6 +1,11 @@
 ### Purchases field mapping (CSV assets import)
 
-Files are read by header name, so columns can come in any order. The template (Import → **Download Template**) lists them in three groups (#183 D, mockup 11): what the item is, the unit or lot we own, and the purchase line. **Download Example** gives a worked file: a microphone purchase that goes into a kit (`src/config/import-examples/mic-kit-purchase.csv`, which the tests import too).
+Files are read by header name, so columns can come in any order. The template (Import → **Download Template**) lists them in three groups (#183 D, mockup 11): what the item is, the unit or lot we own, and the purchase line. **Download Example** gives a worked file: a microphone purchase that goes into a kit (`src/config/import-examples/mic-kit-purchase.csv`, which the tests import too). On the screen, **Template columns** opens the same three groups with a line on each column (`ASSET_COLUMN_GUIDE` in `csvImport.ts`).
+
+**The preview** (#183 D2, mockup 11) says what the file will create before anything is saved, from `buildAssetImportPlan`'s summary over the purchases still to save. The items and kits it matches come from the one load of the organization's items and kit names; there is no lookup per row.
+
+- Cards: valid rows; invalid rows (and how many valid rows are held with them); items (new and existing); units and lots, with the pieces, purchase lines and purchases; kits (new, and existing ones added to), when the file names any.
+- Notes by row, under the cards: "Row N: Quantity read as 4 from the serial list." and "Row N: Differs from the stored item (type). The stored item’s details are kept."
 
 Every row of the file, valid or not, is grouped into purchases in file order: an invoice row (`source` 0) starts one; the rows after it join it, matched by date + vendor or else the last invoice; a line with a total of its own is a purchase by itself. Each purchase is saved whole or not at all by `create_purchase_transaction_v2`, then rows that name a kit get their kit lines.
 
@@ -25,7 +30,7 @@ Every row of the file, valid or not, is grouped into purchases in file order: an
 
 | Column | Writes | Notes |
 | --- | --- | --- |
-| `quantity` | line `quantity`; the lot's quantity | A whole number (spaces around it are fine; 3.5, 1e1 or 1,000 are refused). Blank: 1, or the number of serials/tags listed (shown as "Qty 3 (from serials)") |
+| `quantity` | line `quantity`; the lot's quantity | A whole number (spaces around it are fine; 3.5, 1e1 or 1,000 are refused). Blank: 1, or the number of serials/tags listed (noted as "Quantity read as 3 from the serial list.") |
 | `serial_number` | each unit's `serial_number` | One per unit, separated by `;` |
 | `tag_number` | each unit's `tag_number` | One per unit, separated by `;`. Serials and tags pair by position; the longer list is the number of units, which must equal the quantity. Neither: a lot |
 | `kit` | `kit_components` (`asset_id` lines) | Each unit (quantity 1), or the lot with its quantity, becomes its own line in the kit, found by name (any case) or created (category "Imported"). Not allowed on invoice or expense rows |

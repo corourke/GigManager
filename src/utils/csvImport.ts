@@ -23,7 +23,7 @@ export interface ParsedRow<T> {
   importStatus?: ImportStatus;
   importError?: string;
   originalValues?: Record<string, string>;
-  /** Notes that don't block the row, e.g. "Qty 3 (from serials)" (#183 D). */
+  /** Notes that don't block the row, e.g. "Quantity read as 3 from the serial list." (#183 D). */
   notes?: string[];
   /** The row as read from the file (assets), so fixing a row re-runs the whole file's grouping and cost allocation. */
   raw?: Record<string, string>;
@@ -612,7 +612,7 @@ export function validateAssetRow(row: any, rowIndex: number): ParsedRow<AssetRow
   const fromSerials = splitIdList(data.serial_number).length >= splitIdList(data.tag_number).length;
   if (unitRows.length && !data.quantity.trim()) {
     data.quantity = String(unitRows.length);
-    notes.push(`Qty ${unitRows.length} (from ${fromSerials ? 'serials' : 'tags'})`);
+    notes.push(`Quantity read as ${unitRows.length} from the ${fromSerials ? 'serial' : 'tag'} list.`);
   }
 
   // One reading of the quantity, here and in the cost allocation and the plan.
@@ -961,6 +961,58 @@ export const ASSET_TEMPLATE_COLUMNS = {
 } as const;
 
 type TemplateColumn = (typeof ASSET_TEMPLATE_COLUMNS)[keyof typeof ASSET_TEMPLATE_COLUMNS][number];
+
+export interface AssetColumnGuideGroup {
+  group: keyof typeof ASSET_TEMPLATE_COLUMNS;
+  title: string;
+  /** What the group's columns make, in a sentence. */
+  summary: string;
+  columns: { name: TemplateColumn; required?: boolean; description: string }[];
+}
+
+const COLUMN_DESCRIPTIONS: Record<TemplateColumn, string> = {
+  manufacturer_model: 'Make and model, e.g. Shure SM58.',
+  category: 'Audio, Lighting, Supplies… Needed on every equipment and expense row.',
+  type: 'What kind of thing it is, e.g. Dynamic Microphone. Used for a new item.',
+  description: 'Notes about the item. Used for a new item.',
+  insurance_class: 'Used for a new item.',
+  quantity: 'How many. Left blank: the number of serials or tags listed, or 1.',
+  serial_number: 'One per unit, separated by “;”.',
+  tag_number: 'One per unit, separated by “;”, paired with the serials in order.',
+  kit: 'Kit name: its units, or the lot, go into it. A kit is made if none has that name.',
+  replacement_value: 'For one piece; copied to each unit, or the lot.',
+  insured: 'TRUE or FALSE.',
+  recovery_period: 'Tax recovery period for depreciated equipment: 5, 7 or 15 years.',
+  acquisition_date: 'Purchase date: YYYY-MM-DD or MM/DD/YYYY. A line can leave it blank to take its invoice’s.',
+  vendor: 'Who it was bought from.',
+  source: '0-Invoice (the invoice row, with its total), 1-Asset (equipment) or 2-Expense. Blank: 1-Asset.',
+  total_inv_amount: 'On the invoice row: the total paid, shared out over its lines.',
+  payment_method: 'On the invoice row, e.g. Visa.',
+  line_amount: 'The line’s price; or give item_price.',
+  line_cost: 'The line’s cost, with its share of tax and shipping, if known; or give item_cost.',
+  item_price: 'Price of one piece.',
+  item_cost: 'Cost of one piece, with its share of tax and shipping.',
+};
+
+const REQUIRED_COLUMNS: TemplateColumn[] = ['manufacturer_model', 'category', 'acquisition_date'];
+
+/** The import screen's column guide (mockup 11, #183 D2): the template's groups, with a word on each column. */
+export const ASSET_COLUMN_GUIDE: AssetColumnGuideGroup[] = (
+  [
+    ['item', 'What it is', 'Rows with the same model and category are one item: an existing item is reused as it is, or a new one is made.'],
+    ['unit', 'What we own: unit or lot', 'Each serial or tag makes a unit. A row with neither makes a lot of its quantity.'],
+    ['line', 'Purchase line', 'Each row is a line. An invoice row and the rows after it, or rows with the same date and vendor, share a purchase.'],
+  ] as const
+).map(([group, title, summary]) => ({
+  group,
+  title,
+  summary,
+  columns: ASSET_TEMPLATE_COLUMNS[group].map((name) => ({
+    name,
+    ...(REQUIRED_COLUMNS.includes(name) ? { required: true } : {}),
+    description: COLUMN_DESCRIPTIONS[name],
+  })),
+}));
 
 export function generateAssetTemplate(): string {
   const headers: TemplateColumn[] = [...ASSET_TEMPLATE_COLUMNS.item, ...ASSET_TEMPLATE_COLUMNS.unit, ...ASSET_TEMPLATE_COLUMNS.line];
