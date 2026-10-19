@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 10-19** (Cameron): #295 (#183 D2 import preview). Coordinator verified read-only: migrations unchanged at `20261021000000`; build `index-N2lH3tA9.js` carries the column guide; `/sw.js` and `/version.json` serve no-cache.
+
 - **#175** (Delete gig is offered to Managers, but Admin-only): closed 10-18 by the owner-organization plan (PRs #281, #284, #286, #289, #293), all in prod. Removed from §1 by triage 10-19.
 
 - **PR #295** (coordinator's helper, merged 10-18 with Cameron's OK): #183 D2, the CSV import preview's summary cards (valid, invalid and held rows; items new and existing; units, lots and lines; kits) with row notes, and a grouped column guide. **#183 closed.**
