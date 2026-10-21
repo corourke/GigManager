@@ -153,7 +153,7 @@ Resolved since the last revision — no longer blockers: **#9, #10, #16, #17, #1
 - **Assets vs. Kits**: Understanding trackable individual items vs. grouped equipment sets.
 - **The Asset Library**: Searching, filtering, and managing your equipment database.
 - **Creating Kits**: Building standardized equipment packages (e.g., "Camera Op Kit").
-    - **Hierarchical / container kits**: kits can contain other kits (many-to-many, no hard depth cap); logical vs. container kits; how packing lists flatten the nested forest to real assets and dedupe across levels. *(shipped — see `hierarchical-kits-manual-test-checklist.md`)*
+    - **Hierarchical / container kits**: kits can contain other kits (many-to-many, no hard depth cap); logical vs. container kits; how packing lists flatten the nested forest to real assets and dedupe across levels. *(shipped — see `.archive/hierarchical-kits-manual-test-checklist.md`)*
     - **Kit detail screen**: combined component tree + flattened view, container-aware item counts. *(shipped)*
 - **Location Explorer**: editable location hierarchy for where gear lives. *(shipped)*
 - **Inventory Reports**: manifest (with interactive checkboxes), packing list (nested kits), maintenance queue. *(shipped)*

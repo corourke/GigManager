@@ -1,12 +1,14 @@
 # Hierarchical Kits — Pre-Merge Manual Test Checklist
 
+> **Archived 2026-10-21 (triage docs pass).** A dated pre-merge record: the feature shipped in `2b50210` and the kit model has since been reworked (items/units, "any N" lines, kit v2). Not a live checklist; the user guide (`equipment/kits.md`) and the test suites are the current references.
+
 **Branch**: `i-would-like-kits-to-be-hierarch-21f6`
 **Purpose**: full manual verification of the Hierarchical Kits feature and everything it
 touched, before merging to `main`. Covers the original implementation (nested kits,
 cycle prevention, mobile scanning, conflict detection) plus every fix made during
 pre-merge testing (report bugs, container-boundary handling, gig-assignment conflicts).
 
-Related: `docs/development/.archive/hierarchical-kits-follow-ups.md` — the follow-up
+Related: `hierarchical-kits-follow-ups.md` (same folder) — the follow-up
 log from pre-merge testing. All of its items are now resolved, so it is archived and
 kept only as a record of what shipped when.
 
