@@ -9,11 +9,11 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-19 (coordinator: prod deploy with #295 verified; #186 Maintenance with the Equipment Lead)
+- **Last updated:** 2026-10-22 (coordinator: #186 step-1 migration design (posted 10-18) approved; Equipment Lead writing it)
 
 ---
 
-- **Cameron 10-18: finish and close #162, #183, #186.** #186 Maintenance plan approved; Cameron's answers: the activity log for history; Staff+ can send, edit and return; **a piece flagged while out enters Maintenance only when it's home** (pending until the return); no home-to-home moves; no Dispose on the list. Equipment Lead posts the revised step-1 migration design next. **#183 closed 10-18:** D2 merged as #295 (Cameron's OK); in prod at the next deploy. #162 closes when both are done. **#175 closed 10-18.**
+- **Cameron 10-18: finish and close #162, #183, #186.** #186 Maintenance plan approved; Cameron's answers: the activity log for history; Staff+ can send, edit and return; **a piece flagged while out enters Maintenance only when it's home** (pending until the return); no home-to-home moves; no Dispose on the list. Step-1 migration design posted 10-18 and **approved by the coordinator 10-22** (late; the review was missed for 4 days). Prod and dev status values pre-checked against the new CHECK. The Lead is writing step 1 (migration + RLS 65). **#183 closed 10-18:** D2 merged as #295 (Cameron's OK); in prod at the next deploy. #162 closes when both are done. **#175 closed 10-18.**
 
 ## 1. Open issues
 
