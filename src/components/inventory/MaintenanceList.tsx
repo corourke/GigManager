@@ -45,6 +45,7 @@ type Confirm = { row: MaintenanceListRow; flagged: boolean };
 export function MaintenanceList({ organizationId, organizationName, userRole }: MaintenanceListProps) {
   const [list, setList] = useState<List>({ inMaintenance: [], flagged: [] });
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [editing, setEditing] = useState<MaintenanceListRow | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,8 +54,10 @@ export function MaintenanceList({ organizationId, organizationName, userRole }: 
   const load = useCallback(async () => {
     try {
       setList(await getMaintenanceList(organizationId));
+      setLoadFailed(false);
     } catch (err) {
       console.error('Error loading the maintenance list:', err);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -80,6 +83,15 @@ export function MaintenanceList({ organizationId, organizationName, userRole }: 
     return (
       <div className="flex items-center justify-center py-12">
         <span className="text-sm text-muted-foreground">Loading maintenance…</span>
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-12">
+        <span className="text-sm text-muted-foreground">Couldn’t load the maintenance list.</span>
+        <Button variant="outline" size="sm" onClick={() => { setLoading(true); load(); }}>Retry</Button>
       </div>
     );
   }

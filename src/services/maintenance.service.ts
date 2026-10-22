@@ -170,18 +170,18 @@ const userName = (u: { first_name?: string | null; last_name?: string | null; em
 };
 const filled = (s: string | null | undefined) => !!s && s.trim() !== '';
 
-/** Everything in maintenance, and everything flagged to go when it comes home, newest first. */
+/** Everything in maintenance, and everything flagged to go when it comes home, newest first (undated last). */
 export async function getMaintenanceList(organizationId: string): Promise<MaintenanceList> {
   const supabase = getSupabase();
   try {
     const { data, error } = await (supabase.from('assets') as any)
-      .select('id, manufacturer_model, serial_number, tag_number, quantity, status, equipment_item_id, purchase_line_id, '
+      .select('id, organization_id, manufacturer_model, serial_number, tag_number, quantity, status, equipment_item_id, purchase_line_id, '
         + 'maintenance_notes, maintenance_location, maintenance_expected_back, maintenance_since, maintenance_from, '
         + 'maintenance_pending, maintenance_pending_gig_id, maintenance_pending_quantity, '
         + 'flagged_by:users!maintenance_by(first_name, last_name, email), pending_gig:gigs!maintenance_pending_gig_id(title)')
       .eq('organization_id', organizationId)
       .or('status.eq.Maintenance,maintenance_pending.eq.true')
-      .order('maintenance_since', { ascending: false });
+      .order('maintenance_since', { ascending: false, nullsFirst: false });
     if (error) throw error;
     const records = (data ?? []) as any[];
     if (records.length === 0) return { inMaintenance: [], flagged: [] };
@@ -191,7 +191,7 @@ export async function getMaintenanceList(organizationId: string): Promise<Mainte
     const lots = new Map<string, any>();
     if (fromIds.length) {
       const { data: lotData, error: lotError } = await (supabase.from('assets') as any)
-        .select('id, quantity, status, retired_on, maintenance_pending, equipment_item_id, purchase_line_id')
+        .select('id, organization_id, quantity, status, retired_on, maintenance_pending, equipment_item_id, purchase_line_id')
         .in('id', fromIds);
       if (lotError) throw lotError;
       for (const l of (lotData ?? []) as any[]) lots.set(l.id, l);
@@ -216,9 +216,12 @@ export async function getMaintenanceList(organizationId: string): Promise<Mainte
       const quantity = Number(r.quantity ?? 1);
       const lot = r.maintenance_from ? lots.get(r.maintenance_from) : undefined;
       const unit = recordKind(r) === 'unit';
+      // return_to_service's rule, exactly: a lot with no purchase line takes any piece; one with a
+      // line takes only a piece on that line.
       const willMerge = !!lot && !unit && !lot.retired_on && ['Active', 'Inactive'].includes(lot.status)
-        && !lot.maintenance_pending && (lot.equipment_item_id ?? null) === (r.equipment_item_id ?? null)
-        && (lot.purchase_line_id == null || r.purchase_line_id == null || lot.purchase_line_id === r.purchase_line_id);
+        && !lot.maintenance_pending && (lot.organization_id ?? null) === (r.organization_id ?? null)
+        && (lot.equipment_item_id ?? null) === (r.equipment_item_id ?? null)
+        && (lot.purchase_line_id == null || lot.purchase_line_id === r.purchase_line_id);
       const row: MaintenanceListRow = {
         asset_id: r.id,
         item_name: r.manufacturer_model ?? null,
