@@ -20,6 +20,11 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
   'asset.status_changed',
   'asset.written_off',
   'asset.write_off_undone',
+  'asset.maintenance_flagged',
+  'asset.sent_to_maintenance',
+  'asset.maintenance_updated',
+  'asset.returned_to_service',
+  'asset.maintenance_cancelled',
   'kit.created',
   'kit.updated',
   'kit.asset_added',
@@ -33,8 +38,8 @@ const EXPECTED_EVENT_TYPES: ActivityEventType[] = [
 ];
 
 describe('ACTIVITY_EVENTS', () => {
-  it('contains exactly 30 event types', () => {
-    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(30);
+  it('contains exactly 35 event types', () => {
+    expect(Object.keys(ACTIVITY_EVENTS)).toHaveLength(35);
   });
 
   it('contains all expected event type keys', () => {
@@ -216,6 +221,35 @@ describe('ACTIVITY_EVENTS', () => {
     expect(cfg.format({ ...ctx, quantity: 1 })).toBe('Equipment written off: 1 piece missing');
     expect(cfg.format({ ...ctx, quantity: 3, note: 'lost at load-out' }))
       .toBe('Equipment written off: 3 pieces missing (lost at load-out)');
+  });
+
+  // #186: maintenance, logged by the database functions.
+  it('asset.maintenance_flagged says it goes in when it comes home', () => {
+    const cfg = ACTIVITY_EVENTS['asset.maintenance_flagged'];
+    expect(cfg.label).toBe('Flagged for Maintenance');
+    expect(cfg.format({ ...ctx, quantity: 1, location: 'Repair Bench' }))
+      .toBe('Flagged to maintenance when it comes home (Repair Bench)');
+    expect(cfg.format({ ...ctx, quantity: 3 })).toBe('3 pieces flagged to maintenance when they come home');
+    expect(cfg.format(ctx)).toBe('Flagged to maintenance when it comes home');
+  });
+
+  it('asset.sent_to_maintenance says where, and when part of a lot split off', () => {
+    const cfg = ACTIVITY_EVENTS['asset.sent_to_maintenance'];
+    expect(cfg.label).toBe('Sent to Maintenance');
+    expect(cfg.format({ ...ctx, quantity: 1, location: 'Repair Bench' })).toBe('Sent to maintenance (Repair Bench)');
+    expect(cfg.format({ ...ctx, quantity: 2, split_from: 'lot-1' })).toBe('2 pieces split off their lot and sent to maintenance');
+    expect(cfg.format(ctx)).toBe('Sent to maintenance');
+  });
+
+  it('asset.maintenance_updated, asset.returned_to_service and asset.maintenance_cancelled read well', () => {
+    expect(ACTIVITY_EVENTS['asset.maintenance_updated'].format({ ...ctx, location: 'Brightline Lighting' }))
+      .toBe('Maintenance details updated (Brightline Lighting)');
+    expect(ACTIVITY_EVENTS['asset.maintenance_updated'].format(ctx)).toBe('Maintenance details updated');
+    expect(ACTIVITY_EVENTS['asset.returned_to_service'].label).toBe('Returned to Service');
+    expect(ACTIVITY_EVENTS['asset.returned_to_service'].format(ctx)).toBe('Returned to service');
+    expect(ACTIVITY_EVENTS['asset.returned_to_service'].format({ ...ctx, quantity: 1, merged_into: 'lot-1' }))
+      .toBe('Returned to service, back in the lot it came from');
+    expect(ACTIVITY_EVENTS['asset.maintenance_cancelled'].format(ctx)).toBe('Maintenance flag cancelled');
   });
 
   it('asset.written_off without a quantity still reads well', () => {
