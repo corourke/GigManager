@@ -28,6 +28,22 @@ BEGIN
   END;
 END $$;
 
+-- The database's message for a statement run as the user, or 'ok' (rolled back either way).
+CREATE FUNCTION rls_test.err(p_user text, p_sql text) RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub', rls_test.u(p_user)::text, true);
+    SET LOCAL ROLE authenticated;
+    EXECUTE p_sql;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'ok';
+  EXCEPTION
+    WHEN SQLSTATE 'P0099' THEN RESET ROLE; RETURN 'ok';
+    WHEN OTHERS THEN RESET ROLE; RETURN SQLERRM;
+  END;
+END $$;
+CREATE FUNCTION rls_test.says(p_label text, p_message text, p_like text) RETURNS void LANGUAGE sql AS
+  $$ SELECT rls_test.expect(p_label || ' [' || p_message || ']', (p_message LIKE p_like)::int, 1) $$;
+
 INSERT INTO rls_test.ids VALUES
   ('unit_m',  '00000000-0000-0000-0000-00000000d001'),
   ('unit_i',  '00000000-0000-0000-0000-00000000d002'),
@@ -41,14 +57,19 @@ INSERT INTO rls_test.ids VALUES
   ('item_c',  '00000000-0000-0000-0000-00000000d0c1'),
   ('head_m',  '00000000-0000-0000-0000-00000000d0e1'),
   ('line_m',  '00000000-0000-0000-0000-00000000d0e2'),
-  ('gig2',    '00000000-0000-0000-0000-00000000d0f2');
+  ('gig2',    '00000000-0000-0000-0000-00000000d0f2'),
+  ('kit_a2',  '00000000-0000-0000-0000-00000000d0a2'),
+  ('lot_k',   '00000000-0000-0000-0000-00000000d013'),
+  ('lot_h',   '00000000-0000-0000-0000-00000000d014'),
+  ('unit_r',  '00000000-0000-0000-0000-00000000d006'),
+  ('unit_w',  '00000000-0000-0000-0000-00000000d007');
 
 INSERT INTO equipment_items (id, organization_id, category, manufacturer_model, created_by, updated_by)
 VALUES (rls_test.u('item_c'), rls_test.u('org_a'), 'Audio', 'XLR Cable, 25 ft', rls_test.u('a_admin'), rls_test.u('a_admin'));
 
 INSERT INTO assets (id, organization_id, equipment_item_id, acquisition_date, category, manufacturer_model, quantity, tag_number,
                     item_cost, replacement_value, status, created_by, updated_by)
-SELECT rls_test.u(name), rls_test.u(org), CASE WHEN qty > 1 THEN rls_test.u('item_c') END, DATE '2026-01-15', 'Audio', model, qty, tag,
+SELECT rls_test.u(name), rls_test.u(org), CASE WHEN model LIKE 'XLR%' THEN rls_test.u('item_c') END, DATE '2026-01-15', 'Audio', model, qty, tag,
        cost, cost + 5, st, rls_test.u('a_admin'), rls_test.u('a_admin')
 FROM (VALUES ('unit_m', 'org_a', 'QSC K12.2', 1, 'DSL-0104', 900, 'Active'),
              ('unit_i', 'org_a', 'QSC K12.2', 1, 'DSL-0105', 900, 'Inactive'),
@@ -58,7 +79,13 @@ FROM (VALUES ('unit_m', 'org_a', 'QSC K12.2', 1, 'DSL-0104', 900, 'Active'),
              ('lot_m',  'org_a', 'XLR Cable, 25 ft', 20, NULL, 12, 'Active'),
              ('lot_p',  'org_a', 'XLR Cable, 25 ft', 10, NULL, 12, 'Active'),
              ('lot_d',  'org_a', 'XLR Cable, 25 ft', 8,  NULL, 12, 'Active'),
-             ('unit_b', 'org_b', 'PD-20', 1, 'B-0001', 500, 'Active')) v(name, org, model, qty, tag, cost, st);
+             ('unit_b', 'org_b', 'PD-20', 1, 'B-0001', 500, 'Active'),
+             ('lot_k',  'org_a', 'Speaker Stand', 10, NULL, 30, 'Active'),
+             ('lot_h',  'org_a', 'Speaker Stand', 10, NULL, 30, 'Active'),
+             ('unit_r', 'org_a', 'QSC K12.2', 1, 'DSL-0109', 900, 'Active'),
+             ('unit_w', 'org_a', 'QSC K12.2', 1, 'DSL-0110', 900, 'Active')) v(name, org, model, qty, tag, cost, st);
+INSERT INTO kits (id, organization_id, name, created_by, updated_by)
+  VALUES (rls_test.u('kit_a2'), rls_test.u('org_a'), 'A kit 2', rls_test.u('a_admin'), rls_test.u('a_admin'));
 
 -- lot_m came on a purchase line (depreciated, 7 years).
 INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, vendor, total_inv_amount, quantity, item_cost, line_cost, asset_id, description, tax_treatment) VALUES
@@ -76,7 +103,13 @@ INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (rls_test.u(
 INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, scanned_at) VALUES
   (rls_test.u('org_a'), rls_test.u('gig'),  rls_test.u('kit_a'), rls_test.u('unit_p'), 'On Site', 1, now() - interval '1 hour'),
   (rls_test.u('org_a'), rls_test.u('gig'),  rls_test.u('kit_a'), rls_test.u('lot_p'),  'On Site', 6, now() - interval '1 hour'),
-  (rls_test.u('org_a'), rls_test.u('gig2'), rls_test.u('kit_a'), rls_test.u('unit_g'), 'On Site', 1, now() - interval '1 hour');
+  (rls_test.u('org_a'), rls_test.u('gig2'), rls_test.u('kit_a'), rls_test.u('unit_g'), 'On Site', 1, now() - interval '1 hour'),
+  -- lot_k: out at the gig under two kits (3 and 2). lot_h: 6 out. unit_r, unit_w: out.
+  (rls_test.u('org_a'), rls_test.u('gig'), rls_test.u('kit_a'),  rls_test.u('lot_k'), 'On Site', 3, now() - interval '1 hour'),
+  (rls_test.u('org_a'), rls_test.u('gig'), rls_test.u('kit_a2'), rls_test.u('lot_k'), 'On Site', 2, now() - interval '1 hour'),
+  (rls_test.u('org_a'), rls_test.u('gig'), rls_test.u('kit_a'),  rls_test.u('lot_h'), 'On Site', 6, now() - interval '1 hour'),
+  (rls_test.u('org_a'), rls_test.u('gig'), rls_test.u('kit_a'),  rls_test.u('unit_r'), 'On Site', 1, now() - interval '1 hour'),
+  (rls_test.u('org_a'), rls_test.u('gig'), rls_test.u('kit_a'),  rls_test.u('unit_w'), 'On Site', 1, now() - interval '1 hour');
 
 CREATE FUNCTION rls_test.send(p_asset text, p_qty numeric, p_gig text DEFAULT NULL) RETURNS text LANGUAGE sql AS $$
   SELECT format('SELECT public.send_to_maintenance(%L, %s, %L, %L, %L, %L)',
@@ -105,6 +138,8 @@ SELECT rls_test.expect('signed-in users can call send_to_maintenance',
 
 -- 1. Who -------------------------------------------------------------------------------------
 SELECT rls_test.expect('A viewer can''t send to maintenance', rls_test.run('a_viewer', rls_test.send('unit_m', 1)), -1);
+SELECT rls_test.says('…because it takes Staff or above', rls_test.err('a_viewer', rls_test.send('unit_m', 1)), '%takes Staff or above%');
+SELECT rls_test.says('B''s Admin is refused for the same reason', rls_test.err('b_admin', rls_test.send('unit_m', 1)), '%takes Staff or above%');
 SELECT rls_test.expect('B''s Admin can''t, on A''s equipment (shared gig)', rls_test.run('b_admin', rls_test.send('unit_m', 1)), -1);
 SELECT rls_test.expect('anon can''t', rls_test.try_anon(rls_test.send('unit_m', 1)), -1);
 SELECT rls_test.expect('A''s Staff can', rls_test.run('a_staff', rls_test.send('unit_m', 1)), 1);
@@ -152,6 +187,7 @@ SELECT rls_test.expect('An Inactive unit comes back Inactive', (rls_test.status_
 
 -- Retired records are refused.
 SELECT rls_test.expect('A Disposed unit can''t be sent', rls_test.run('a_admin', rls_test.send('unit_x', 1)), -1);
+SELECT rls_test.says('…only equipment in service', rls_test.err('a_admin', rls_test.send('unit_x', 1)), '%Only equipment in service%');
 UPDATE assets SET retired_on = DATE '2026-02-01' WHERE id = rls_test.u('unit_i');
 SELECT rls_test.expect('A retired unit can''t be sent', rls_test.run('a_admin', rls_test.send('unit_i', 1)), -1);
 UPDATE assets SET retired_on = NULL WHERE id = rls_test.u('unit_i');
@@ -171,18 +207,18 @@ SELECT rls_test.expect('…on the lot''s purchase line, with its cost, item and 
      AND s.item_cost = 12 AND s.equipment_item_id = rls_test.u('item_c') AND s.recovery_period = 7
      AND s.organization_id = rls_test.u('org_a')), 1);
 SELECT rls_test.expect('…total value unchanged by the split', (rls_test.value_of_cables() = 12 * 38)::int, 1);
-SELECT rls_test.expect('…logged with split_from',
-  (SELECT count(*)::int FROM activity_log WHERE event_type = 'asset.sent_to_maintenance'
-     AND context->>'split_from' = rls_test.u('lot_m')::text), 1);
+SELECT rls_test.expect('…logged against the lot (which stays), naming the piece split off',
+  (SELECT count(*)::int FROM activity_log l, rls_test.split_of('lot_m') p WHERE l.event_type = 'asset.sent_to_maintenance'
+     AND l.entity_id = rls_test.u('lot_m') AND l.context->>'split_off' = p.id::text AND (l.context->>'quantity')::int = 1), 1);
 
 SELECT rls_test.expect('Return to service merges it back',
   rls_test.keep('a_staff', rls_test.back((SELECT id FROM rls_test.split_of('lot_m')))), 1);
 SELECT rls_test.expect('…the lot is 20 again', (SELECT quantity::int FROM assets WHERE id = rls_test.u('lot_m')), 20);
 SELECT rls_test.expect('…the piece is gone', (SELECT count(*)::int FROM rls_test.split_of('lot_m')), 0);
 SELECT rls_test.expect('…total value unchanged by the merge', (rls_test.value_of_cables() = 12 * 38)::int, 1);
-SELECT rls_test.expect('…logged with merged_into',
+SELECT rls_test.expect('…logged against the lot (the piece is gone), naming the piece merged',
   (SELECT count(*)::int FROM activity_log WHERE event_type = 'asset.returned_to_service'
-     AND context->>'merged_into' = rls_test.u('lot_m')::text), 1);
+     AND entity_id = rls_test.u('lot_m') AND context->>'merged_from' IS NOT NULL), 1);
 
 -- The whole lot goes in as itself.
 SELECT rls_test.keep('a_staff', rls_test.send('lot_d', 8));
@@ -297,6 +333,8 @@ SELECT rls_test.expect('Disposing a record in Maintenance clears its details',
      AND status_before_maintenance IS NULL), 1);
 
 -- Direct table updates by an Admin.
+SELECT rls_test.says('A direct Maintenance update says how it''s done',
+  rls_test.err('a_admin', format('UPDATE assets SET status = ''Maintenance'' WHERE id = %s', rls_test.id('unit_i'))), '%through sending to maintenance%');
 SELECT rls_test.expect('An Admin can''t set Maintenance directly',
   rls_test.run('a_admin', format('UPDATE assets SET status = ''Maintenance'' WHERE id = %s', rls_test.id('unit_i'))), -1);
 SELECT rls_test.expect('…nor clear it directly',
@@ -346,3 +384,101 @@ SELECT rls_test.expect('Writing off a record in Maintenance: Missing, details cl
 SELECT public.undo_write_off(rls_test.u('unit_i'));
 SELECT rls_test.expect('…and Undo brings it back', (rls_test.status_of('unit_i') = 'Maintenance')::int, 1);
 
+-- 7. Review round (10-22) -------------------------------------------------------------------
+-- Flagged, then disposed directly: the flag goes with it, and coming home doesn't revive it.
+SELECT rls_test.keep('a_staff', rls_test.send('unit_r', 1, 'gig'));
+SELECT rls_test.expect('An Admin disposes a flagged unit directly',
+  rls_test.keep('a_admin', format('UPDATE assets SET status = ''Disposed'' WHERE id = %s', rls_test.id('unit_r'))), 1);
+SELECT rls_test.expect('…the flag and its details are cleared',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_r') AND status = 'Disposed' AND NOT maintenance_pending
+     AND maintenance_pending_gig_id IS NULL AND maintenance_notes IS NULL), 1);
+SELECT rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 1, ''Warehouse'', now())',
+  rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a'), rls_test.id('unit_r')));
+SELECT rls_test.expect('…and its return leaves it Disposed', (rls_test.status_of('unit_r') = 'Disposed')::int, 1);
+
+-- Flagged, then retired (retired_on) directly: same.
+SELECT rls_test.keep('a_staff', rls_test.send('unit_w', 1, 'gig'));
+SELECT rls_test.keep('a_admin', format('UPDATE assets SET retired_on = current_date WHERE id = %s', rls_test.id('unit_w')));
+SELECT rls_test.expect('A flagged unit given a retired date loses its flag',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_w') AND NOT maintenance_pending), 1);
+SELECT rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 1, ''Warehouse'', now())',
+  rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a'), rls_test.id('unit_w')));
+SELECT rls_test.expect('…and coming home doesn''t put it in Maintenance', (rls_test.status_of('unit_w') = 'Active')::int, 1);
+
+-- A record in Maintenance that is retired can't be returned to service.
+SELECT rls_test.keep('a_staff', rls_test.send('unit_w', 1));
+SELECT rls_test.expect('A retired unit can''t be sent either', (rls_test.status_of('unit_w') = 'Active')::int, 1);
+UPDATE assets SET retired_on = NULL WHERE id = rls_test.u('unit_w');
+SELECT rls_test.keep('a_staff', rls_test.send('unit_w', 1));
+UPDATE assets SET retired_on = current_date WHERE id = rls_test.u('unit_w');
+SELECT rls_test.says('Return to service refuses a retired record',
+  rls_test.err('a_staff', rls_test.back(rls_test.u('unit_w'))), '%retired%');
+
+-- The flagged and applied entries carry the gig.
+SELECT rls_test.expect('A flagged entry names its gig',
+  (SELECT count(*)::int FROM activity_log WHERE event_type = 'asset.maintenance_flagged' AND entity_id = rls_test.u('unit_p')
+     AND gig_id = rls_test.u('gig')), 1);
+SELECT rls_test.expect('…and so does the entry when it comes home',
+  (SELECT count(*)::int FROM activity_log WHERE event_type = 'asset.sent_to_maintenance' AND entity_id = rls_test.u('unit_p')
+     AND gig_id = rls_test.u('gig')), 1);
+
+-- A lot out at the gig under two kits: applied only when both buckets are closed.
+SELECT rls_test.expect('Staff flags 1 of lot_k (out under two kits)', rls_test.keep('a_staff', rls_test.send('lot_k', 1, 'gig')), 1);
+SELECT rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 3, ''Warehouse'', now())',
+  rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a'), rls_test.id('lot_k')));
+SELECT rls_test.expect('One kit back: still pending', (SELECT maintenance_pending::int FROM assets WHERE id = rls_test.u('lot_k')), 1);
+SELECT rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 2, ''Warehouse'', now())',
+  rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a2'), rls_test.id('lot_k')));
+SELECT rls_test.expect('Both back: the piece splits off into Maintenance',
+  (SELECT count(*)::int FROM rls_test.split_of('lot_k') s WHERE s.status = 'Maintenance' AND s.quantity = 1), 1);
+
+-- Sending without a gig: no more than are home.
+SELECT rls_test.says('Sending 5 of lot_h with 6 of 10 out is refused',
+  rls_test.err('a_staff', rls_test.send('lot_h', 5)), '%4 of them are home%');
+SELECT rls_test.expect('…sending the 4 at home works', rls_test.run('a_staff', rls_test.send('lot_h', 4)), 1);
+
+-- update_asset_status to Active on a flagged record (an older phone's untick) cancels the flag.
+SELECT rls_test.keep('a_staff', rls_test.send('lot_h', 1, 'gig'));
+SELECT rls_test.as_user('a_staff');
+SELECT public.update_asset_status(rls_test.u('lot_h'), 'Active');
+SELECT rls_test.expect('A queued "Active" on a flagged Active lot cancels the flag',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_h') AND NOT maintenance_pending AND maintenance_notes IS NULL), 1);
+
+-- Merges don't go into a flagged lot, here or for a write-off.
+SELECT rls_test.keep('a_staff', rls_test.send('lot_h', 1));
+SELECT rls_test.keep('a_staff', rls_test.send('lot_h', 1, 'gig'));
+SELECT rls_test.expect('Returning a piece while its lot is flagged: it comes back as its own lot',
+  rls_test.keep('a_staff', rls_test.back((SELECT id FROM rls_test.split_of('lot_h')))), 1);
+SELECT rls_test.expect('…the lot keeps its 9 and its flag',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_h') AND quantity = 9 AND maintenance_pending), 1);
+SELECT rls_test.as_user('a_manager');
+SELECT public.write_off_pieces(rls_test.u('lot_h'), 1, NULL, NULL, 0, 'lost');
+SELECT rls_test.expect('Undoing a write-off from a flagged lot doesn''t merge it back',
+  rls_test.keep('a_manager', format('SELECT public.undo_write_off(%L)', (SELECT id FROM assets WHERE written_off_from = rls_test.u('lot_h')))), 1);
+SELECT rls_test.expect('…the piece comes back as its own record',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_h') AND quantity = 8), 1);
+
+-- A flagged unit (out again at the gig) written off whole: the flag goes with it.
+INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, scanned_at)
+VALUES (rls_test.u('org_a'), rls_test.u('gig'), rls_test.u('kit_a'), rls_test.u('unit_p'), 'Checked Out', 1, now() + interval '1 minute');
+SELECT rls_test.keep('a_staff', rls_test.send('unit_p', 1, 'gig'));
+SELECT rls_test.expect('unit_p is flagged', (SELECT maintenance_pending::int FROM assets WHERE id = rls_test.u('unit_p')), 1);
+SELECT rls_test.as_user('a_manager');
+SELECT public.write_off_pieces(rls_test.u('unit_p'), 1, NULL, NULL, 0, 'lost');
+SELECT rls_test.expect('A flagged unit written off whole: Missing, flag cleared',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_p') AND status = 'Missing' AND NOT maintenance_pending
+     AND maintenance_pending_gig_id IS NULL AND maintenance_notes IS NULL), 1);
+
+-- Adding units to a line whose lot is flagged leaves the lot as it is.
+INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, scanned_at)
+VALUES (rls_test.u('org_a'), rls_test.u('gig'), rls_test.u('kit_a'), rls_test.u('lot_m'), 'On Site', 2, now());
+SELECT rls_test.keep('a_staff', rls_test.send('lot_m', 1, 'gig'));
+SELECT rls_test.expect('Adding units to the flagged lot''s line works',
+  rls_test.run('a_manager', format('SELECT public.add_purchase_line_units(%L, %L::jsonb[])', rls_test.u('line_m'),
+    ARRAY[jsonb_build_object('organization_id', rls_test.u('org_a'), 'manufacturer_model', 'XLR Cable, 25 ft', 'category', 'Audio')])), 1);
+SELECT rls_test.expect('…the lot stays flagged',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_m') AND maintenance_pending AND maintenance_pending_quantity = 1), 1);
+
+-- The unused reclassify_expense_as_asset (it still wrote a dropped column) is gone.
+SELECT rls_test.expect('reclassify_expense_as_asset no longer exists',
+  (SELECT count(*)::int FROM pg_proc WHERE proname = 'reclassify_expense_as_asset'), 0);

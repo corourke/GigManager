@@ -275,6 +275,22 @@ describe('offlineSyncService — ASSET_STATUS_UPDATE refused', () => {
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('written off as missing'))
   })
 
+  // #186 review: a refusal for the record's state (22023, e.g. already flagged for maintenance)
+  // won't change on a retry either.
+  it('drops a status change refused for the record\'s state, and says why', async () => {
+    const { idbStore } = await import('../../utils/idb/store')
+    const { toast } = await import('sonner')
+    const item = { ...outboxItem('ASSET_STATUS_UPDATE', { asset_id: 'a1', status: 'Maintenance' }), id: 9 }
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([item])
+    mockRpc.mockResolvedValue({ error: { code: '22023', message: 'This equipment is already flagged for maintenance.' } })
+
+    await offlineSyncService.processOutbox()
+
+    expect(idbStore.removeFromOutbox).toHaveBeenCalledWith(9)
+    expect(idbStore.updateOutboxItem).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('already flagged for maintenance'))
+  })
+
   it('a network failure is still retried', async () => {
     const { idbStore } = await import('../../utils/idb/store')
     const item = { ...outboxItem('ASSET_STATUS_UPDATE', { asset_id: 'a1', status: 'Maintenance' }), id: 8 }

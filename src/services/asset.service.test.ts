@@ -311,6 +311,31 @@ describe('asset.service', () => {
       expect(inserted.purchase_line_id ?? null).toBeNull();
     });
 
+    it('the copy carries none of the original\'s maintenance (#186)', async () => {
+      const original = {
+        id: 'a1', manufacturer_model: 'K12', organization_id: 'org-1', status: 'Active',
+        maintenance_notes: 'rattles', maintenance_location: 'Bench', maintenance_expected_back: '2026-11-03',
+        maintenance_since: '2026-10-22T00:00:00Z', maintenance_by: 'u1', maintenance_from: 'lot-1',
+        status_before_maintenance: 'Active', maintenance_pending: true, maintenance_pending_gig_id: 'g1',
+        maintenance_pending_quantity: 1,
+      };
+      let inserted: any;
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'assets') {
+          const chain = makeChain({ data: original, error: null });
+          chain.insert = vi.fn((row: any) => { inserted = row; return makeChain({ data: { ...row, id: 'a2' }, error: null }); });
+          return chain;
+        }
+        return makeChain({ data: { name: 'Acme' }, error: null });
+      });
+      await duplicateAsset('a1');
+      for (const key of ['maintenance_notes', 'maintenance_location', 'maintenance_expected_back', 'maintenance_since',
+        'maintenance_by', 'maintenance_from', 'status_before_maintenance', 'maintenance_pending',
+        'maintenance_pending_gig_id', 'maintenance_pending_quantity']) {
+        expect(inserted).not.toHaveProperty(key);
+      }
+    });
+
     it('the copy has no recovery period (only depreciated equipment has one; #125)', async () => {
       const original = { id: 'a1', manufacturer_model: 'X32', organization_id: 'org-1', purchase_id: 'p1', recovery_period: 7 };
       let inserted: any;
