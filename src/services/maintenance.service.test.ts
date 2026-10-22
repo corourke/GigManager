@@ -202,6 +202,35 @@ describe('maintenance.service', () => {
       expect(merge).toEqual({ p1: false, p2: false, p3: false, p4: false, p5: false, p6: false });
     });
 
+    it('merges by the database rule: a lot with no line takes any piece; a piece with no line only a lot with none', async () => {
+      const { getMaintenanceList } = await import('./maintenance.service');
+      const assets = makeQueryChain({ data: [
+        { ...base, id: 'q1', organization_id: 'org-1', purchase_line_id: null, maintenance_from: 'lot-line' },
+        { ...base, id: 'q2', organization_id: 'org-1', purchase_line_id: 'line-1', maintenance_from: 'lot-noline' },
+        { ...base, id: 'q3', organization_id: 'org-1', purchase_line_id: null, maintenance_from: 'lot-noline' },
+        { ...base, id: 'q4', organization_id: 'org-1', maintenance_from: 'lot-other-org' },
+      ], error: null });
+      const ok = { organization_id: 'org-1', status: 'Active', retired_on: null, maintenance_pending: false, equipment_item_id: 'item-1', quantity: 5 };
+      const lots = makeQueryChain({ data: [
+        { ...ok, id: 'lot-line', purchase_line_id: 'line-1' },
+        { ...ok, id: 'lot-noline', purchase_line_id: null },
+        { ...ok, id: 'lot-other-org', purchase_line_id: 'line-1', organization_id: 'org-2' },
+      ], error: null });
+      let assetCalls = 0;
+      mockSupabase.from.mockImplementation((t: string) => (t === 'assets' ? (assetCalls++ === 0 ? assets : lots) : makeQueryChain({ data: [], error: null })));
+      const list = await getMaintenanceList('org-1');
+      const merge = Object.fromEntries(list.inMaintenance.map((r) => [r.asset_id, r.from_lot?.will_merge ?? null]));
+      expect(merge).toEqual({ q1: false, q2: true, q3: true, q4: false });
+    });
+
+    it('lists the newest first, with records that have no date last', async () => {
+      const { getMaintenanceList } = await import('./maintenance.service');
+      const assets = makeQueryChain({ data: [], error: null });
+      tables({ assets });
+      await getMaintenanceList('org-1');
+      expect(assets.order).toHaveBeenCalledWith('maintenance_since', { ascending: false, nullsFirst: false });
+    });
+
     it('an empty list reads nothing more', async () => {
       const { getMaintenanceList } = await import('./maintenance.service');
       tables({ assets: makeQueryChain({ data: [], error: null }) });

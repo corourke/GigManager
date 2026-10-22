@@ -73,6 +73,16 @@ describe('MaintenanceList', () => {
     expect(screen.queryByRole('region', { name: /flagged, not home yet/i })).not.toBeInTheDocument();
   });
 
+  it("a failed load says so, with Retry, rather than an empty list", async () => {
+    (getMaintenanceList as any).mockRejectedValueOnce(new Error('Network error'));
+    renderList();
+    expect(await screen.findByText(/couldn.t load the maintenance list/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing is in maintenance/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByText('DSL-0104')).toBeInTheDocument();
+    expect(getMaintenanceList).toHaveBeenCalledTimes(2);
+  });
+
   it('a Viewer sees the list without actions', async () => {
     renderList('Viewer');
     await screen.findByText('DSL-0104');
