@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 10-22** (Cameron): #296 and #298 (#186 Maintenance steps 1–2). Coordinator verified read-only: migration level `20261022000000`; the maintenance functions and `assets_status_known` are present; prod statuses are unchanged (Active 209, Inactive 6, Returned 6, Disposed 1, none pending); build `index-B177xxiD.js` carries the new Maintenance list (InventoryTabScreen chunk); `/sw.js` serves no-cache.
+
 - **PR #298** (Equipment Lead, merged 10-22 with Cameron's OK): #186 step 2, the services and the web Maintenance list. In maintenance and Flagged, not home yet sections; Staff+ can edit, return to service and cancel a flag; the send checks the Locations home count. No migration. One review round: the merge prediction now matches the database, a failed load shows an error, undated records sort last.
 
 - **PR #296** (Equipment Lead, merged 10-22 with Cameron's OK): #186 step 1, the Maintenance database. It adds send, edit and return to service; pending until home; part of a lot splits off and merges back; a flag is cleared when the record is disposed or retired; a 2nd flag at the same gig adds to the first (Cameron 10-22); 5 history events. Migration `20261022000000` was applied to dev 10-22; prod gets it at the next deploy. Three review rounds; RLS test 65 has 150 checks.
