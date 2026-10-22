@@ -59,6 +59,9 @@ vi.mock('../../services/mobile/inventoryTracking.service', async (importOriginal
     clearTracking: vi.fn(),
     saveNote: vi.fn(async () => ({ saved: true })),
     updateAssetStatus: vi.fn(),
+    sendToMaintenance: vi.fn(),
+    returnFromMaintenance: vi.fn(),
+    updateMaintenanceDetails: vi.fn(),
   },
   }
 })
@@ -229,18 +232,19 @@ describe('MobileInventoryMode', () => {
       await user.click(screen.getByLabelText('Send to Maintenance'))
       await user.click(screen.getByRole('button', { name: 'Save' }))
       expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-1', notes: 'Sent to Maintenance.' }))
-      expect(inventoryTrackingService.updateAssetStatus).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-1', status: 'Maintenance' }))
+      expect(inventoryTrackingService.sendToMaintenance).toHaveBeenCalledWith(expect.objectContaining({ gigId: 'gig-1', assetId: 'asset-1', quantity: 1 }))
       expect(toast.error).not.toHaveBeenCalled()
       expect(toast.success).toHaveBeenCalledWith('Note saved')
     })
 
-    it('C: newly sending to Maintenance adds "Sent to Maintenance." to the note, and sets the status', async () => {
+    it('C: newly sending to Maintenance adds "Sent to Maintenance." to the note, and sends it with the note as its condition', async () => {
       const user = await open('Active')
       await user.type(screen.getByLabelText(/notes on item condition/i), 'Fan rattles')
       await user.click(screen.getByLabelText('Send to Maintenance'))
       await user.click(screen.getByRole('button', { name: 'Save' }))
       expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ notes: 'Fan rattles Sent to Maintenance.' }))
-      expect(inventoryTrackingService.updateAssetStatus).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-1', status: 'Maintenance' }))
+      expect(inventoryTrackingService.sendToMaintenance).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-1', quantity: 1, notes: 'Fan rattles' }))
+      expect(inventoryTrackingService.updateAssetStatus).not.toHaveBeenCalled()
     })
 
     it('C: with no note, the note is just "Sent to Maintenance."', async () => {
@@ -250,13 +254,14 @@ describe('MobileInventoryMode', () => {
       expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ notes: 'Sent to Maintenance.' }))
     })
 
-    it('C: unticking adds nothing to the note and sets the status back to Active', async () => {
+    it('C: unticking adds nothing to the note and returns it to service', async () => {
       const user = await open('Maintenance')
       await user.type(screen.getByLabelText(/notes on item condition/i), 'Fixed')
       await user.click(screen.getByLabelText('Send to Maintenance'))
       await user.click(screen.getByRole('button', { name: 'Save' }))
       expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ notes: 'Fixed' }))
-      expect(inventoryTrackingService.updateAssetStatus).toHaveBeenCalledWith(expect.objectContaining({ status: 'Active' }))
+      expect(inventoryTrackingService.returnFromMaintenance).toHaveBeenCalledWith({ gigId: 'gig-1', assetId: 'asset-1' })
+      expect(inventoryTrackingService.updateAssetStatus).not.toHaveBeenCalled()
     })
 
     const row = (scanned_by: string) => ({ gig_id: 'gig-1', kit_id: 'kit-1', asset_id: 'asset-1', status: 'Checked Out', notes: null, scanned_at: '2026-10-10T10:00:00.000Z', scanned_by })
@@ -1257,5 +1262,122 @@ describe('MobileInventoryMode', () => {
     await user.click(screen.getByRole('button', { name: secondMode.label }))
 
     expect(locationInput).toHaveValue('Truck 3 - North Dock')
+  })
+
+  // #186 step 3 (Cameron, 10-22): Send to Maintenance takes a location, an expected-back date
+  // and, for a lot, how many (1 by default). Flagged at a gig, it goes in when it comes home;
+  // more of a flagged lot adds to the flag. Unticking cancels the flag or returns it to service.
+  describe('maintenance from the note popup (#186 step 3)', () => {
+    const lotAsset = (over: Record<string, unknown> = {}) =>
+      ({ id: 'lot-1', manufacturer_model: 'XLR Cable', tag_number: null, quantity: 10, status: 'Active', ...over })
+    const unitAsset = (over: Record<string, unknown> = {}) =>
+      ({ id: 'asset-1', manufacturer_model: 'Shure QLXD', tag_number: 'ASSET-001', quantity: 1, status: 'Active', ...over })
+    const here = (asset_id: string, quantity: number) =>
+      ({ gig_id: 'gig-1', kit_id: 'kit-1', asset_id, status: 'On Site', quantity, notes: null, scanned_at: '2026-10-22T10:00:00.000Z', scanned_by: 'user-1' })
+    const listOf = (asset: any, tracking: any[] = [], over: Record<string, unknown> = {}) => ({
+      gig_id: 'gig-1', gig_title: 'Warehouse Check-In',
+      kits: [{ kit: { id: 'kit-1', name: 'Audio Case', tag_number: 'KIT-001', is_container: false,
+        assets: [{ asset_id: asset.id, quantity: asset.tag_number ? 1 : 4, asset }] } }],
+      tracking,
+      ...over,
+    })
+    const openFor = async (asset: any, tracking: any[] = [], over: Record<string, unknown> = {}) => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => listOf(asset, tracking, over))
+      const user = userEvent.setup()
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      await user.click(await screen.findByRole('button', { name: new RegExp(`edit note for ${asset.manufacturer_model}`, 'i') }))
+      await screen.findByText(/notes on item condition/i)
+      return user
+    }
+
+    it('the location and expected-back fields show only once ticked; a unit has no How many', async () => {
+      const user = await openFor(unitAsset())
+      expect(screen.queryByLabelText('Maintenance location')).not.toBeInTheDocument()
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      expect(screen.getByLabelText('Maintenance location')).toBeInTheDocument()
+      expect(screen.getByLabelText('Expected back')).toBeInTheDocument()
+      expect(screen.queryByLabelText('How many')).not.toBeInTheDocument()
+    })
+
+    it('sends a unit with this gig and the details', async () => {
+      const user = await openFor(unitAsset())
+      await user.type(screen.getByLabelText(/notes on item condition/i), 'Dropout on ch 2')
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      await user.type(screen.getByLabelText('Maintenance location'), 'Repair Bench')
+      await user.type(screen.getByLabelText('Expected back'), '2026-11-03')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.sendToMaintenance).toHaveBeenCalledWith({
+        gigId: 'gig-1', assetId: 'asset-1', quantity: 1, notes: 'Dropout on ch 2', location: 'Repair Bench', expectedBack: '2026-11-03',
+      })
+    })
+
+    it('a lot out here: How many defaults to 1, up to the lot', async () => {
+      const user = await openFor(lotAsset(), [here('lot-1', 4)])
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      const howMany = screen.getByLabelText('How many') as HTMLInputElement
+      expect(howMany.value).toBe('1')
+      expect(howMany.max).toBe('10')
+      await user.clear(howMany)
+      await user.type(howMany, '3')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.sendToMaintenance).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'lot-1', quantity: 3 }))
+    })
+
+    it('a lot with nothing out here: How many is capped at the pieces home', async () => {
+      const user = await openFor(lotAsset(), [], { lot_places: { 'lot-1': { at_home: 6, at_gig: 0 } } })
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      expect((screen.getByLabelText('How many') as HTMLInputElement).max).toBe('6')
+      const howMany = screen.getByLabelText('How many')
+      await user.clear(howMany)
+      await user.type(howMany, '9')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.sendToMaintenance).toHaveBeenCalledWith(expect.objectContaining({ quantity: 6 }))
+    })
+
+    it('a lot already flagged here: shows how many, and Add sends more', async () => {
+      const user = await openFor(lotAsset({ maintenance_pending: true, maintenance_pending_quantity: 2, maintenance_pending_gig_id: 'gig-1', maintenance_location: 'Bench' }), [here('lot-1', 4)])
+      expect(screen.getByLabelText('Send to Maintenance')).toBeChecked()
+      expect(screen.getByText('Flagged: 2 of 10')).toBeInTheDocument()
+      expect((screen.getByLabelText('Maintenance location') as HTMLInputElement).value).toBe('Bench')
+      const add = screen.getByLabelText('Add more')
+      await user.clear(add)
+      await user.type(add, '3')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.sendToMaintenance).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'lot-1', quantity: 3, location: 'Bench' }))
+      expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ notes: '' }))
+    })
+
+    it('a flagged record with changed details and nothing added saves the details', async () => {
+      const user = await openFor(unitAsset({ maintenance_pending: true, maintenance_pending_gig_id: 'gig-1', maintenance_location: 'Bench' }))
+      const location = screen.getByLabelText('Maintenance location')
+      await user.clear(location)
+      await user.type(location, 'Shop')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.updateMaintenanceDetails).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'asset-1', location: 'Shop' }))
+      expect(inventoryTrackingService.sendToMaintenance).not.toHaveBeenCalled()
+    })
+
+    it('unticking a flagged record cancels the flag', async () => {
+      const user = await openFor(unitAsset({ maintenance_pending: true, maintenance_pending_gig_id: 'gig-1' }))
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.returnFromMaintenance).toHaveBeenCalledWith({ gigId: 'gig-1', assetId: 'asset-1' })
+      expect(inventoryTrackingService.sendToMaintenance).not.toHaveBeenCalled()
+    })
+
+    it('the row mark: To maintenance, with the pieces for part of a lot, or Maintenance once in', async () => {
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => listOf(lotAsset({ maintenance_pending: true, maintenance_pending_quantity: 2 }), [here('lot-1', 4)]))
+      const { unmount } = render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      expect(await screen.findByText('To maintenance · 2')).toBeInTheDocument()
+      unmount()
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => listOf(unitAsset({ maintenance_pending: true })))
+      const second = render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      expect(await screen.findByText('To maintenance')).toBeInTheDocument()
+      second.unmount()
+      vi.mocked(idbStore.getPackingList).mockImplementation(async () => listOf(unitAsset({ status: 'Maintenance' })))
+      render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+      expect(await screen.findByText('Maintenance')).toBeInTheDocument()
+      expect(screen.queryByText(/to maintenance/i)).not.toBeInTheDocument()
+    })
   })
 })

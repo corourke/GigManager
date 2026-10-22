@@ -351,3 +351,67 @@ describe('offlineSyncService: kits added at pack-out (#185)', () => {
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Kit not added'))
   })
 })
+
+// #186 step 3: the phone's maintenance sends, returns and detail edits go through their own
+// queued types. A refusal (not allowed, or not possible for the record now) is dropped with a
+// toast; anything else is retried. Older phones' ASSET_STATUS_UPDATE keeps syncing as before.
+describe('offlineSyncService: maintenance (#186 step 3)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('MAINTENANCE_SEND calls send_to_maintenance with the gig and details', async () => {
+    mockRpc.mockResolvedValue({ data: 'lot-1', error: null })
+    await offlineSyncService.syncItem(outboxItem('MAINTENANCE_SEND', {
+      asset_id: 'lot-1', quantity: 2, notes: 'Frayed', location: 'Repair Bench', expected_back: '2026-11-03', gig_id: 'gig-1',
+    }))
+    expect(mockRpc).toHaveBeenCalledWith('send_to_maintenance', {
+      p_asset_id: 'lot-1', p_quantity: 2, p_notes: 'Frayed', p_location: 'Repair Bench', p_expected_back: '2026-11-03', p_gig_id: 'gig-1',
+    })
+  })
+
+  it('MAINTENANCE_RETURN calls return_to_service', async () => {
+    mockRpc.mockResolvedValue({ data: 'u-1', error: null })
+    await offlineSyncService.syncItem(outboxItem('MAINTENANCE_RETURN', { asset_id: 'u-1' }))
+    expect(mockRpc).toHaveBeenCalledWith('return_to_service', { p_asset_id: 'u-1' })
+  })
+
+  it('MAINTENANCE_UPDATE calls update_maintenance', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    await offlineSyncService.syncItem(outboxItem('MAINTENANCE_UPDATE', { asset_id: 'u-1', notes: 'x', location: 'Shop', expected_back: null }))
+    expect(mockRpc).toHaveBeenCalledWith('update_maintenance', { p_asset_id: 'u-1', p_notes: 'x', p_location: 'Shop', p_expected_back: null })
+  })
+
+  it.each([
+    ['MAINTENANCE_SEND', { asset_id: 'a1', quantity: 1, gig_id: 'g1' }, '22023', 'This equipment is already flagged for maintenance.'],
+    ['MAINTENANCE_RETURN', { asset_id: 'a1' }, '22023', "This equipment isn't in maintenance."],
+    ['MAINTENANCE_UPDATE', { asset_id: 'a1' }, '42501', 'Editing maintenance details takes Staff or above of the equipment\'s organization.'],
+  ] as const)('%s: a refusal (%s) is dropped with a toast saying why', async (type, payload, code, message) => {
+    const { idbStore } = await import('../../utils/idb/store')
+    const { toast } = await import('sonner')
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([{ ...outboxItem(type, payload), id: 21 }])
+    mockRpc.mockResolvedValue({ error: { code, message } })
+    await offlineSyncService.processOutbox()
+    expect(idbStore.removeFromOutbox).toHaveBeenCalledWith(21)
+    expect(idbStore.updateOutboxItem).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining(message))
+  })
+
+  it('a network failure on a send is retried', async () => {
+    const { idbStore } = await import('../../utils/idb/store')
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([{ ...outboxItem('MAINTENANCE_SEND', { asset_id: 'a1', quantity: 1, gig_id: 'g1' }), id: 22 }])
+    mockRpc.mockResolvedValue({ error: { message: 'Failed to fetch' } })
+    await offlineSyncService.processOutbox()
+    expect(idbStore.removeFromOutbox).not.toHaveBeenCalled()
+    expect(idbStore.updateOutboxItem).toHaveBeenCalled()
+  })
+
+  it('an ASSET_STATUS_UPDATE queued by the older app still syncs after the update, through update_asset_status', async () => {
+    const { idbStore } = await import('../../utils/idb/store')
+    // Queued before the app updated: the old payload shape, as the old app wrote it.
+    const queued = { type: 'ASSET_STATUS_UPDATE' as const, payload: { asset_id: 'u-1', status: 'Maintenance' }, timestamp: Date.now() - 86_400_000, attempts: 0, id: 23 }
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([queued])
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    await offlineSyncService.processOutbox()
+    expect(mockRpc).toHaveBeenCalledWith('update_asset_status', { p_asset_id: 'u-1', p_status: 'Maintenance' })
+    expect(idbStore.removeFromOutbox).toHaveBeenCalledWith(23)
+  })
+})

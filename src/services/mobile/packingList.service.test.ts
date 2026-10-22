@@ -222,6 +222,9 @@ describe('packingListService.fetchGigPackingList', () => {
 
     // Units only: a lot's pieces elsewhere show in what's at home, not as a warning.
     expect(result.elsewhere).toEqual({ k12: { gig_id: 'other-gig', gig_title: 'Other Gig', status: 'On Site' } });
+    // #186 step 3: each lot's pieces at home and at this gig, by the Locations rule, so the phone
+    // never sends more of a lot to maintenance than are home.
+    expect(result.lot_places).toEqual({ xlr: { at_home: 16, at_gig: 0 } });
   });
 
   // #246 (Cameron, 10-10): a note carries the newest record from anywhere, for units and containers.
