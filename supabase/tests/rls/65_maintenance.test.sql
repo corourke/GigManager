@@ -535,3 +535,59 @@ SELECT rls_test.expect('…its return at gig3, where it really was, brings it ho
 -- The out-of-service helper pins its search path.
 SELECT rls_test.expect('assets_clear_flag_out_of_service sets search_path',
   (SELECT count(*)::int FROM pg_proc WHERE proname = 'assets_clear_flag_out_of_service' AND proconfig IS NOT NULL), 1);
+
+-- 9. Adding to a lot's waiting flag (Cameron, 10-22: "Add to the flag") ----------------------
+-- More pieces flagged at the same gig add to the waiting flag, up to the whole lot. Details
+-- are kept unless new ones are given. Any other send from the lot stays refused.
+INSERT INTO rls_test.ids VALUES
+  ('lot_q', '00000000-0000-0000-0000-00000000d015'),
+  ('lot_v', '00000000-0000-0000-0000-00000000d016');
+INSERT INTO assets (id, organization_id, acquisition_date, category, manufacturer_model, quantity, item_cost, status, created_by, updated_by)
+SELECT rls_test.u(n), rls_test.u('org_a'), DATE '2026-01-15', 'Audio', 'Mic Stand', 10, 20, 'Active', rls_test.u('a_admin'), rls_test.u('a_admin')
+FROM (VALUES ('lot_q'), ('lot_v')) v(n);
+INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, scanned_at) VALUES
+  (rls_test.u('org_a'), rls_test.u('gig'),  rls_test.u('kit_a'), rls_test.u('lot_q'), 'On Site', 6, now() - interval '1 hour'),
+  (rls_test.u('org_a'), rls_test.u('gig3'), rls_test.u('kit_a'), rls_test.u('lot_q'), 'On Site', 2, now() - interval '1 hour'),
+  (rls_test.u('org_a'), rls_test.u('gig'),  rls_test.u('kit_a'), rls_test.u('lot_v'), 'On Site', 6, now() - interval '1 hour');
+
+SELECT rls_test.expect('Staff flags 2 of lot_q at the gig', rls_test.keep('a_staff', rls_test.send('lot_q', 2, 'gig')), 1);
+SELECT rls_test.expect('Flagging 3 more at the same gig is added',
+  rls_test.keep('a_staff', format('SELECT public.send_to_maintenance(%L, 3, %L, %L, NULL, %L)',
+    rls_test.u('lot_q'), '', 'Bench 9', rls_test.u('gig'))), 1);
+SELECT rls_test.expect('…the flag is for 5, still waiting at the gig',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_q') AND maintenance_pending
+     AND maintenance_pending_quantity = 5 AND maintenance_pending_gig_id = rls_test.u('gig') AND status = 'Active'), 1);
+SELECT rls_test.expect('…empty notes and expected back keep theirs; a new location replaces it',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_q') AND maintenance_notes = 'Woofer rattles above 100 Hz'
+     AND maintenance_location = 'Bench 9' AND maintenance_expected_back = DATE '2026-11-03'), 1);
+SELECT rls_test.expect('…logged as flagged, for the 3 added, with the gig',
+  (SELECT count(*)::int FROM activity_log WHERE event_type = 'asset.maintenance_flagged' AND entity_id = rls_test.u('lot_q')
+     AND gig_id = rls_test.u('gig') AND (context->>'quantity')::numeric = 3), 1);
+SELECT rls_test.says('A send of the flagged lot from another gig is refused',
+  rls_test.err('a_staff', rls_test.send('lot_q', 1, 'gig3')), '%already flagged%');
+SELECT rls_test.says('A send of the flagged lot without a gig is refused',
+  rls_test.err('a_staff', rls_test.send('lot_q', 1)), '%already flagged%');
+SELECT rls_test.says('Adding still takes a whole number within the lot',
+  rls_test.err('a_staff', rls_test.send('lot_q', 11, 'gig')), '%between 1 and 10%');
+SELECT rls_test.expect('A viewer can''t add to the flag', rls_test.run('a_viewer', rls_test.send('lot_q', 1, 'gig')), -1);
+
+SELECT rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 6, ''Warehouse'', now())',
+  rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a'), rls_test.id('lot_q')));
+SELECT rls_test.expect('Coming home applies the combined flag: 5 split off into Maintenance',
+  (SELECT count(*)::int FROM rls_test.split_of('lot_q') s WHERE s.quantity = 5 AND s.status = 'Maintenance'
+     AND s.maintenance_location = 'Bench 9'), 1);
+SELECT rls_test.expect('…the lot keeps 5, no longer flagged',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_q') AND quantity = 5 AND NOT maintenance_pending), 1);
+
+SELECT rls_test.expect('Staff flags 6 of lot_v at the gig', rls_test.keep('a_staff', rls_test.send('lot_v', 6, 'gig')), 1);
+SELECT rls_test.expect('Flagging 6 more is capped at the lot',
+  rls_test.keep('a_staff', rls_test.send('lot_v', 6, 'gig')), 1);
+SELECT rls_test.expect('…the flag now covers the whole lot',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_v') AND maintenance_pending AND maintenance_pending_quantity IS NULL), 1);
+SELECT rls_test.expect('…logged for the 4 added',
+  (SELECT count(*)::int FROM activity_log WHERE event_type = 'asset.maintenance_flagged' AND entity_id = rls_test.u('lot_v')
+     AND (context->>'quantity')::numeric = 4), 1);
+SELECT rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 6, ''Warehouse'', now())',
+  rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a'), rls_test.id('lot_v')));
+SELECT rls_test.expect('…coming home puts the whole lot in Maintenance',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_v') AND quantity = 10 AND status = 'Maintenance' AND NOT maintenance_pending), 1);
