@@ -2,7 +2,7 @@ import { idbStore } from '../../utils/idb/store';
 import { offlineSyncService } from './offlineSync.service';
 import { createClient } from '../../utils/supabase/client';
 import { NOT_RETURNED_STATUS, RETURNED_STATUS } from '../../config/inventoryWorkflow';
-import { recordKind } from '../../utils/equipmentItems';
+import { isAvailable, recordKind } from '../../utils/equipmentItems';
 import { placementOf, type TrackingRow } from '../../utils/locations';
 import { pickLots } from '../../utils/pickLots';
 
@@ -254,7 +254,9 @@ const getAnySlotFills = (packingList: any, slot: AnySlot, status: string, gigId:
   if (need > 0 && status !== RETURNED_STATUS && status !== NOT_RETURNED_STATUS) {
     // at_home is as of the fetch; what this gig took or put back since moves it.
     const hereRows = tracking.filter((t) => t.gig_id === gigId) as TrackingRow[];
-    const lots = records.filter((r) => recordKind(r) === 'lot').map((r) => {
+    // A lot in Maintenance or Inactive isn't picked (#186, Cameron 10-22); one only flagged to
+    // maintenance still is: it stays available until it comes home.
+    const lots = records.filter((r) => recordKind(r) === 'lot' && isAvailable(r)).map((r) => {
       const hereNow = placementOf(hereRows, r).find((p) => p.gig_id === gigId)?.quantity ?? 0;
       return { id: r.id, created_at: r.created_at, at_home: Math.max(0, Number(r.at_home ?? 0) + Number(r.at_gig ?? 0) - hereNow) };
     });
@@ -480,12 +482,97 @@ const syncIfOnline = async () => {
   }
 };
 
+
+// ── Maintenance from the phone (#186 step 3) ─────────────────────────────────────────────────
+// The send goes with this gig; the database decides whether the record is only flagged (still
+// out: a unit anywhere, a lot at this gig) or goes in now (home). The cached list follows the
+// same rule, so the row's mark shows offline until the next fetch brings the real state.
+
+type MaintenanceFields = Record<string, unknown>;
+
+/** Every cached copy of a record (kit lines, flattened and direct, and "any" item records), patched. */
+const patchRecord = (packingList: any, assetId: string, patch: (asset: any) => MaintenanceFields) => {
+  if (!packingList) return packingList;
+  const line = (a: any) => {
+    const id = a.asset_id || a.asset?.id || a.id;
+    return id === assetId && a.asset ? { ...a, asset: { ...a.asset, ...patch(a.asset) } } : a;
+  };
+  return {
+    ...packingList,
+    kits: (packingList.kits || []).map((assignment: any) => (assignment.kit ? {
+      ...assignment,
+      kit: {
+        ...assignment.kit,
+        ...(assignment.kit.assets ? { assets: assignment.kit.assets.map(line) } : {}),
+        ...(assignment.kit.direct_assets ? { direct_assets: assignment.kit.direct_assets.map(line) } : {}),
+      },
+    } : assignment)),
+    ...(packingList.item_records ? {
+      item_records: Object.fromEntries(Object.entries(packingList.item_records as Record<string, any[]>).map(([item, records]) =>
+        [item, records.map((r) => (r.id === assetId ? { ...r, ...patch(r) } : r))])),
+    } : {}),
+  };
+};
+
+/** The cached record, wherever it's listed. */
+const cachedRecord = (packingList: any, assetId: string): any => {
+  for (const assignment of packingList?.kits || []) {
+    for (const a of [...(assignment.kit?.assets || []), ...(assignment.kit?.direct_assets || [])]) {
+      if ((a.asset_id || a.asset?.id) === assetId && a.asset) return a.asset;
+    }
+  }
+  return null;
+};
+
+/** Pieces of the record at this gig now, from this gig's rows. */
+const piecesAtGig = (packingList: any, record: any, gigId: string) =>
+  placementOf(((packingList?.tracking || []) as TrackingRow[]).filter((t) => t.gig_id === gigId), record)
+    .find((p) => p.gig_id === gigId)?.quantity ?? 0;
+
+/** Still out, as the database judges it: a unit anywhere (another gig, or here), a lot at this gig. */
+const isOutForMaintenance = (packingList: any, record: any, gigId: string) =>
+  recordKind(record) === 'unit'
+    ? !!packingList?.elsewhere?.[record.id] || piecesAtGig(packingList, record, gigId) > 0
+    : piecesAtGig(packingList, record, gigId) > 0;
+
+/**
+ * A lot's pieces home now: as fetched (`lot_places`, by the Locations rule), less what this gig
+ * took since (or plus what it brought back). null when the list doesn't say (an older cache).
+ */
+const lotHomeNow = (packingList: any, assetId: string, gigId: string): number | null => {
+  const place = packingList?.lot_places?.[assetId];
+  const record = cachedRecord(packingList, assetId);
+  if (!place || !record) return null;
+  return Math.max(0, Number(place.at_home ?? 0) + Number(place.at_gig ?? 0) - piecesAtGig(packingList, record, gigId));
+};
+
+const cleared = {
+  maintenance_notes: null, maintenance_location: null, maintenance_expected_back: null, maintenance_since: null,
+  maintenance_pending: false, maintenance_pending_gig_id: null, maintenance_pending_quantity: null, status_before_maintenance: null,
+};
+
+type SendToMaintenanceParams = {
+  gigId: string;
+  assetId: string;
+  quantity: number;
+  notes?: string | null;
+  location?: string | null;
+  expectedBack?: string | null;
+};
+
+const blank = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+
 export const inventoryTrackingService = {
   getLatestTrackingRecord,
   getCascadeTargets,
   getAnySlots,
   getAnySlotFilled,
   getAnySlotFills,
+  lotHomeNow,
+  piecesAtGigNow: (packingList: any, assetId: string, gigId: string) => {
+    const record = cachedRecord(packingList, assetId);
+    return record ? piecesAtGig(packingList, record, gigId) : 0;
+  },
   getScanProgress,
   getKitProgress,
   getStillOut,
@@ -700,6 +787,70 @@ export const inventoryTrackingService = {
       )
     );
 
+    await syncIfOnline();
+  },
+
+  /** Sends a unit, a lot, or part of a lot to maintenance from this gig (queued; see above). */
+  async sendToMaintenance(params: SendToMaintenanceParams) {
+    const { gigId, assetId, quantity } = params;
+    const notes = blank(params.notes);
+    const location = blank(params.location);
+    const expectedBack = params.expectedBack || null;
+    const packingList = await idbStore.getPackingList(gigId);
+    const record = cachedRecord(packingList, assetId);
+    if (packingList && record) {
+      const size = Math.max(1, Number(record.quantity ?? 1));
+      const details = (a: any) => ({
+        maintenance_notes: notes ?? a.maintenance_notes ?? null,
+        maintenance_location: location ?? a.maintenance_location ?? null,
+        maintenance_expected_back: expectedBack ?? a.maintenance_expected_back ?? null,
+      });
+      const patch = record.maintenance_pending || isOutForMaintenance(packingList, record, gigId)
+        ? (a: any) => {
+          // Flagged; more of a flagged lot adds to the flag, up to the whole lot (null).
+          const flagged = a.maintenance_pending ? Number(a.maintenance_pending_quantity ?? size) : 0;
+          const total = Math.min(size, flagged + quantity);
+          return { ...details(a), maintenance_pending: true, maintenance_pending_gig_id: a.maintenance_pending_gig_id ?? gigId,
+            maintenance_pending_quantity: total < size ? total : null };
+        }
+        : quantity < size
+          // Part of a lot at home splits off into its own record (not on this list); the lot is smaller.
+          ? () => ({ quantity: size - quantity, maintenance_pending: false })
+          : (a: any) => ({ ...details(a), status: 'Maintenance', status_before_maintenance: a.status ?? 'Active', maintenance_pending: false });
+      await idbStore.putPackingList(gigId, patchRecord(packingList, assetId, patch));
+    }
+    await offlineSyncService.queueTrackingUpdate({
+      asset_id: assetId, quantity, notes, location, expected_back: expectedBack, gig_id: gigId,
+    }, 'MAINTENANCE_SEND');
+    await syncIfOnline();
+  },
+
+  /** Cancels a flag, or returns a record in maintenance to service (the status it had). */
+  async returnFromMaintenance(params: { gigId: string; assetId: string }) {
+    const { gigId, assetId } = params;
+    const packingList = await idbStore.getPackingList(gigId);
+    if (packingList) {
+      await idbStore.putPackingList(gigId, patchRecord(packingList, assetId, (a) => (a.maintenance_pending
+        ? { ...cleared }
+        : { ...cleared, status: a.status === 'Maintenance' ? a.status_before_maintenance ?? 'Active' : a.status })));
+    }
+    await offlineSyncService.queueTrackingUpdate({ asset_id: assetId }, 'MAINTENANCE_RETURN');
+    await syncIfOnline();
+  },
+
+  /** Edits the notes, location and expected-back date of a record flagged or in maintenance. */
+  async updateMaintenanceDetails(params: { gigId: string; assetId: string; notes?: string | null; location?: string | null; expectedBack?: string | null }) {
+    const { gigId, assetId } = params;
+    const notes = blank(params.notes);
+    const location = blank(params.location);
+    const expectedBack = params.expectedBack || null;
+    const packingList = await idbStore.getPackingList(gigId);
+    if (packingList) {
+      await idbStore.putPackingList(gigId, patchRecord(packingList, assetId, () => ({
+        maintenance_notes: notes, maintenance_location: location, maintenance_expected_back: expectedBack,
+      })));
+    }
+    await offlineSyncService.queueTrackingUpdate({ asset_id: assetId, notes, location, expected_back: expectedBack }, 'MAINTENANCE_UPDATE');
     await syncIfOnline();
   },
 
