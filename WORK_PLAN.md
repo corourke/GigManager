@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-22 08:40 UTC (coordinator: #296 (#186 step 1, Maintenance migration) under independent review; check-in routine recreated)
+- **Last updated:** 2026-10-22 (triage verified §1; coordinator 08:40 UTC: #296 (#186 step 1, Maintenance migration) under independent review; check-in routine recreated)
 
 ---
 
@@ -20,7 +20,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 | # | Item | State | Next / owner |
 |---|---|---|---|
 | [#162](https://github.com/corourke/GigManager/issues/162) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
-| [#186](https://github.com/corourke/GigManager/issues/186) | Items screens (e): locations, override, maintenance (closes #160) | Locations steps shipped (#268); Maintenance plan approved 10-18; step-1 migration design pending from the Equipment Lead. #183 closed 10-18 (#276, #295) | Equipment Lead |
+| [#186](https://github.com/corourke/GigManager/issues/186) | Items screens (e): locations, override, maintenance (closes #160) | Locations steps shipped (#268); Maintenance plan approved 10-18; step 1 is PR #296 (Maintenance migration, CI pending at 55ab643, under independent review). #183 closed 10-18 (#276, #295) | Equipment Lead |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
 | [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Paused (Cameron, 10-08) until #186 merges**: batches 3–7 touch the services the equipment refactor and #175 rewrite | Triage resumes at batch 3 once #186 is merged |
 
@@ -303,7 +303,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 **Triage routine** (daily, ~09:00 UTC). Each run:
 1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.
 2. Build what §3c releases that has no PR yet: plan comment on the issue, failing test first.
-3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/development/user-documentation-plan.md`). Leave `website/docs/` to the Docs Lead.
+3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/development/dry-run-findings-2026-09-08.md` (or retire the dry-run records)). Leave `website/docs/` to the Docs Lead.
 4. Don't manufacture activity: if nothing changed, commit nothing and post nothing.
 
 **Who updates which docs** (Cameron, 10-07):
