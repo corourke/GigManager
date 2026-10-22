@@ -433,8 +433,11 @@ SELECT rls_test.expect('Both back: the piece splits off into Maintenance',
   (SELECT count(*)::int FROM rls_test.split_of('lot_k') s WHERE s.status = 'Maintenance' AND s.quantity = 1), 1);
 
 -- Sending without a gig: no more than are home.
-SELECT rls_test.says('Sending 5 of lot_h with 6 of 10 out is refused',
-  rls_test.err('a_staff', rls_test.send('lot_h', 5)), '%4 of them are home%');
+-- (A lot's count at home is the Locations rule's, which the screens apply; the database only
+-- keeps a send within the lot.)
+SELECT rls_test.expect('A lot with 6 of 10 out: sending 5 without a gig is left to the screens',
+  rls_test.run('a_staff', rls_test.send('lot_h', 5)), 1);
+SELECT rls_test.says('…but never more than the lot', rls_test.err('a_staff', rls_test.send('lot_h', 11)), '%between 1 and 10%');
 SELECT rls_test.expect('…sending the 4 at home works', rls_test.run('a_staff', rls_test.send('lot_h', 4)), 1);
 
 -- update_asset_status to Active on a flagged record (an older phone's untick) cancels the flag.
@@ -482,3 +485,53 @@ SELECT rls_test.expect('…the lot stays flagged',
 -- reclassify_expense_as_asset isn't a status writer: it was dropped by 20261011000000.
 SELECT rls_test.expect('reclassify_expense_as_asset no longer exists',
   (SELECT count(*)::int FROM pg_proc WHERE proname = 'reclassify_expense_as_asset'), 0);
+
+-- 8. Re-review (10-22): a unit is where its newest row is, across gigs and kits ---------------
+INSERT INTO rls_test.ids VALUES
+  ('gig3',   '00000000-0000-0000-0000-00000000d0f3'),
+  ('unit_s', '00000000-0000-0000-0000-00000000d008'),
+  ('unit_t', '00000000-0000-0000-0000-00000000d009'),
+  ('unit_u', '00000000-0000-0000-0000-00000000d00a');
+INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated_by, owner_organization_id)
+VALUES (rls_test.u('gig3'), 'Third gig', (enum_range(NULL::gig_status))[1], now(), now() + interval '4 hours', 'UTC',
+        rls_test.u('a_admin'), rls_test.u('a_admin'), rls_test.u('org_a'));
+INSERT INTO gig_participants (gig_id, organization_id, role) VALUES (rls_test.u('gig3'), rls_test.u('org_a'), 'Production');
+INSERT INTO assets (id, organization_id, acquisition_date, category, manufacturer_model, quantity, tag_number, item_cost, status, created_by, updated_by)
+SELECT rls_test.u(n), rls_test.u('org_a'), DATE '2026-01-15', 'Audio', 'QSC K12.2', 1, t, 900, 'Active', rls_test.u('a_admin'), rls_test.u('a_admin')
+FROM (VALUES ('unit_s', 'DSL-0111'), ('unit_t', 'DSL-0112'), ('unit_u', 'DSL-0113')) v(n, t);
+INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES
+  -- A: unit_s left open at the shared gig, then out and back at gig3: it's home.
+  (rls_test.u('org_a'), rls_test.u('gig'),  rls_test.u('kit_a'),  rls_test.u('unit_s'), 'On Site',      1, NULL, now() - interval '3 hours'),
+  (rls_test.u('org_a'), rls_test.u('gig3'), rls_test.u('kit_a'),  rls_test.u('unit_s'), 'Checked Out',  1, NULL, now() - interval '2 hours'),
+  (rls_test.u('org_a'), rls_test.u('gig3'), rls_test.u('kit_a'),  rls_test.u('unit_s'), 'In Warehouse', 1, 'Warehouse', now() - interval '1 hour'),
+  -- B: unit_t out at the shared gig, moved from kit_a to kit_a2 there.
+  (rls_test.u('org_a'), rls_test.u('gig'),  rls_test.u('kit_a'),  rls_test.u('unit_t'), 'On Site',      1, NULL, now() - interval '2 hours'),
+  (rls_test.u('org_a'), rls_test.u('gig'),  rls_test.u('kit_a2'), rls_test.u('unit_t'), 'On Site',      1, NULL, now() - interval '1 hour'),
+  -- C: unit_u left open at the shared gig, now out at gig3.
+  (rls_test.u('org_a'), rls_test.u('gig'),  rls_test.u('kit_a'),  rls_test.u('unit_u'), 'On Site',      1, NULL, now() - interval '2 hours'),
+  (rls_test.u('org_a'), rls_test.u('gig3'), rls_test.u('kit_a'),  rls_test.u('unit_u'), 'Checked Out',  1, NULL, now() - interval '1 hour');
+
+SELECT rls_test.expect('A: a unit home by its newest row can be sent without a gig',
+  rls_test.keep('a_staff', rls_test.send('unit_s', 1)), 1);
+SELECT rls_test.expect('…it''s in Maintenance', (rls_test.status_of('unit_s') = 'Maintenance')::int, 1);
+SELECT rls_test.says('A unit out at a gig can''t be sent without one',
+  rls_test.err('a_staff', rls_test.send('unit_u', 1)), '%isn''t home%');
+
+SELECT rls_test.expect('B: flag unit_t at the gig (moved between kits there)', rls_test.keep('a_staff', rls_test.send('unit_t', 1, 'gig')), 1);
+SELECT rls_test.expect('…pending', (SELECT maintenance_pending::int FROM assets WHERE id = rls_test.u('unit_t')), 1);
+SELECT rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 1, ''Warehouse'', now())',
+  rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a2'), rls_test.id('unit_t')));
+SELECT rls_test.expect('…its return in the second kit brings it home into Maintenance',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_t') AND status = 'Maintenance' AND NOT maintenance_pending), 1);
+
+SELECT rls_test.expect('C: flagging unit_u at the shared gig, while it''s out at gig3, leaves it pending',
+  rls_test.keep('a_staff', rls_test.send('unit_u', 1, 'gig')), 1);
+SELECT rls_test.expect('…pending', (SELECT maintenance_pending::int FROM assets WHERE id = rls_test.u('unit_u')), 1);
+SELECT rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 1, ''Warehouse'', now())',
+  rls_test.id('org_a'), rls_test.id('gig3'), rls_test.id('kit_a'), rls_test.id('unit_u')));
+SELECT rls_test.expect('…its return at gig3, where it really was, brings it home into Maintenance',
+  (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_u') AND status = 'Maintenance' AND NOT maintenance_pending), 1);
+
+-- The out-of-service helper pins its search path.
+SELECT rls_test.expect('assets_clear_flag_out_of_service sets search_path',
+  (SELECT count(*)::int FROM pg_proc WHERE proname = 'assets_clear_flag_out_of_service' AND proconfig IS NOT NULL), 1);
