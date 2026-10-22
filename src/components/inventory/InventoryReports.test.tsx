@@ -8,7 +8,6 @@ vi.mock('../../services/inventoryManagement.service', () => ({
   getGigsForReportPicker: vi.fn().mockResolvedValue([{ id: 'gig-1', title: 'Test Gig', start: '2026-07-12T19:00:00Z', timezone: 'America/Los_Angeles' }]),
   getInventoryConflictFlags: vi.fn().mockResolvedValue(new Set()),
   getManifestReport: vi.fn().mockResolvedValue([]),
-  getMaintenanceQueueReport: vi.fn().mockResolvedValue([]),
   getPackingListReport: vi.fn(),
 }));
 

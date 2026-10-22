@@ -18,7 +18,9 @@ vi.mock('./LocationExplorer', () => ({
 }))
 vi.mock('./InventoryReports', () => ({
   ManifestReport: () => <div>Manifest Panel</div>,
-  MaintenanceQueue: () => <div>Maintenance Panel</div>,
+}))
+vi.mock('./MaintenanceList', () => ({
+  MaintenanceList: () => <div>Maintenance Panel</div>,
 }))
 vi.mock('./TrackingTab', () => ({
   default: ({ initialGigId }: { initialGigId?: string }) => <div>Tracking Panel for {initialGigId ?? 'no gig'}</div>,

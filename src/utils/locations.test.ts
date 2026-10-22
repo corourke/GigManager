@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bucketsAt, currentRows, lotPieces, placementOf, whereabouts, type TrackingRow } from './locations';
+import { bucketsAt, currentRows, lotPieces, piecesHome, placementOf, whereabouts, type TrackingRow } from './locations';
 import { RETURNED_STATUS } from '../config/inventoryWorkflow';
 
 // #186 / #185: where a unit or lot is, from the append-only tracking history.
@@ -410,5 +410,56 @@ describe('whereabouts (#186)', () => {
       row({ asset_id: 'snake', gig_id: 'gig-b', status: 'On Site', location: 'Stage', scanned_at: '2026-10-05T10:00:00Z' }),
     ];
     expect(whereabouts(rows, [one])).toEqual([{ gig_id: 'gig-b', location: 'Stage', quantity: 1 }]);
+  });
+});
+
+// #186 step 2: how many of a record are home, by the Locations rule, for a send to maintenance
+// with no gig (the database leaves a lot's home count to the screens).
+describe('piecesHome (#186)', () => {
+  it('a unit with no rows, or whose newest row is a return, is home', () => {
+    expect(piecesHome([], unit)).toBe(1);
+    expect(piecesHome([
+      row({ asset_id: 'u1', gig_id: 'gig-a', status: 'On Site', scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ asset_id: 'u1', gig_id: 'gig-b', status: RETURNED_STATUS, scanned_at: '2026-10-02T10:00:00Z' }),
+    ], unit)).toBe(1);
+  });
+
+  it('a unit whose newest row is out is not home, even with an older return', () => {
+    expect(piecesHome([
+      row({ asset_id: 'u1', gig_id: 'gig-a', status: RETURNED_STATUS, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ asset_id: 'u1', gig_id: 'gig-b', status: 'Checked Out', scanned_at: '2026-10-02T10:00:00Z' }),
+    ], unit)).toBe(0);
+  });
+
+  it('a lot with pieces out at two gigs: the rest are home', () => {
+    expect(piecesHome([
+      row({ asset_id: 'lot', gig_id: 'gig-a', status: 'On Site', quantity: 3 }),
+      row({ asset_id: 'lot', gig_id: 'gig-b', status: 'Checked Out', quantity: 2 }),
+    ], lot)).toBe(5);
+  });
+
+  it('a lot in a container is one place, wherever the case went', () => {
+    const rows = [
+      row({ asset_id: 'lot', gig_id: 'gig-a', kit_id: 'case', status: 'On Site', quantity: 4, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ asset_id: 'lot', gig_id: 'gig-b', kit_id: 'case', status: 'Checked Out', quantity: 4, scanned_at: '2026-10-02T10:00:00Z' }),
+    ];
+    expect(piecesHome(rows, lot, (id) => id === 'case')).toBe(6);
+  });
+
+  it('a stale place holds nothing: a lot of 2 out at gig A, then both at gig B', () => {
+    const two = { id: 'lot', quantity: 2, status: 'Active' };
+    expect(piecesHome([
+      row({ asset_id: 'lot', gig_id: 'gig-a', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ asset_id: 'lot', gig_id: 'gig-b', status: 'Checked Out', quantity: 2, scanned_at: '2026-10-02T10:00:00Z' }),
+    ], two)).toBe(0);
+    expect(piecesHome([
+      row({ asset_id: 'lot', gig_id: 'gig-a', status: 'On Site', quantity: 1, scanned_at: '2026-10-01T10:00:00Z' }),
+      row({ asset_id: 'lot', gig_id: 'gig-a', status: RETURNED_STATUS, quantity: 1, scanned_at: '2026-10-03T10:00:00Z' }),
+    ], two)).toBe(2);
+  });
+
+  it('ignores other records\' rows; a retired record has none home', () => {
+    expect(piecesHome([row({ asset_id: 'other', status: 'On Site', quantity: 5 })], lot)).toBe(10);
+    expect(piecesHome([], { ...lot, retired_on: '2026-09-01' })).toBe(0);
   });
 });
