@@ -479,6 +479,6 @@ SELECT rls_test.expect('Adding units to the flagged lot''s line works',
 SELECT rls_test.expect('…the lot stays flagged',
   (SELECT count(*)::int FROM assets WHERE id = rls_test.u('lot_m') AND maintenance_pending AND maintenance_pending_quantity = 1), 1);
 
--- The unused reclassify_expense_as_asset (it still wrote a dropped column) is gone.
+-- reclassify_expense_as_asset isn't a status writer: it was dropped by 20261011000000.
 SELECT rls_test.expect('reclassify_expense_as_asset no longer exists',
   (SELECT count(*)::int FROM pg_proc WHERE proname = 'reclassify_expense_as_asset'), 0);

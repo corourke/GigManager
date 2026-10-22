@@ -60,6 +60,29 @@ ALTER TABLE public.assets
 CREATE INDEX assets_maintenance_pending_idx ON public.assets (id) WHERE maintenance_pending;
 
 -- 1. Who writes status ----------------------------------------------------------------------
+-- A flagged record leaving service (Disposed, Returned or Missing, or given a retired date) loses
+-- its flag and details: it won't be coming back to go into maintenance. Cleared, not refused, so
+-- a disposal or write-off is never blocked by a flag.
+CREATE OR REPLACE FUNCTION public.assets_clear_flag_out_of_service(p_old public.assets, p_new public.assets, p_op text)
+RETURNS public.assets LANGUAGE plpgsql IMMUTABLE AS $$
+BEGIN
+  IF p_op = 'UPDATE' AND p_new.maintenance_pending
+     AND (p_new.status IN ('Disposed', 'Returned', 'Missing') OR (p_new.retired_on IS NOT NULL AND p_old.retired_on IS NULL)) THEN
+    p_new.maintenance_pending := false;
+    p_new.maintenance_pending_gig_id := NULL;
+    p_new.maintenance_pending_quantity := NULL;
+    p_new.maintenance_notes := NULL;
+    p_new.maintenance_location := NULL;
+    p_new.maintenance_expected_back := NULL;
+    p_new.maintenance_since := NULL;
+    p_new.maintenance_by := NULL;
+  END IF;
+  RETURN p_new;
+END $$;
+-- A pure function of the row: the trigger runs as the writer, so signed-in users can run it.
+REVOKE EXECUTE ON FUNCTION public.assets_clear_flag_out_of_service(public.assets, public.assets, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.assets_clear_flag_out_of_service(public.assets, public.assets, text) TO authenticated;
+
 -- Maintenance and Missing, in or out, and the maintenance columns are written only by the
 -- SECURITY DEFINER functions below and the write-off functions. They mark themselves with a
 -- transaction-local setting; a client's own statements run as `authenticated`, so the setting
@@ -72,7 +95,7 @@ DECLARE
                       AND current_user NOT IN ('authenticated', 'anon');
 BEGIN
   IF v_writer THEN
-    RETURN NEW;
+    RETURN public.assets_clear_flag_out_of_service(OLD, NEW, TG_OP);
   END IF;
 
   IF TG_OP = 'INSERT' THEN
@@ -99,7 +122,7 @@ BEGIN
      AND (NEW.maintenance_by IS NOT DISTINCT FROM OLD.maintenance_by OR NEW.maintenance_by IS NULL)
      AND (NEW.maintenance_from IS NOT DISTINCT FROM OLD.maintenance_from OR NEW.maintenance_from IS NULL)
      AND (NEW.maintenance_pending_gig_id IS NOT DISTINCT FROM OLD.maintenance_pending_gig_id OR NEW.maintenance_pending_gig_id IS NULL) THEN
-    RETURN NEW;
+    RETURN public.assets_clear_flag_out_of_service(OLD, NEW, TG_OP);
   END IF;
 
   IF NEW.status IS DISTINCT FROM OLD.status
@@ -116,7 +139,7 @@ BEGIN
       OLD.maintenance_pending_gig_id, OLD.maintenance_pending_quantity) THEN
     RAISE EXCEPTION 'Maintenance details are changed through the maintenance list.' USING ERRCODE = '42501';
   END IF;
-  RETURN NEW;
+  RETURN public.assets_clear_flag_out_of_service(OLD, NEW, TG_OP);
 END $$;
 
 CREATE TRIGGER assets_status_writer_rules
@@ -126,11 +149,12 @@ CREATE TRIGGER assets_status_writer_rules
 -- 2. Shared pieces --------------------------------------------------------------------------
 -- An activity entry for the record's organization, attributed to the signed-in user (none
 -- for unsigned writes). Written directly: it can run inside a trigger on another user's write.
-CREATE OR REPLACE FUNCTION public.maintenance_log(p_event text, p_asset public.assets, p_context jsonb)
+CREATE OR REPLACE FUNCTION public.maintenance_log(p_event text, p_asset public.assets, p_context jsonb, p_gig_id uuid DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   INSERT INTO public.activity_log (organization_id, actor_id, event_type, entity_type, entity_id, gig_id, context)
-  SELECT p_asset.organization_id, auth.uid(), p_event, 'asset', p_asset.id, NULL,
+  SELECT p_asset.organization_id, auth.uid(), p_event, 'asset', p_asset.id,
+         (SELECT id FROM public.gigs WHERE id = p_gig_id),
          jsonb_build_object(
            'context_version', 1,
            'actor_display_name', COALESCE(NULLIF(trim(concat_ws(' ', u.first_name, u.last_name)), ''), u.email, ''),
@@ -139,7 +163,20 @@ BEGIN
            'quantity', COALESCE(p_asset.quantity, 1)) || p_context
   FROM (SELECT 1) one LEFT JOIN public.users u ON u.id = auth.uid();
 END $$;
-REVOKE EXECUTE ON FUNCTION public.maintenance_log(text, public.assets, jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.maintenance_log(text, public.assets, jsonb, uuid) FROM PUBLIC, anon, authenticated;
+
+-- Pieces of a record still out at a gig: its newest row in each (gig, kit) bucket that isn't a
+-- return, summed. With p_gig_id, that gig only.
+CREATE OR REPLACE FUNCTION public.asset_pieces_out(p_asset_id uuid, p_gig_id uuid DEFAULT NULL)
+RETURNS numeric LANGUAGE sql STABLE SET search_path = public AS $$
+  SELECT COALESCE(sum(quantity), 0) FROM (
+    SELECT DISTINCT ON (gig_id, kit_id) status, quantity
+      FROM public.inventory_tracking
+     WHERE asset_id = p_asset_id AND (p_gig_id IS NULL OR gig_id = p_gig_id)
+     ORDER BY gig_id, kit_id, scanned_at DESC, created_at DESC, id DESC) newest
+  WHERE status <> 'In Warehouse'
+$$;
+REVOKE EXECUTE ON FUNCTION public.asset_pieces_out(uuid, uuid) FROM PUBLIC, anon, authenticated;
 
 -- A flagged (pending) record goes into Maintenance: the whole record, or its pending quantity
 -- split off into its own record with the lot's values. Returns the record now in Maintenance.
@@ -157,6 +194,16 @@ BEGIN
     RETURN p_asset_id;
   END IF;
   PERFORM set_config('gigwrangler.asset_status_writer', 'on', true);
+
+  -- No longer in service (disposed or retired since it was flagged): the flag just goes.
+  IF v_asset.status NOT IN ('Active', 'Inactive') OR v_asset.retired_on IS NOT NULL THEN
+    UPDATE public.assets
+       SET maintenance_notes = NULL, maintenance_location = NULL, maintenance_expected_back = NULL,
+           maintenance_since = NULL, maintenance_by = NULL, maintenance_pending = false,
+           maintenance_pending_gig_id = NULL, maintenance_pending_quantity = NULL
+     WHERE id = v_asset.id;
+    RETURN v_asset.id;
+  END IF;
 
   v_held := COALESCE(v_asset.quantity, 1);
   v_qty := LEAST(COALESCE(v_asset.maintenance_pending_quantity, v_held), v_held);
@@ -191,9 +238,10 @@ BEGIN
            maintenance_since = NULL, maintenance_by = NULL, maintenance_pending = false,
            maintenance_pending_gig_id = NULL, maintenance_pending_quantity = NULL
      WHERE id = v_asset.id;
-    PERFORM public.maintenance_log('asset.sent_to_maintenance', v_piece,
-      jsonb_build_object('split_from', v_asset.id, 'from_gig', v_asset.maintenance_pending_gig_id,
-                         'location', v_piece.maintenance_location));
+    -- Logged against the lot, which stays; the piece may later merge back and go.
+    PERFORM public.maintenance_log('asset.sent_to_maintenance', v_asset,
+      jsonb_build_object('quantity', v_qty, 'split_off', v_piece.id, 'location', v_piece.maintenance_location),
+      v_asset.maintenance_pending_gig_id);
     RETURN v_piece.id;
   END IF;
 
@@ -204,27 +252,25 @@ BEGIN
    WHERE id = v_asset.id
   RETURNING * INTO v_piece;
   PERFORM public.maintenance_log('asset.sent_to_maintenance', v_piece,
-    jsonb_build_object('from_gig', v_asset.maintenance_pending_gig_id, 'location', v_piece.maintenance_location));
+    jsonb_build_object('location', v_piece.maintenance_location), v_asset.maintenance_pending_gig_id);
   RETURN v_asset.id;
 END $$;
 REVOKE EXECUTE ON FUNCTION public.maintenance_apply(uuid) FROM PUBLIC, anon, authenticated;
 
 -- 3. Send to maintenance --------------------------------------------------------------------
 -- p_gig_id: the gig it was flagged at (scanning). If the record still has pieces out at that
--- gig (its newest row there isn't a return), it's pending until it comes home; otherwise it
--- goes in now.
-CREATE OR REPLACE FUNCTION public.send_to_maintenance(
-  p_asset_id uuid,
-  p_quantity numeric,
-  p_notes text DEFAULT NULL,
-  p_location text DEFAULT NULL,
-  p_expected_back date DEFAULT NULL,
-  p_gig_id uuid DEFAULT NULL
+-- gig (any (gig, kit) bucket whose newest row isn't a return), it's pending until it comes
+-- home; otherwise it goes in now.
+-- Without a gig, no more than are home can go (p_check_home; update_asset_status sends the
+-- whole record as before, wherever it is).
+CREATE OR REPLACE FUNCTION public.maintenance_send(
+  p_asset_id uuid, p_quantity numeric, p_notes text, p_location text, p_expected_back date, p_gig_id uuid,
+  p_check_home boolean
 ) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_asset public.assets;
   v_held numeric;
-  v_newest text;
+  v_home numeric;
   v_out boolean := false;
 BEGIN
   SELECT * INTO v_asset FROM public.assets WHERE id = p_asset_id FOR UPDATE;
@@ -245,10 +291,13 @@ BEGIN
     IF NOT public.org_participates_in_gig(v_asset.organization_id, p_gig_id) THEN
       RAISE EXCEPTION 'The equipment''s organization isn''t on that gig' USING ERRCODE = '42501';
     END IF;
-    SELECT status INTO v_newest FROM public.inventory_tracking
-     WHERE gig_id = p_gig_id AND asset_id = v_asset.id
-     ORDER BY scanned_at DESC, created_at DESC, id DESC LIMIT 1;
-    v_out := FOUND AND v_newest <> 'In Warehouse';
+    v_out := public.asset_pieces_out(v_asset.id, p_gig_id) > 0;
+  ELSIF p_check_home THEN
+    v_home := GREATEST(v_held - public.asset_pieces_out(v_asset.id), 0);
+    IF p_quantity > v_home THEN
+      RAISE EXCEPTION 'Only % of them are home; send the rest from their gig when they come back.', trunc(v_home)::int
+        USING ERRCODE = '22023';
+    END IF;
   END IF;
 
   PERFORM set_config('gigwrangler.asset_status_writer', 'on', true);
@@ -263,10 +312,23 @@ BEGIN
 
   IF v_out THEN
     PERFORM public.maintenance_log('asset.maintenance_flagged', v_asset,
-      jsonb_build_object('quantity', p_quantity, 'gig_id', p_gig_id, 'location', v_asset.maintenance_location));
+      jsonb_build_object('quantity', p_quantity, 'location', v_asset.maintenance_location), p_gig_id);
     RETURN v_asset.id;
   END IF;
   RETURN public.maintenance_apply(v_asset.id);
+END $$;
+REVOKE EXECUTE ON FUNCTION public.maintenance_send(uuid, numeric, text, text, date, uuid, boolean) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.send_to_maintenance(
+  p_asset_id uuid,
+  p_quantity numeric,
+  p_notes text DEFAULT NULL,
+  p_location text DEFAULT NULL,
+  p_expected_back date DEFAULT NULL,
+  p_gig_id uuid DEFAULT NULL
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  RETURN public.maintenance_send(p_asset_id, p_quantity, p_notes, p_location, p_expected_back, p_gig_id, true);
 END $$;
 REVOKE EXECUTE ON FUNCTION public.send_to_maintenance(uuid, numeric, text, text, date, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.send_to_maintenance(uuid, numeric, text, text, date, uuid) TO authenticated;
@@ -298,9 +360,10 @@ REVOKE EXECUTE ON FUNCTION public.update_maintenance(uuid, text, text, date) FRO
 GRANT EXECUTE ON FUNCTION public.update_maintenance(uuid, text, text, date) TO authenticated;
 
 -- 5. Return to service -----------------------------------------------------------------------
--- A pending record: the flag is cancelled. In Maintenance: back to the status it had. A piece
--- split off a lot merges back into it when the lot is still in service, of the same
--- organization, item and purchase line, and the piece has no serial or tag (as undo_write_off).
+-- A pending record: the flag is cancelled. In Maintenance: back to the status it had; refused
+-- once retired. A piece split off a lot merges back into it when the lot is still in service
+-- (Active or Inactive, not retired, not flagged), of the same organization, item and purchase
+-- line, and the piece has no serial or tag. undo_write_off follows the same rule (below).
 CREATE OR REPLACE FUNCTION public.return_to_service(p_asset_id uuid)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -323,6 +386,9 @@ BEGIN
     PERFORM public.maintenance_log('asset.maintenance_cancelled', v_asset, '{}'::jsonb);
     RETURN v_asset.id;
   END IF;
+  IF v_asset.retired_on IS NOT NULL THEN
+    RAISE EXCEPTION 'This equipment is retired, so it can''t return to service.' USING ERRCODE = '22023';
+  END IF;
   IF v_asset.status <> 'Maintenance' THEN
     RAISE EXCEPTION 'This equipment isn''t in maintenance.' USING ERRCODE = '22023';
   END IF;
@@ -333,6 +399,7 @@ BEGIN
   END IF;
 
   IF v_lot.id IS NOT NULL AND v_lot.retired_on IS NULL AND v_lot.status IN ('Active', 'Inactive')
+     AND NOT v_lot.maintenance_pending
      AND v_lot.organization_id = v_asset.organization_id
      AND v_lot.equipment_item_id IS NOT DISTINCT FROM v_asset.equipment_item_id
      AND (v_lot.purchase_line_id IS NULL OR v_lot.purchase_line_id = v_asset.purchase_line_id) THEN
@@ -340,7 +407,9 @@ BEGIN
      WHERE id = v_lot.id;
     DELETE FROM public.inventory_tracking WHERE asset_id = v_asset.id;
     DELETE FROM public.assets WHERE id = v_asset.id;
-    PERFORM public.maintenance_log('asset.returned_to_service', v_asset, jsonb_build_object('merged_into', v_lot.id));
+    -- Logged against the lot, which stays; the piece is gone.
+    PERFORM public.maintenance_log('asset.returned_to_service', v_lot,
+      jsonb_build_object('quantity', COALESCE(v_asset.quantity, 1), 'merged_from', v_asset.id));
     RETURN v_lot.id;
   END IF;
 
@@ -358,13 +427,15 @@ REVOKE EXECUTE ON FUNCTION public.return_to_service(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.return_to_service(uuid) TO authenticated;
 
 -- 6. Coming home applies a pending flag ------------------------------------------------------
--- Only a return row ('In Warehouse') for a record flagged at that gig does anything; the
--- WHEN clause keeps every other tracking insert free. Applying writes no tracking rows.
+-- Only a return row ('In Warehouse') for a record flagged at that gig does anything, and only
+-- once no bucket of it at that gig (one per kit) is still open; the WHEN clause keeps every
+-- other tracking insert free. Applying writes no tracking rows.
 CREATE OR REPLACE FUNCTION public.inventory_tracking_maintenance_on_return()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.assets
-              WHERE id = NEW.asset_id AND maintenance_pending AND maintenance_pending_gig_id = NEW.gig_id) THEN
+              WHERE id = NEW.asset_id AND maintenance_pending AND maintenance_pending_gig_id = NEW.gig_id)
+     AND public.asset_pieces_out(NEW.asset_id, NEW.gig_id) = 0 THEN
     PERFORM public.maintenance_apply(NEW.asset_id);
   END IF;
   RETURN NULL;
@@ -394,18 +465,24 @@ CREATE TRIGGER assets_maintenance_gig_gone
 -- 7. update_asset_status: Maintenance through the rules above ------------------------------
 -- As in 20261019000000, plus: to Maintenance sends the whole record (no gig), so phones still
 -- queueing status updates keep working; out of Maintenance clears its details without merging
--- (the equipment form edits this record); Disposed or Returned clears a pending flag too.
+-- (the equipment form edits this record); Active or Inactive on a flagged record cancels the
+-- flag; Disposed or Returned clears it too.
 CREATE OR REPLACE FUNCTION public.update_asset_status(p_asset_id uuid, p_status text)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_org uuid;
   v_old text;
   v_qty numeric;
+  v_pending boolean;
 BEGIN
-  SELECT organization_id, status, COALESCE(quantity, 1) INTO v_org, v_old, v_qty
+  SELECT organization_id, status, COALESCE(quantity, 1), maintenance_pending INTO v_org, v_old, v_qty, v_pending
     FROM public.assets WHERE id = p_asset_id FOR UPDATE;
   IF NOT FOUND OR NOT public.user_is_staff_or_above_of_org(v_org, auth.uid()) THEN
     RAISE EXCEPTION 'Equipment status changes take Staff or above.' USING ERRCODE = '42501';
+  END IF;
+  -- Active or Inactive on a flagged record (an older phone's untick) cancels the flag.
+  IF v_pending AND p_status IN ('Active', 'Inactive') THEN
+    PERFORM public.return_to_service(p_asset_id);
   END IF;
   IF p_status IS NOT DISTINCT FROM v_old THEN
     RETURN;
@@ -425,7 +502,7 @@ BEGIN
   END IF;
 
   IF p_status = 'Maintenance' THEN
-    PERFORM public.send_to_maintenance(p_asset_id, v_qty, NULL, NULL, NULL, NULL);
+    PERFORM public.maintenance_send(p_asset_id, v_qty, NULL, NULL, NULL, NULL, false);
     RETURN;
   END IF;
 
@@ -448,7 +525,8 @@ GRANT EXECUTE ON FUNCTION public.update_asset_status(uuid, text) TO authenticate
 
 -- 8. Write-offs: as in 20261018000000, marked as status writers ------------------------------
 -- A whole write-off clears the maintenance details and any pending flag; Undo restores the
--- status the record had (Maintenance included, with no details).
+-- status the record had (Maintenance included, with no details), and merges a piece back only
+-- into a lot in service and not flagged, as return_to_service does.
 CREATE OR REPLACE FUNCTION public.write_off_pieces(
   p_asset_id uuid,
   p_quantity numeric,
@@ -591,7 +669,7 @@ BEGIN
   END IF;
 
   IF v_lot.id IS NOT NULL AND v_lot.retired_on IS NULL
-     AND v_lot.status NOT IN ('Missing', 'Disposed', 'Returned')
+     AND v_lot.status IN ('Active', 'Inactive') AND NOT v_lot.maintenance_pending
      AND v_lot.organization_id = v_asset.organization_id
      AND v_lot.equipment_item_id IS NOT DISTINCT FROM v_asset.equipment_item_id
      AND (v_lot.purchase_line_id IS NULL OR v_lot.purchase_line_id = v_asset.purchase_line_id) THEN
@@ -617,4 +695,3 @@ END $$;
 
 REVOKE EXECUTE ON FUNCTION public.undo_write_off(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.undo_write_off(uuid) TO authenticated;
-

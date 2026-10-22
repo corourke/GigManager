@@ -129,9 +129,10 @@ registerSyncHandler('ASSET_STATUS_UPDATE', async (payload: any) => {
     p_status: payload.status,
   });
 
-  // Refused (not allowed, e.g. Staff bringing back written-off equipment): a retry won't
-  // change that, so say why and drop it rather than retrying it silently forever.
-  if ((error as any)?.code === '42501') {
+  // Refused (not allowed, e.g. Staff bringing back written-off equipment; or not possible for the
+  // record as it is now, e.g. already flagged for maintenance, #186): a retry won't change that,
+  // so say why and drop it rather than retrying it silently forever.
+  if ((error as any)?.code === '42501' || (error as any)?.code === '22023') {
     toast.error(`Status not changed: ${(error as any).message}`);
     return;
   }

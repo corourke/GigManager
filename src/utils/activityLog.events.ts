@@ -331,11 +331,12 @@ export const ACTIVITY_EVENTS = {
     label: 'Sent to Maintenance',
     entityType: 'asset',
     calendarIndicator: false,
-    contextKeys: ['quantity', 'location', 'split_from'],
+    // Part of a lot is logged against the lot, which stays, naming the piece split off.
+    contextKeys: ['quantity', 'location', 'split_off'],
     format: (ctx) => {
       const where = ctx.location ? ` (${ctx.location})` : '';
-      return ctx.split_from
-        ? `${pieces(Number(ctx.quantity ?? 1))} split off their lot and sent to maintenance${where}`
+      return ctx.split_off
+        ? `${pieces(Number(ctx.quantity ?? 1))} split off and sent to maintenance${where}`
         : `Sent to maintenance${where}`;
     },
   },
@@ -350,8 +351,11 @@ export const ACTIVITY_EVENTS = {
     label: 'Returned to Service',
     entityType: 'asset',
     calendarIndicator: false,
-    contextKeys: ['quantity', 'merged_into'],
-    format: (ctx) => `Returned to service${ctx.merged_into ? ', back in the lot it came from' : ''}`,
+    // A piece merged back is logged against the lot, which stays, naming the piece.
+    contextKeys: ['quantity', 'merged_from'],
+    format: (ctx) => (ctx.merged_from
+      ? `${pieces(Number(ctx.quantity ?? 1))} returned to service, back in this lot`
+      : 'Returned to service'),
   },
   'asset.maintenance_cancelled': {
     label: 'Maintenance Flag Cancelled',
