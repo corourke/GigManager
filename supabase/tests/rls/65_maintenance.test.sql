@@ -88,7 +88,7 @@ CREATE FUNCTION rls_test.status_of(p_asset text) RETURNS text LANGUAGE sql AS $$
   SELECT status FROM assets WHERE id = rls_test.u(p_asset) $$;
 CREATE FUNCTION rls_test.value_of_cables() RETURNS numeric LANGUAGE sql AS $$
   SELECT sum(item_cost * quantity) FROM assets WHERE equipment_item_id = rls_test.u('item_c') $$;
-CREATE FUNCTION rls_test.split_of(p_asset text) RETURNS assets LANGUAGE sql AS $$
+CREATE FUNCTION rls_test.split_of(p_asset text) RETURNS SETOF assets LANGUAGE sql AS $$
   SELECT * FROM assets WHERE maintenance_from = rls_test.u(p_asset) $$;
 CREATE FUNCTION rls_test.events(p_event text) RETURNS int LANGUAGE sql AS $$
   SELECT count(*)::int FROM activity_log WHERE event_type = p_event $$;
@@ -217,7 +217,7 @@ SELECT rls_test.expect('A return at another gig doesn''t apply it',
     rls_test.id('org_a'), rls_test.id('gig2'), rls_test.id('kit_a'), rls_test.id('unit_p'))), 1);
 SELECT rls_test.expect('…still pending', (SELECT maintenance_pending::int FROM assets WHERE id = rls_test.u('unit_p')), 1);
 SELECT rls_test.expect('A non-return row at the gig doesn''t apply it',
-  rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, scanned_at) VALUES (%s, %s, %s, %s, ''In Transit'', 1, now())',
+  rls_test.keep('a_staff', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, scanned_at) VALUES (%s, %s, %s, %s, ''In Transit'', 1, now() - interval ''1 minute'')',
     rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a'), rls_test.id('unit_p'))), 1);
 SELECT rls_test.expect('…still pending', (SELECT maintenance_pending::int FROM assets WHERE id = rls_test.u('unit_p')), 1);
 SELECT rls_test.expect('The Unload return row at the gig (by a Viewer) brings it home',
@@ -225,8 +225,8 @@ SELECT rls_test.expect('The Unload return row at the gig (by a Viewer) brings it
     rls_test.id('org_a'), rls_test.id('gig'), rls_test.id('kit_a'), rls_test.id('unit_p'))), 1);
 SELECT rls_test.expect('…now in Maintenance with the flagged details',
   (SELECT count(*)::int FROM assets WHERE id = rls_test.u('unit_p') AND status = 'Maintenance' AND NOT maintenance_pending
-     AND maintenance_pending_gig_id IS NULL AND maintenance_location = 'Bench 2' AND maintenance_by = rls_test.u('a_staff')), 1);
-SELECT rls_test.expect('…logged as sent', rls_test.events('asset.sent_to_maintenance'), 5);
+     AND maintenance_pending_gig_id IS NULL AND maintenance_location = 'Repair Bench' AND maintenance_by = rls_test.u('a_staff')), 1);
+SELECT rls_test.expect('…logged as sent', rls_test.events('asset.sent_to_maintenance'), 6);
 
 -- Part of a lot, pending: a partial return keeps it pending; closing the bucket splits it.
 SELECT rls_test.expect('Staff flags 1 of lot_p''s 6 out at the gig', rls_test.keep('a_staff', rls_test.send('lot_p', 1, 'gig')), 1);
@@ -300,7 +300,7 @@ SELECT rls_test.expect('Disposing a record in Maintenance clears its details',
 SELECT rls_test.expect('An Admin can''t set Maintenance directly',
   rls_test.run('a_admin', format('UPDATE assets SET status = ''Maintenance'' WHERE id = %s', rls_test.id('unit_i'))), -1);
 SELECT rls_test.expect('…nor clear it directly',
-  rls_test.run('a_admin', format('UPDATE assets SET status = ''Active'' WHERE id = %s', rls_test.id('unit_p'))), -1);
+  rls_test.run('a_admin', format('UPDATE assets SET status = ''Active'' WHERE id = %s', rls_test.id('unit_g'))), -1);
 SELECT rls_test.expect('…nor set Missing directly',
   rls_test.run('a_admin', format('UPDATE assets SET status = ''Missing'' WHERE id = %s', rls_test.id('unit_i'))), -1);
 SELECT rls_test.expect('…nor write the maintenance details directly',
@@ -310,7 +310,7 @@ SELECT rls_test.expect('…nor flag pending directly',
 SELECT rls_test.expect('…nor set the bypass setting and then write',
   rls_test.run('a_admin', format('SELECT set_config(''gigwrangler.asset_status_writer'', ''on'', true); UPDATE assets SET status = ''Maintenance'' WHERE id = %s', rls_test.id('unit_i'))), -1);
 SELECT rls_test.expect('An Admin can still edit other fields of a record in Maintenance',
-  rls_test.run('a_admin', format('UPDATE assets SET description = ''new driver'' WHERE id = %s', rls_test.id('unit_p'))), 1);
+  rls_test.run('a_admin', format('UPDATE assets SET description = ''new driver'' WHERE id = %s', rls_test.id('unit_g'))), 1);
 SELECT rls_test.expect('…and change Active to Inactive directly',
   rls_test.run('a_admin', format('UPDATE assets SET status = ''Inactive'' WHERE id = %s', rls_test.id('lot_m'))), 1);
 SELECT rls_test.expect('Status must be a known one',
@@ -318,15 +318,15 @@ SELECT rls_test.expect('Status must be a known one',
 
 -- Inserts: Add Item, purchases, CSV import.
 SELECT rls_test.expect('Add Item can insert Active',
-  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Active'')', rls_test.id('org_a'))), 1);
+  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status, created_by, updated_by) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Active'', %s, %s)', rls_test.id('org_a'), rls_test.id('a_admin'), rls_test.id('a_admin'))), 1);
 SELECT rls_test.expect('…Inactive',
-  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Inactive'')', rls_test.id('org_a'))), 1);
+  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status, created_by, updated_by) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Inactive'', %s, %s)', rls_test.id('org_a'), rls_test.id('a_admin'), rls_test.id('a_admin'))), 1);
 SELECT rls_test.expect('…and Maintenance with no details (as imports may)',
-  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Maintenance'')', rls_test.id('org_a'))), 1);
+  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status, created_by, updated_by) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Maintenance'', %s, %s)', rls_test.id('org_a'), rls_test.id('a_admin'), rls_test.id('a_admin'))), 1);
 SELECT rls_test.expect('…but not Missing',
-  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Missing'')', rls_test.id('org_a'))), -1);
+  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status, created_by, updated_by) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Missing'', %s, %s)', rls_test.id('org_a'), rls_test.id('a_admin'), rls_test.id('a_admin'))), -1);
 SELECT rls_test.expect('…nor maintenance details',
-  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status, maintenance_notes) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Maintenance'', ''x'')', rls_test.id('org_a'))), -1);
+  rls_test.run('a_admin', format('INSERT INTO assets (organization_id, acquisition_date, category, manufacturer_model, status, maintenance_notes, created_by, updated_by) VALUES (%s, ''2026-01-01'', ''Audio'', ''New'', ''Maintenance'', ''x'', %s, %s)', rls_test.id('org_a'), rls_test.id('a_admin'), rls_test.id('a_admin'))), -1);
 SELECT rls_test.expect('A purchase (create_purchase_transaction_v2) still inserts equipment in Maintenance',
   rls_test.run('a_manager', format('SELECT public.create_purchase_transaction_v2(%L::jsonb, %L::jsonb[], %L::jsonb[])',
     jsonb_build_object('organization_id', rls_test.u('org_a'), 'purchase_date', '2026-06-01', 'vendor', 'V'),
