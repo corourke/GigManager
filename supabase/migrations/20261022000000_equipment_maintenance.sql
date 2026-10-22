@@ -64,7 +64,7 @@ CREATE INDEX assets_maintenance_pending_idx ON public.assets (id) WHERE maintena
 -- its flag and details: it won't be coming back to go into maintenance. Cleared, not refused, so
 -- a disposal or write-off is never blocked by a flag.
 CREATE OR REPLACE FUNCTION public.assets_clear_flag_out_of_service(p_old public.assets, p_new public.assets, p_op text)
-RETURNS public.assets LANGUAGE plpgsql IMMUTABLE AS $$
+RETURNS public.assets LANGUAGE plpgsql IMMUTABLE SET search_path = public AS $$
 BEGIN
   IF p_op = 'UPDATE' AND p_new.maintenance_pending
      AND (p_new.status IN ('Disposed', 'Returned', 'Missing') OR (p_new.retired_on IS NOT NULL AND p_old.retired_on IS NULL)) THEN
@@ -165,9 +165,30 @@ BEGIN
 END $$;
 REVOKE EXECUTE ON FUNCTION public.maintenance_log(text, public.assets, jsonb, uuid) FROM PUBLIC, anon, authenticated;
 
--- Pieces of a record still out at a gig: its newest row in each (gig, kit) bucket that isn't a
--- return, summed. With p_gig_id, that gig only.
-CREATE OR REPLACE FUNCTION public.asset_pieces_out(p_asset_id uuid, p_gig_id uuid DEFAULT NULL)
+-- A unit (serial or tag) is where its newest row is, across gigs and kits: out (1) unless that
+-- row is a return; with p_gig_id, out there only if that row is there. As placementOf and
+-- bucketsAt (src/utils/locations.ts).
+CREATE OR REPLACE FUNCTION public.asset_is_unit(p_asset public.assets)
+RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path = public AS $$
+  SELECT COALESCE(btrim(p_asset.serial_number), '') <> '' OR COALESCE(btrim(p_asset.tag_number), '') <> ''
+$$;
+REVOKE EXECUTE ON FUNCTION public.asset_is_unit(public.assets) FROM PUBLIC, anon, authenticated;
+
+-- The gig a unit's newest row is at, when that row isn't a return (it's out there); else null.
+CREATE OR REPLACE FUNCTION public.unit_out_at(p_asset_id uuid)
+RETURNS uuid LANGUAGE sql STABLE SET search_path = public AS $$
+  SELECT CASE WHEN status <> 'In Warehouse' THEN gig_id END FROM (
+    SELECT gig_id, status FROM public.inventory_tracking
+     WHERE asset_id = p_asset_id
+     ORDER BY scanned_at DESC, created_at DESC, id DESC LIMIT 1) newest
+$$;
+REVOKE EXECUTE ON FUNCTION public.unit_out_at(uuid) FROM PUBLIC, anon, authenticated;
+
+-- A lot's pieces still out at a gig: its newest row in each (gig, kit) bucket there that isn't a
+-- return, summed (bucketsAt). With no gig, every gig: an upper bound only, as the Locations
+-- rule also merges a lot's container places and drops stale ones (currentRows), so callers
+-- don't refuse on it.
+CREATE OR REPLACE FUNCTION public.lot_pieces_out(p_asset_id uuid, p_gig_id uuid DEFAULT NULL)
 RETURNS numeric LANGUAGE sql STABLE SET search_path = public AS $$
   SELECT COALESCE(sum(quantity), 0) FROM (
     SELECT DISTINCT ON (gig_id, kit_id) status, quantity
@@ -176,7 +197,8 @@ RETURNS numeric LANGUAGE sql STABLE SET search_path = public AS $$
      ORDER BY gig_id, kit_id, scanned_at DESC, created_at DESC, id DESC) newest
   WHERE status <> 'In Warehouse'
 $$;
-REVOKE EXECUTE ON FUNCTION public.asset_pieces_out(uuid, uuid) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.lot_pieces_out(uuid, uuid) FROM PUBLIC, anon, authenticated;
+
 
 -- A flagged (pending) record goes into Maintenance: the whole record, or its pending quantity
 -- split off into its own record with the lot's values. Returns the record now in Maintenance.
@@ -258,11 +280,12 @@ END $$;
 REVOKE EXECUTE ON FUNCTION public.maintenance_apply(uuid) FROM PUBLIC, anon, authenticated;
 
 -- 3. Send to maintenance --------------------------------------------------------------------
--- p_gig_id: the gig it was flagged at (scanning). If the record still has pieces out at that
--- gig (any (gig, kit) bucket whose newest row isn't a return), it's pending until it comes
--- home; otherwise it goes in now.
--- Without a gig, no more than are home can go (p_check_home; update_asset_status sends the
--- whole record as before, wherever it is).
+-- p_gig_id: the gig it was flagged at (scanning). A unit still out (its newest row anywhere isn't
+-- a return), or a lot with pieces still out at that gig (any (gig, kit) bucket there whose newest
+-- row isn't a return), is pending until it comes home; otherwise it goes in now.
+-- Without a gig, a unit must be home (p_check_home; update_asset_status sends the whole record
+-- as before, wherever it is). A lot's count at home is the Locations rule's, which the screens
+-- apply; here a send only has to be within the lot.
 CREATE OR REPLACE FUNCTION public.maintenance_send(
   p_asset_id uuid, p_quantity numeric, p_notes text, p_location text, p_expected_back date, p_gig_id uuid,
   p_check_home boolean
@@ -270,7 +293,9 @@ CREATE OR REPLACE FUNCTION public.maintenance_send(
 DECLARE
   v_asset public.assets;
   v_held numeric;
-  v_home numeric;
+  v_unit boolean;
+  v_unit_gig uuid;
+  v_pending_gig uuid;
   v_out boolean := false;
 BEGIN
   SELECT * INTO v_asset FROM public.assets WHERE id = p_asset_id FOR UPDATE;
@@ -287,24 +312,31 @@ BEGIN
   IF p_quantity IS NULL OR p_quantity <> trunc(p_quantity) OR p_quantity < 1 OR p_quantity > v_held THEN
     RAISE EXCEPTION 'Send a whole number of pieces, between 1 and %', v_held USING ERRCODE = '22023';
   END IF;
+  v_unit := public.asset_is_unit(v_asset);
+  IF v_unit THEN
+    v_unit_gig := public.unit_out_at(v_asset.id);
+  END IF;
   IF p_gig_id IS NOT NULL THEN
     IF NOT public.org_participates_in_gig(v_asset.organization_id, p_gig_id) THEN
       RAISE EXCEPTION 'The equipment''s organization isn''t on that gig' USING ERRCODE = '42501';
     END IF;
-    v_out := public.asset_pieces_out(v_asset.id, p_gig_id) > 0;
-  ELSIF p_check_home THEN
-    v_home := GREATEST(v_held - public.asset_pieces_out(v_asset.id), 0);
-    IF p_quantity > v_home THEN
-      RAISE EXCEPTION 'Only % of them are home; send the rest from their gig when they come back.', trunc(v_home)::int
-        USING ERRCODE = '22023';
+    -- A unit out anywhere waits to come home from where it is; a lot, from this gig's buckets.
+    IF v_unit THEN
+      v_out := v_unit_gig IS NOT NULL;
+      v_pending_gig := v_unit_gig;
+    ELSE
+      v_out := public.lot_pieces_out(v_asset.id, p_gig_id) > 0;
+      v_pending_gig := p_gig_id;
     END IF;
+  ELSIF p_check_home AND v_unit AND v_unit_gig IS NOT NULL THEN
+    RAISE EXCEPTION 'This unit isn''t home yet; flag it from the gig it''s out at.' USING ERRCODE = '22023';
   END IF;
 
   PERFORM set_config('gigwrangler.asset_status_writer', 'on', true);
   UPDATE public.assets
      SET maintenance_notes = NULLIF(btrim(p_notes), ''), maintenance_location = NULLIF(btrim(p_location), ''),
          maintenance_expected_back = p_expected_back, maintenance_since = now(), maintenance_by = auth.uid(),
-         maintenance_pending = true, maintenance_pending_gig_id = CASE WHEN v_out THEN p_gig_id END,
+         maintenance_pending = true, maintenance_pending_gig_id = CASE WHEN v_out THEN v_pending_gig END,
          maintenance_pending_quantity = CASE WHEN p_quantity < v_held THEN p_quantity END,
          updated_by = auth.uid()
    WHERE id = v_asset.id
@@ -427,16 +459,23 @@ REVOKE EXECUTE ON FUNCTION public.return_to_service(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.return_to_service(uuid) TO authenticated;
 
 -- 6. Coming home applies a pending flag ------------------------------------------------------
--- Only a return row ('In Warehouse') for a record flagged at that gig does anything, and only
--- once no bucket of it at that gig (one per kit) is still open; the WHEN clause keeps every
--- other tracking insert free. Applying writes no tracking rows.
+-- Only a return row ('In Warehouse') for a flagged record does anything: a unit goes in once its
+-- newest row is a return (wherever it was); a lot once no bucket of it at its flagged gig (one
+-- per kit) is still open. The WHEN clause keeps every other tracking insert free. Applying
+-- writes no tracking rows.
 CREATE OR REPLACE FUNCTION public.inventory_tracking_maintenance_on_return()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_asset public.assets;
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.assets
-              WHERE id = NEW.asset_id AND maintenance_pending AND maintenance_pending_gig_id = NEW.gig_id)
-     AND public.asset_pieces_out(NEW.asset_id, NEW.gig_id) = 0 THEN
-    PERFORM public.maintenance_apply(NEW.asset_id);
+  SELECT * INTO v_asset FROM public.assets WHERE id = NEW.asset_id AND maintenance_pending;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  IF (public.asset_is_unit(v_asset) AND public.unit_out_at(v_asset.id) IS NULL)
+     OR (NOT public.asset_is_unit(v_asset) AND v_asset.maintenance_pending_gig_id = NEW.gig_id
+         AND public.lot_pieces_out(v_asset.id, NEW.gig_id) = 0) THEN
+    PERFORM public.maintenance_apply(v_asset.id);
   END IF;
   RETURN NULL;
 END $$;

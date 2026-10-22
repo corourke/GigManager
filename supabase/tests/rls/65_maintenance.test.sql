@@ -248,8 +248,8 @@ SELECT rls_test.expect('…its details can be edited while pending',
 SELECT rls_test.expect('A gig the equipment''s organization isn''t on is refused',
   rls_test.run('b_admin', format('SELECT public.send_to_maintenance(%L, 1, NULL, NULL, NULL, %L)', rls_test.u('unit_b'), rls_test.u('gig2'))), -1);
 
-SELECT rls_test.expect('A return at another gig doesn''t apply it',
-  rls_test.keep('a_viewer', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 1, ''Warehouse'', now())',
+SELECT rls_test.expect('An older return at another gig doesn''t apply it (a unit is where its newest row is)',
+  rls_test.keep('a_viewer', format('INSERT INTO inventory_tracking (organization_id, gig_id, kit_id, asset_id, status, quantity, location, scanned_at) VALUES (%s, %s, %s, %s, ''In Warehouse'', 1, ''Warehouse'', now() - interval ''2 hours'')',
     rls_test.id('org_a'), rls_test.id('gig2'), rls_test.id('kit_a'), rls_test.id('unit_p'))), 1);
 SELECT rls_test.expect('…still pending', (SELECT maintenance_pending::int FROM assets WHERE id = rls_test.u('unit_p')), 1);
 SELECT rls_test.expect('A non-return row at the gig doesn''t apply it',
