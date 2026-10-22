@@ -137,18 +137,6 @@ export const LOOSE_GROUP_NAME = 'Added at pack-out';
 const TRACKING_PAGE = 1000;
 export const looseGroupId = (gigId: string) => `loose:${gigId}`;
 
-export interface MaintenanceRow {
-  asset_id: string;
-  asset_name?: string | null;
-  tag_number?: string | null;
-  kit_id?: string | null;
-  kit_name?: string | null;
-  last_gig_title?: string | null;
-  condition_notes?: string | null;
-  date_flagged?: string | null;
-  flagged_by_name?: string | null;
-}
-
 export interface CreateManualTrackingParams {
   organizationId: string;
   gigId: string;
@@ -1000,60 +988,6 @@ function sumRepeatedLines(units: ReturnType<typeof flattenToScanUnits>): ReturnT
     out.push(copy);
   }
   return out;
-}
-
-export async function getMaintenanceQueueReport(organizationId: string): Promise<MaintenanceRow[]> {
-  const supabase = getSupabase();
-  try {
-    const { data: assets, error: assetsError } = await supabase
-      .from('assets')
-      // kit_components has two FKs to kits (kit_id and child_kit_id) — the
-      // hint picks the direct-parent-kit relationship, or PostgREST throws
-      // PGRST201 for an ambiguous embed.
-      .select('id, manufacturer_model, tag_number, kit_components(kit_id, kit:kits!kit_assets_kit_id_fkey(id, name))')
-      .eq('organization_id', organizationId)
-      .eq('status', 'Maintenance');
-
-    if (assetsError) throw assetsError;
-
-    const assetIds = (assets ?? []).map((a: any) => a.id);
-    if (assetIds.length === 0) return [];
-
-    const { data: trackingData, error: trackingError } = await supabase
-      .from('inventory_tracking')
-      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), gig:gig_id(title)')
-      .eq('organization_id', organizationId)
-      .in('asset_id', assetIds)
-      .order('scanned_at', { ascending: false });
-
-    if (trackingError) throw trackingError;
-
-    const latestByAsset = new Map<string, any>();
-    for (const record of (trackingData ?? []) as any[]) {
-      if (record.asset_id && !latestByAsset.has(record.asset_id)) {
-        latestByAsset.set(record.asset_id, record);
-      }
-    }
-
-    return (assets ?? []).map((asset: any): MaintenanceRow => {
-      const kitAsset = asset.kit_components?.[0];
-      const kit = kitAsset?.kit;
-      const latestRecord = latestByAsset.get(asset.id);
-      return {
-        asset_id: asset.id,
-        asset_name: asset.manufacturer_model ?? null,
-        tag_number: asset.tag_number ?? null,
-        kit_id: kit?.id ?? null,
-        kit_name: kit?.name ?? null,
-        last_gig_title: latestRecord?.gig?.title ?? null,
-        condition_notes: latestRecord?.notes ?? null,
-        date_flagged: latestRecord?.scanned_at ?? null,
-        flagged_by_name: formatUserName(latestRecord?.scanned_by_user),
-      };
-    });
-  } catch (err) {
-    return handleApiError(err, 'get maintenance queue report');
-  }
 }
 
 const WHEREABOUTS_ID_BATCH = 100;

@@ -34,14 +34,12 @@ import {
   getGigsForReportPicker,
   getManifestReport,
   getPackingListReport,
-  getMaintenanceQueueReport,
   getInventoryConflictFlags,
 } from '../../services/inventoryManagement.service';
 import type {
   GigOption,
   ManifestRow,
   PackingListRow,
-  MaintenanceRow,
 } from '../../services/inventoryManagement.service';
 
 interface InventoryReportsProps {
@@ -91,7 +89,7 @@ function KitTypeBadge({ isContainer }: { isContainer: boolean }) {
   );
 }
 
-function PrintHeader({
+export function PrintHeader({
   organizationName,
   reportTitle,
   subtitle,
@@ -756,109 +754,6 @@ function PackingListTab({
   );
 }
 
-function MaintenanceQueueTab({
-  organizationId,
-  organizationName,
-  conflictFlags,
-}: {
-  organizationId: string;
-  organizationName: string;
-  conflictFlags: Set<string>;
-}) {
-  const [rows, setRows] = useState<MaintenanceRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getMaintenanceQueueReport(organizationId)
-      .then(setRows)
-      .catch(() => setRows([]))
-      .finally(() => setLoading(false));
-  }, [organizationId]);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <PrintHeader organizationName={organizationName} reportTitle="Maintenance Queue" />
-
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <span className="text-sm text-muted-foreground">Loading maintenance queue...</span>
-        </div>
-      )}
-
-      {!loading && (
-        <>
-          <div className="flex items-center justify-between no-print">
-            <span className="text-sm text-muted-foreground">
-              {rows.length} asset{rows.length !== 1 ? 's' : ''} flagged for maintenance
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => window.print()}
-              disabled={rows.length === 0}
-            >
-              <Printer className="h-4 w-4" />
-              Print
-            </Button>
-          </div>
-
-          <div className="rounded-md border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Asset Name</TableHead>
-                  <TableHead>Tag #</TableHead>
-                  <TableHead>Kit</TableHead>
-                  <TableHead>Last Gig</TableHead>
-                  <TableHead>Condition Notes</TableHead>
-                  <TableHead>Date Flagged</TableHead>
-                  <TableHead>Flagged By</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      No assets currently flagged for maintenance.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((row) => {
-                    const hasConflict = row.kit_id ? conflictFlags.has(row.kit_id) : false;
-                    return (
-                      <TableRow key={row.asset_id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {row.asset_name ?? '—'}
-                            {hasConflict && <ConflictBadge />}
-                          </div>
-                        </TableCell>
-                        <TableCell>{row.tag_number ?? '—'}</TableCell>
-                        <TableCell>{row.kit_name ?? '—'}</TableCell>
-                        <TableCell>{row.last_gig_title ?? '—'}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-[200px]">
-                          {row.condition_notes ?? '—'}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {formatScanned(row.date_flagged)}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {row.flagged_by_name ?? '—'}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 function useConflictFlags(organizationId: string): Set<string> {
   const [conflictFlags, setConflictFlags] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -894,12 +789,6 @@ export function ManifestReport({ organizationId, organizationName }: InventoryRe
       conflictFlags={conflictFlags}
     />
   );
-}
-
-/** Equipment › Maintenance (#39). */
-export function MaintenanceQueue({ organizationId, organizationName }: InventoryReportsProps) {
-  const conflictFlags = useConflictFlags(organizationId);
-  return <MaintenanceQueueTab organizationId={organizationId} organizationName={organizationName} conflictFlags={conflictFlags} />;
 }
 
 /** One gig's packing list, shown on the gig page's Equipment tab and printed from its Print menu (#39). */

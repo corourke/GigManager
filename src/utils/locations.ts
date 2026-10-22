@@ -310,3 +310,23 @@ export function whereabouts(
   }
   return [...places.values()].sort((a, b) => Number(a.gig_id === null) - Number(b.gig_id === null) || b.quantity - a.quantity);
 }
+
+/**
+ * How many of a record are home, by the Locations rule (#186 step 2): a unit is home unless its
+ * newest row is out; a lot is home less what's at its current places (`lotNow`), a lot in a
+ * container counting once per container. A retired record has none. Sending to maintenance
+ * without a gig takes no more than this: the database leaves a lot's home count to the screens.
+ */
+export function piecesHome(
+  rows: readonly TrackingRow[],
+  record: ItemRecord,
+  isContainer?: (kitId: string) => boolean,
+): number {
+  if (isRetired(record)) return 0;
+  const mine = rows.filter((r) => r.asset_id != null && r.asset_id === record.id);
+  if (recordKind(record) === 'unit') {
+    const [latest] = currentRows(mine);
+    return !latest || latest.status === RETURNED_STATUS ? 1 : 0;
+  }
+  return lotNow(mine, Number(record.quantity ?? 1), isContainer).home;
+}

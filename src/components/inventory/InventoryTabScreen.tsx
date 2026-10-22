@@ -6,7 +6,8 @@ import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { InventorySummaryDashboard } from './InventorySummaryDashboard';
 import { LocationExplorer } from './LocationExplorer';
-import { ManifestReport, MaintenanceQueue } from './InventoryReports';
+import { ManifestReport } from './InventoryReports';
+import { MaintenanceList } from './MaintenanceList';
 import TrackingTab from './TrackingTab';
 import { Organization, User, UserRole } from '../../utils/supabase/types';
 import type { InventoryTab } from '../../routes/paths';
@@ -106,7 +107,7 @@ export default function InventoryTabScreen({
           ))}
 
         {subTab === 'maintenance' && (
-          <MaintenanceQueue organizationId={organization.id} organizationName={organization.name} />
+          <MaintenanceList organizationId={organization.id} organizationName={organization.name} userRole={userRole} />
         )}
       </div>
 

@@ -1679,46 +1679,4 @@ describe('inventoryManagement.service', () => {
       });
     });
   });
-
-  describe('getMaintenanceQueueReport', () => {
-    // Regression: kit_components has two FKs to kits (kit_id and
-    // child_kit_id) — an unhinted nested embed of kits through
-    // kit_components is ambiguous and PostgREST rejects it with PGRST201.
-    it('disambiguates the kit_components -> kits embed with an FK hint', async () => {
-      const { getMaintenanceQueueReport } = await import('./inventoryManagement.service');
-      let assetsSelectArg = '';
-
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'assets') {
-          const chain = makeQueryChain({
-            data: [
-              {
-                id: 'asset-1',
-                manufacturer_model: 'DI Box',
-                tag_number: 'TAG-1',
-                kit_components: [{ kit_id: 'kit-1', kit: { id: 'kit-1', name: 'Full Rack' } }],
-              },
-            ],
-            error: null,
-          });
-          chain.select = vi.fn((arg: string) => {
-            assetsSelectArg = arg;
-            return chain;
-          });
-          return chain;
-        }
-        if (table === 'inventory_tracking') {
-          return makeQueryChain({ data: [], error: null });
-        }
-        return makeQueryChain({ data: [], error: null });
-      });
-
-      const result = await getMaintenanceQueueReport('org-1');
-
-      expect(assetsSelectArg).toContain('kits!kit_assets_kit_id_fkey');
-      expect(result).toEqual([
-        expect.objectContaining({ asset_id: 'asset-1', kit_id: 'kit-1', kit_name: 'Full Rack' }),
-      ]);
-    });
-  });
 });

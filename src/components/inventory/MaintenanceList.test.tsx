@@ -51,7 +51,7 @@ describe('MaintenanceList', () => {
     expect(within(inMaint).getByText('Repair Bench')).toBeInTheDocument();
     expect(within(inMaint).getByText('Fall Fest')).toBeInTheDocument();
     expect(within(inMaint).getByText('2 split from the lot (now 18)')).toBeInTheDocument();
-    expect(within(inMaint).getByText(/Sam Ruiz/)).toBeInTheDocument();
+    expect(within(inMaint).getAllByText(/Sam Ruiz/)).toHaveLength(2);
 
     const flagged = screen.getByRole('region', { name: /flagged, not home yet/i });
     expect(within(flagged).getByText('Mic Stand')).toBeInTheDocument();
