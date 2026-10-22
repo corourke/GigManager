@@ -297,6 +297,8 @@ DECLARE
   v_unit_gig uuid;
   v_pending_gig uuid;
   v_out boolean := false;
+  v_flagged numeric;
+  v_total numeric;
 BEGIN
   SELECT * INTO v_asset FROM public.assets WHERE id = p_asset_id FOR UPDATE;
   IF NOT FOUND OR NOT public.user_is_staff_or_above_of_org(v_asset.organization_id, auth.uid()) THEN
@@ -305,14 +307,34 @@ BEGIN
   IF v_asset.retired_on IS NOT NULL OR v_asset.status NOT IN ('Active', 'Inactive') THEN
     RAISE EXCEPTION 'Only equipment in service can be sent to maintenance.' USING ERRCODE = '22023';
   END IF;
-  IF v_asset.maintenance_pending THEN
+  v_unit := public.asset_is_unit(v_asset);
+  -- A lot's waiting flag takes more pieces flagged at the same gig (Cameron, 10-22); any other
+  -- send of a flagged record is refused.
+  IF v_asset.maintenance_pending
+     AND (v_unit OR p_gig_id IS NULL OR p_gig_id IS DISTINCT FROM v_asset.maintenance_pending_gig_id) THEN
     RAISE EXCEPTION 'This equipment is already flagged for maintenance.' USING ERRCODE = '22023';
   END IF;
   v_held := COALESCE(v_asset.quantity, 1);
   IF p_quantity IS NULL OR p_quantity <> trunc(p_quantity) OR p_quantity < 1 OR p_quantity > v_held THEN
     RAISE EXCEPTION 'Send a whole number of pieces, between 1 and %', v_held USING ERRCODE = '22023';
   END IF;
-  v_unit := public.asset_is_unit(v_asset);
+  IF v_asset.maintenance_pending THEN
+    -- Up to the whole lot; details kept unless new ones are given.
+    v_flagged := COALESCE(v_asset.maintenance_pending_quantity, v_held);
+    v_total := LEAST(v_flagged + p_quantity, v_held);
+    PERFORM set_config('gigwrangler.asset_status_writer', 'on', true);
+    UPDATE public.assets
+       SET maintenance_notes = COALESCE(NULLIF(btrim(p_notes), ''), maintenance_notes),
+           maintenance_location = COALESCE(NULLIF(btrim(p_location), ''), maintenance_location),
+           maintenance_expected_back = COALESCE(p_expected_back, maintenance_expected_back),
+           maintenance_pending_quantity = CASE WHEN v_total < v_held THEN v_total END,
+           updated_by = auth.uid()
+     WHERE id = v_asset.id
+    RETURNING * INTO v_asset;
+    PERFORM public.maintenance_log('asset.maintenance_flagged', v_asset,
+      jsonb_build_object('quantity', v_total - v_flagged, 'location', v_asset.maintenance_location), p_gig_id);
+    RETURN v_asset.id;
+  END IF;
   IF v_unit THEN
     v_unit_gig := public.unit_out_at(v_asset.id);
   END IF;
