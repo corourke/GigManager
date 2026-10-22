@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #296** (Equipment Lead, merged 10-22 with Cameron's OK): #186 step 1, the Maintenance database. It adds send, edit and return to service; pending until home; part of a lot splits off and merges back; a flag is cleared when the record is disposed or retired; a 2nd flag at the same gig adds to the first (Cameron 10-22); 5 history events. Migration `20261022000000` was applied to dev 10-22; prod gets it at the next deploy. Three review rounds; RLS test 65 has 150 checks.
+
 - **Prod deploy, 10-19** (Cameron): #295 (#183 D2 import preview). Coordinator verified read-only: migrations unchanged at `20261021000000`; build `index-N2lH3tA9.js` carries the column guide; `/sw.js` and `/version.json` serve no-cache.
 
 - **#175** (Delete gig is offered to Managers, but Admin-only): closed 10-18 by the owner-organization plan (PRs #281, #284, #286, #289, #293), all in prod. Removed from §1 by triage 10-19.
