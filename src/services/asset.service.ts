@@ -435,8 +435,19 @@ export async function duplicateAsset(assetId: string) {
       purchase_line_id: _purchaseLineId,
       // Nor depreciated, so it has no recovery period (#125).
       recovery_period: _recoveryPeriod,
+      // Nor in maintenance or flagged for it: that's the original's (#186).
+      maintenance_notes: _maintenanceNotes,
+      maintenance_location: _maintenanceLocation,
+      maintenance_expected_back: _maintenanceExpectedBack,
+      maintenance_since: _maintenanceSince,
+      maintenance_by: _maintenanceBy,
+      maintenance_from: _maintenanceFrom,
+      status_before_maintenance: _statusBeforeMaintenance,
+      maintenance_pending: _maintenancePending,
+      maintenance_pending_gig_id: _maintenancePendingGigId,
+      maintenance_pending_quantity: _maintenancePendingQuantity,
       ...assetData
-    } = original;
+    } = original as any;
 
     const { data, error } = await (supabase.from('assets') as any)
       .insert({

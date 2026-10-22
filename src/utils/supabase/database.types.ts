@@ -133,6 +133,16 @@ export type Database = {
           item_cost: number | null
           item_price: number | null
           liquidation_amt: number | null
+          maintenance_by: string | null
+          maintenance_expected_back: string | null
+          maintenance_from: string | null
+          maintenance_location: string | null
+          maintenance_notes: string | null
+          maintenance_pending: boolean
+          maintenance_pending_gig_id: string | null
+          maintenance_pending_quantity: number | null
+          maintenance_since: string | null
+          status_before_maintenance: string | null
           manufacturer_model: string
           organization_id: string
           purchase_id: string | null
@@ -162,6 +172,16 @@ export type Database = {
           item_cost?: number | null
           item_price?: number | null
           liquidation_amt?: number | null
+          maintenance_by?: string | null
+          maintenance_expected_back?: string | null
+          maintenance_from?: string | null
+          maintenance_location?: string | null
+          maintenance_notes?: string | null
+          maintenance_pending?: boolean
+          maintenance_pending_gig_id?: string | null
+          maintenance_pending_quantity?: number | null
+          maintenance_since?: string | null
+          status_before_maintenance?: string | null
           manufacturer_model: string
           organization_id: string
           purchase_id?: string | null
@@ -191,6 +211,16 @@ export type Database = {
           item_cost?: number | null
           item_price?: number | null
           liquidation_amt?: number | null
+          maintenance_by?: string | null
+          maintenance_expected_back?: string | null
+          maintenance_from?: string | null
+          maintenance_location?: string | null
+          maintenance_notes?: string | null
+          maintenance_pending?: boolean
+          maintenance_pending_gig_id?: string | null
+          maintenance_pending_quantity?: number | null
+          maintenance_since?: string | null
+          status_before_maintenance?: string | null
           manufacturer_model?: string
           organization_id?: string
           purchase_id?: string | null
@@ -2044,6 +2074,30 @@ export type Database = {
       update_asset_status: {
         Args: { p_asset_id: string; p_status: string }
         Returns: undefined
+      }
+      send_to_maintenance: {
+        Args: {
+          p_asset_id: string
+          p_quantity: number
+          p_notes?: string | null
+          p_location?: string | null
+          p_expected_back?: string | null
+          p_gig_id?: string | null
+        }
+        Returns: string
+      }
+      update_maintenance: {
+        Args: {
+          p_asset_id: string
+          p_notes: string | null
+          p_location: string | null
+          p_expected_back: string | null
+        }
+        Returns: undefined
+      }
+      return_to_service: {
+        Args: { p_asset_id: string }
+        Returns: string
       }
       update_organization_contact: {
         Args: {

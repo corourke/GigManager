@@ -89,7 +89,7 @@ ALTER TABLE assets DISABLE TRIGGER USER;
 UPDATE assets SET serial_number = 'OLD', quantity = 3 WHERE id = (SELECT sm58_b FROM t_assets);
 ALTER TABLE assets ENABLE TRIGGER USER;
 SELECT rls_test.expect('An older record that breaks the rule can still change its status',
-  rls_test.su(format('UPDATE assets SET status = %L WHERE id = %L', 'Maintenance', (SELECT sm58_b FROM t_assets))), 1);
+  rls_test.su(format('UPDATE assets SET status = %L WHERE id = %L', 'Inactive', (SELECT sm58_b FROM t_assets))), 1);
 
 -- 4. Who sees and writes items -------------------------------------------------------
 SELECT rls_test.expect('A viewer sees their organization''s items',

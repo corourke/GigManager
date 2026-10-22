@@ -312,6 +312,58 @@ export const ACTIVITY_EVENTS = {
       return `Write-off undone: ${pieces(ctx.quantity)} back${ctx.merged_from ? ' in the lot they came from' : ''}`;
     },
   },
+  // #186: maintenance, logged by send_to_maintenance / update_maintenance / return_to_service
+  // and by a return scan bringing flagged equipment home.
+  'asset.maintenance_flagged': {
+    label: 'Flagged for Maintenance',
+    entityType: 'asset',
+    calendarIndicator: false,
+    contextKeys: ['quantity', 'location'],
+    format: (ctx) => {
+      const where = ctx.location ? ` (${ctx.location})` : '';
+      const n = Number(ctx.quantity ?? 1);
+      return n > 1
+        ? `${pieces(n)} flagged to maintenance when they come home${where}`
+        : `Flagged to maintenance when it comes home${where}`;
+    },
+  },
+  'asset.sent_to_maintenance': {
+    label: 'Sent to Maintenance',
+    entityType: 'asset',
+    calendarIndicator: false,
+    // Part of a lot is logged against the lot, which stays, naming the piece split off.
+    contextKeys: ['quantity', 'location', 'split_off'],
+    format: (ctx) => {
+      const where = ctx.location ? ` (${ctx.location})` : '';
+      return ctx.split_off
+        ? `${pieces(Number(ctx.quantity ?? 1))} split off and sent to maintenance${where}`
+        : `Sent to maintenance${where}`;
+    },
+  },
+  'asset.maintenance_updated': {
+    label: 'Maintenance Details Updated',
+    entityType: 'asset',
+    calendarIndicator: false,
+    contextKeys: ['location', 'expected_back'],
+    format: (ctx) => `Maintenance details updated${ctx.location ? ` (${ctx.location})` : ''}`,
+  },
+  'asset.returned_to_service': {
+    label: 'Returned to Service',
+    entityType: 'asset',
+    calendarIndicator: false,
+    // A piece merged back is logged against the lot, which stays, naming the piece.
+    contextKeys: ['quantity', 'merged_from'],
+    format: (ctx) => (ctx.merged_from
+      ? `${pieces(Number(ctx.quantity ?? 1))} returned to service, back in this lot`
+      : 'Returned to service'),
+  },
+  'asset.maintenance_cancelled': {
+    label: 'Maintenance Flag Cancelled',
+    entityType: 'asset',
+    calendarIndicator: false,
+    contextKeys: [],
+    format: () => 'Maintenance flag cancelled',
+  },
   'kit.created': {
     label: 'Kit Created',
     entityType: 'kit',
