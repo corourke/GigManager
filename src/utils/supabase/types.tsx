@@ -324,6 +324,11 @@ export interface ActivityLogContext {
   note?: string | null;
   split_from?: string | null;
   merged_from?: string | null;
+  // Maintenance (#186), logged by the database functions.
+  merged_into?: string | null;
+  location?: string | null;
+  expected_back?: string | null;
+  from_gig?: string | null;
   changes?: StaffingChange[];
   change_count?: number;
   field_changes?: FieldChange[];

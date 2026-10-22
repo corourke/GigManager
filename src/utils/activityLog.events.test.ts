@@ -249,7 +249,7 @@ describe('ACTIVITY_EVENTS', () => {
     expect(ACTIVITY_EVENTS['asset.returned_to_service'].format(ctx)).toBe('Returned to service');
     expect(ACTIVITY_EVENTS['asset.returned_to_service'].format({ ...ctx, quantity: 1, merged_into: 'lot-1' }))
       .toBe('Returned to service, back in the lot it came from');
-    expect(ACTIVITY_EVENTS['asset.maintenance_cancelled'].format(ctx)).toBe('Maintenance flag cancelled');
+    expect(ACTIVITY_EVENTS['asset.maintenance_cancelled'].format()).toBe('Maintenance flag cancelled');
   });
 
   it('asset.written_off without a quantity still reads well', () => {
