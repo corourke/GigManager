@@ -9,20 +9,19 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-23 (coordinator 21:45 UTC: **#303 (#186 step 4) merged; #186, #300 and #162 closed.** #299 + #303 ready for Cameron's prod deploy (frontend only, no migration). **#20 unpaused for triage.** The repo was renamed GigManager → **GigWrangler** (Cameron, 10-23); old links redirect)
+- **Last updated:** 2026-10-23 (coordinator 22:00 UTC: **#20 reassigned to the Equipment Lead (Cameron, 10-23: finish all of #20 ASAP)**; triage no longer builds #20. #299 + #303 await Cameron's frontend deploy. Repo renamed to GigWrangler)
 
 ---
 
-- **Cameron 10-18: finish and close #162, #183, #186. All three are closed:** #183 on 10-18, and #186 and #162 on 10-23. #186 Maintenance shipped in 4 steps: #296 (database, migration `20261022000000`, in prod 10-22), #298 (web list, in prod 10-22), #299 (phone) and #303 (desktop override, the Locations/Item page/packing-list lines, #300). **#299 and #303 await Cameron's frontend deploy.** The Docs Lead holds #302 (phone) plus the step 4 guide until that deploy. The Equipment Lead is standing by for its next item (Cameron to choose). **#20 is unpaused:** triage resumes at batch 3.
+- **Cameron 10-18: finish and close #162, #183, #186. All three are closed:** #183 on 10-18, and #186 and #162 on 10-23. #186 Maintenance shipped in 4 steps: #296 (database, migration `20261022000000`, in prod 10-22), #298 (web list, in prod 10-22), #299 (phone) and #303 (desktop override, the Locations/Item page/packing-list lines, #300). **#299 and #303 await Cameron's frontend deploy.** The Docs Lead holds #302 (phone) plus the step 4 guide until that deploy. The Equipment Lead is standing by for its next item (Cameron to choose). **#20 goes to the Equipment Lead (Cameron, 10-23): finish all of it ASAP,** batches 3–8, pipelined. Triage doesn't build #20.
 
 ## 1. Open issues
 
 | # | Item | State | Next / owner |
 |---|---|---|---|
 | ~~[#162](https://github.com/corourke/GigManager/issues/162)~~ (closed 10-23) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
-| [#300](https://github.com/corourke/GigManager/issues/300) | Maintenance list: the table is wider than its card, so Return to service is off-screen on desktop (found by the Docs Lead 10-23; same kind as #279) | Open; not in §3c, so not released to triage. PRs open 10-23: #299 (#186 step 3, phone), #301 and #297 (docs); no CI checks reported at their head SHAs | Equipment Lead (fix is their call) |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
-| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Unpaused 10-23** (#186 merged and closed); batches 3–7 next, one PR at a time | Triage: batch 3 |
+| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Equipment Lead, 10-23** (Cameron: all of it ASAP); batches 3–8 | Equipment Lead |
 
 - **Phone update notice (Cameron 10-14, approved):** the installed phone app doesn't announce new versions. Causes found: prod serves `/sw.js` with a 4-hour browser cache (Cloudflare zone setting), and iOS often skips the `controllerchange` event. **PR #291 merged 10-14 (b78067b, Cameron's OK):** a no-cache `/version.json` check on foreground and every 30 min, the same Reload banner, and `public/_headers`. Cameron may need a Cloudflare Cache Rule to bypass cache for `/sw.js`, `/registerSW.js` and `/version.json`.
 
@@ -104,7 +103,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 
 **[#245](https://github.com/corourke/GigManager/issues/245) and [#249](https://github.com/corourke/GigManager/issues/249): packing-list fixes, released to the Equipment Lead (Cameron, 10-11).** #245: partly packed lots show no count; a unit's status can disagree with its packed count; print ignores the Columns choice; the print header's counts; container contents aren't indented. #249: the Name column (~1,190px) pushes the other columns out of view. Plan comment on each issue first; failing test first; no migrations expected (stop and ask if one is needed); "Ready for coordinator re-review: <sha>" on the PR. Not yet released: #256 (desktop scanner in dialog), the "still out at …" container warning, the next #186 PR.
 
-**UNPAUSED 10-23:** #186 merged and closed, so the 10-08 pause is over. Triage resumes at batch 3; rebase each batch on current main, since the equipment services changed a lot in #296–#303.
+**Equipment Lead's, not triage's (Cameron, 10-23: finish all of #20 ASAP while there's capacity through 11-10).** Pipelined: the next batch may be built while the previous one is in review, and opened at once when its files don't overlap. Characterization tests go in first where coverage is thin. Each branch starts from current main. Batch 8 (new) covers the services added since 10-07: `equipmentItem`, `equipmentNeeds`, `writeOff`, `maintenance`, `gigService.shared`.
 
 **[#20](https://github.com/corourke/GigManager/issues/20): move the remaining services onto `src/services/base/dataAccess.ts`** (released 10-07, Cameron: "do it now"). Follow the pilots (`user.service.ts`, `attachment.service.ts`): small helpers, no domain logic, RLS stays the security boundary, no behaviour change. One PR per batch, the next only after the previous merges:
 1. `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory` (also update the services section of `docs/technical/` once)
@@ -114,6 +113,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 5. `inventoryManagement`, `gigFinancial`, `taxReport`
 6. `gig` (#92 is fixed, PR #200)
 7. `purchase`
+8. `equipmentItem`, `equipmentNeeds`, `writeOff`, `maintenance`, `gigService.shared` (added 10-23; the Lead may fold them into earlier batches)
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 
