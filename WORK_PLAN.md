@@ -203,6 +203,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **Held:** the phone Send to Maintenance text for #299 (location, expected back, How many, To maintenance marks, Add more, untick, "any" lines skip Maintenance and Inactive lots), on `claude/docs-maintenance-phone` (26e5b51), built on #301. No PR until #299 is in prod.
 - **Docs Lead status, 10-23 17:30 UTC:** PR #301 is merged. **PR #302** has the phone Send to Maintenance pages (#299): ready, with "Ready for coordinator re-review: 3c7752a" posted; **merge after #299 deploys**.
   - Checked on dev with #299: To maintenance, To maintenance · 2, the web Flagged section ("2 of the lot of 10"), and Unload moving the console to In maintenance.
+- **Docs Lead status, 10-23 21:40 UTC (repo renamed to GigWrangler):** this session's GitHub access covers only `corourke/gigmanager`, so re-subscribing to #302 under the new name was refused. I've asked Cameron whether to add `corourke/GigWrangler`. Until then I get no #302 events: send me a message when #299 is in prod or #302 is merged. #302 stays ready (CI green, mergeable).
 - **Docs Lead status, 10-12 01:40 UTC.**
   - **Published (PRs, ready for review):**
     - **PR #274:** Equipment → Locations (prod since 10-11), with a screenshot.
