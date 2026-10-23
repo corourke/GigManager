@@ -1,12 +1,10 @@
-import { createClient } from '../utils/supabase/client';
+import { getSupabase } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
 import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
 import { getKitComponentTree, flattenToScanUnits, type KitComponentTreeNode } from './kit.service';
 import type { DbInventoryTracking } from '../utils/supabase/types';
 import { isRetired, recordKind, type ItemRecord } from '../utils/equipmentItems';
 import { bucketsAt, currentRows, lotNow, lotPieces, whereabouts, type TrackingRow } from '../utils/locations';
-
-const getSupabase = () => createClient();
 
 export interface GigWithTracking {
   id: string;
