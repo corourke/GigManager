@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-23 (coordinator 22:00 UTC: **#20 reassigned to the Equipment Lead (Cameron, 10-23: finish all of #20 ASAP)**; triage no longer builds #20. #299 + #303 await Cameron's frontend deploy. Repo renamed to GigWrangler)
+- **Last updated:** 2026-10-23 (coordinator 22:55 UTC: **#20 batches 3, 4, 5, 7, 8 merged** (#304–#308, on the coordinator's review per Cameron 10-23); only batch 6 (`gig`) left, with the Equipment Lead. #299 + #303 await Cameron's frontend deploy)
 
 ---
 
@@ -108,12 +108,12 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 **[#20](https://github.com/corourke/GigManager/issues/20): move the remaining services onto `src/services/base/dataAccess.ts`** (released 10-07, Cameron: "do it now"). Follow the pilots (`user.service.ts`, `attachment.service.ts`): small helpers, no domain logic, RLS stays the security boundary, no behaviour change. One PR per batch, the next only after the previous merges:
 1. `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory` (also update the services section of `docs/technical/` once)
 2. ~~`activityLog`, `gigKit`, `gigParticipant`, `gigParticipantContacts`, `gigSchedule`~~ done (PR #204)
-3. `gigStaff`, `asset`, `kit` (one shared `computeFieldChanges` path)
-4. `organization`, `conflictDetection`, `googleCalendar`
-5. `inventoryManagement`, `gigFinancial`, `taxReport`
+3. ~~`gigStaff`, `asset`, `kit` (one shared `computeFieldChanges` path)~~ done 10-23
+4. ~~`organization`, `conflictDetection`, `googleCalendar`~~ done 10-23
+5. ~~`inventoryManagement`, `gigFinancial`, `taxReport`~~ done 10-23
 6. `gig` (#92 is fixed, PR #200)
-7. `purchase`
-8. `equipmentItem`, `equipmentNeeds`, `writeOff`, `maintenance`, `gigService.shared` (added 10-23; the Lead may fold them into earlier batches)
+7. ~~`purchase`~~ done 10-23
+8. ~~`equipmentItem`, `equipmentNeeds`, `writeOff`, `maintenance`~~ done 10-23 (#308); `gigService.shared` goes with batch 6
 
 Pure refactor: no migrations, no edge-function or UI changes. Tests, typecheck, lint and build pass per PR.
 

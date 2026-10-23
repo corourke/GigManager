@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#20 batches 3, 4, 5, 7, 8** (Equipment Lead; merged 10-23 by the coordinator under Cameron's 10-23 OK for pure-refactor batches): #304 `gigStaff`/`asset`/`kit` (shared `computeFieldChanges` in `src/utils/fieldChanges.ts`), #305 `organization`/`conflictDetection`/`googleCalendar`, #306 `inventoryManagement`/`gigFinancial`/`taxReport`, #307 `purchase`, #308 `equipmentItem`/`equipmentNeeds`/`writeOff`/`maintenance`. No behaviour change; tested combined: 2337 tests, tsc, eslint.
+
 - **PR #303** (Equipment Lead, merged 10-23 with Cameron's OK): #186 step 4. The desktop override's Mark for Maintenance now sends (with gig: flagged until home); Locations, the where-is-it card, the Item page and the web packing list show "in maintenance · <location>" and "flagged to maintenance"; old "Maintenance" tracking rows are ignored; #300 (Maintenance table too wide) fixed. No migration. **#186, #300 and #162 closed 10-23.** #20 unpaused.
 - **Repo renamed** GigManager → GigWrangler (Cameron, 10-23). GitHub redirects old URLs; the coordinator attached the new name to its session, and the Leads re-subscribe their PRs under it.
 
