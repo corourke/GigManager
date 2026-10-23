@@ -5,6 +5,9 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #303** (Equipment Lead, merged 10-23 with Cameron's OK): #186 step 4. The desktop override's Mark for Maintenance now sends (with gig: flagged until home); Locations, the where-is-it card, the Item page and the web packing list show "in maintenance · <location>" and "flagged to maintenance"; old "Maintenance" tracking rows are ignored; #300 (Maintenance table too wide) fixed. No migration. **#186, #300 and #162 closed 10-23.** #20 unpaused.
+- **Repo renamed** GigManager → GigWrangler (Cameron, 10-23). GitHub redirects old URLs; the coordinator attached the new name to its session, and the Leads re-subscribe their PRs under it.
+
 - **PR #299** (Equipment Lead, merged 10-23 with Cameron's OK): #186 step 3, the phone. Send to Maintenance takes a location, an expected-back date and How many for a lot. A flagged item shows "To maintenance"; Add more works at the flag's own gig. Unticking cancels the flag or returns the item to service. Three new queued types (MAINTENANCE_SEND/RETURN/UPDATE); older phones' ASSET_STATUS_UPDATE is unchanged. "Any" lines skip lots in Maintenance and Inactive lots (Cameron, 10-22). No migration.
 - **PR #301** (Docs Lead, merged 10-23): the user guide's Equipment › Maintenance section and fixes on 6 related pages, matching prod after steps 1–2. **PR #297** (triage): the user-documentation plan's status block refreshed.
 
