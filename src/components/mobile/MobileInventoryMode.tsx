@@ -87,6 +87,9 @@ type NoteDialogState = {
   /** Maintenance (#186 step 3): flagged to maintenance (pending), and for a lot its size and the
    *  pieces flagged; where, and expected back; how many to send (or add); the most it can take. */
   pending?: boolean;
+  /** Flagged at this gig: only then can more be added (the database refuses a flag from another gig). */
+  pendingHere?: boolean;
+  pendingGigTitle?: string | null;
   isLot?: boolean;
   lotSize?: number;
   pendingQuantity?: number;
@@ -332,6 +335,12 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     const expectedBack = asset.maintenance_expected_back ?? '';
     return {
       pending: !!asset.maintenance_pending,
+      pendingHere: !!asset.maintenance_pending && asset.maintenance_pending_gig_id === gigId,
+      pendingGigTitle: asset.maintenance_pending_gig_id === gigId
+        ? packingList?.gig_title ?? null
+        : packingList?.elsewhere?.[assetId]?.gig_id === asset.maintenance_pending_gig_id
+          ? packingList?.elsewhere?.[assetId]?.gig_title ?? null
+          : null,
       isLot,
       lotSize,
       pendingQuantity: asset.maintenance_pending ? Number(asset.maintenance_pending_quantity ?? lotSize) : 0,
@@ -801,7 +810,8 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     const isMaintenance = noteDialog.assetStatus === 'Maintenance';
     // Newly sent to Maintenance: the note says so, in the same row (Cameron, 10-10).
     const typed = noteDialog.note.trim();
-    const newlySent = wantsMaintenance && !isMaintenance && !noteDialog.pending;
+    // Only when a send is queued: none of a lot home sends nothing.
+    const newlySent = wantsMaintenance && !isMaintenance && !noteDialog.pending && (noteDialog.maxSend ?? 1) >= 1;
     const notes = newlySent ? [typed, SENT_TO_MAINTENANCE].filter(Boolean).join(' ') : noteDialog.note;
 
     // A new row carrying the item's state forward: a note is never a scan (#246).
@@ -830,7 +840,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
             gigId, assetId: noteDialog.assetId, quantity: Math.min(max, whole(noteDialog.howMany, 1)), notes: typed || null, ...details,
           });
         }
-      } else if (wantsMaintenance && noteDialog.pending && noteDialog.isLot && whole(noteDialog.addMore, 0) > 0) {
+      } else if (wantsMaintenance && noteDialog.pendingHere && noteDialog.isLot && whole(noteDialog.addMore, 0) > 0) {
         const room = Math.max(0, (noteDialog.lotSize ?? 1) - (noteDialog.pendingQuantity ?? 0));
         await inventoryTrackingService.sendToMaintenance({
           gigId, assetId: noteDialog.assetId, quantity: Math.min(Math.max(1, room), whole(noteDialog.addMore, 1)), notes: typed || null, ...details,
@@ -1825,8 +1835,10 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                 {noteDialog.isLot && noteDialog.assetStatus !== 'Maintenance' ? (
                   noteDialog.pending ? (
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm">{`Flagged: ${noteDialog.pendingQuantity} of ${noteDialog.lotSize}`}</span>
-                      {(noteDialog.pendingQuantity ?? 0) < (noteDialog.lotSize ?? 1) ? (
+                      <span className="text-sm">{noteDialog.pendingHere
+                        ? `Flagged: ${noteDialog.pendingQuantity} of ${noteDialog.lotSize}`
+                        : `Flagged at ${noteDialog.pendingGigTitle || 'another gig'}: ${noteDialog.pendingQuantity} of ${noteDialog.lotSize}`}</span>
+                      {noteDialog.pendingHere && (noteDialog.pendingQuantity ?? 0) < (noteDialog.lotSize ?? 1) ? (
                         <div className="flex items-center gap-2">
                           <Label htmlFor="maintenance-add" className="text-sm">Add more</Label>
                           <Input
