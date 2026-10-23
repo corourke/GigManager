@@ -1,30 +1,13 @@
-import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { computeFieldChanges } from '../utils/fieldChanges';
 import { sanitizeLikeInput } from '../utils/validation-utils';
 import { logActivity } from './activityLog.service';
-import type { FieldChange } from '../utils/supabase/types';
 import { pieceValue } from '../utils/equipmentItems';
-
-const getSupabase = () => createClient();
 
 const KIT_TRACKED_FIELDS = [
   'name', 'category', 'description', 'tags', 'rental_value', 'tag_number', 'is_container',
 ] as const;
-
-function computeFieldChanges<T extends Record<string, any>>(
-  preValues: Partial<T>,
-  newValues: Partial<T>,
-  trackedFields: readonly (keyof T)[]
-): FieldChange[] {
-  return trackedFields
-    .filter(f => f in newValues && JSON.stringify(newValues[f]) !== JSON.stringify(preValues[f]))
-    .map(f => ({
-      field: f as string,
-      from: preValues[f],
-      to: newValues[f]
-    }));
-}
 
 /**
  * Fetch kits for an organization
@@ -194,7 +177,8 @@ export async function createKit(kitData: {
   components: KitComponentInput[];
 }) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const { components, ...restKitData } = kitData;
 
@@ -284,7 +268,8 @@ export async function updateKit(kitId: string, kitData: {
   components?: KitComponentInput[];
 }, loadedComponentIds: string[] = []) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     // 1. Pre-fetch for diffing and actor info
     const { data: kitRow } = await (supabase.from('kits') as any)
@@ -423,7 +408,8 @@ export async function deleteKit(kitId: string) {
  */
 export async function duplicateKit(kitId: string, newName?: string) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const originalKit = await getKit(kitId);
 

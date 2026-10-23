@@ -1,31 +1,15 @@
-import { createClient } from '../utils/supabase/client';
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { computeFieldChanges } from '../utils/fieldChanges';
 import { sanitizeLikeInput } from '../utils/validation-utils';
-import type { DbAsset, DbInventoryTracking, ActivityLogEntry, FieldChange } from '../utils/supabase/types';
+import type { DbAsset, DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
 import { logActivity, getEntityActivity } from './activityLog.service';
-
-const getSupabase = () => createClient();
 
 const ASSET_TRACKED_FIELDS = [
   'manufacturer_model', 'serial_number', 'category', 'type',
   'description', 'vendor', 'item_price', 'item_cost', 'replacement_value',
   'acquisition_date', 'retired_on', 'tag_number',
 ] as const;
-
-function computeFieldChanges<T extends Record<string, any>>(
-  preValues: Partial<T>,
-  newValues: Partial<T>,
-  trackedFields: readonly (keyof T)[]
-): FieldChange[] {
-  return trackedFields
-    .filter(f => f in newValues && newValues[f] !== preValues[f])
-    .map(f => ({
-      field: f as string,
-      from: preValues[f],
-      to: newValues[f]
-    }));
-}
 
 /**
  * Fetch assets for an organization
@@ -206,7 +190,8 @@ export async function getAssetInventoryTracking(assetId: string): Promise<DbInve
 export async function createAssets(rows: Partial<DbAsset>[]): Promise<DbAsset[]> {
   if (rows.length === 0) return [];
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.from('assets') as any)
       .insert(rows.map((r) => ({ ...r, created_by: user.id, updated_by: user.id })))
       .select();
@@ -243,7 +228,8 @@ export async function createAssets(rows: Partial<DbAsset>[]): Promise<DbAsset[]>
 
 export async function createAsset(assetData: Partial<DbAsset> & { cost?: number }) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     // Handle legacy 'cost' field mapping
     const finalData = { ...assetData };
@@ -297,7 +283,8 @@ export async function createAsset(assetData: Partial<DbAsset> & { cost?: number 
  */
 export async function updateAsset(assetId: string, assetData: Partial<DbAsset> & { cost?: number }) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     // 1. Pre-fetch for diffing and actor info
     const { data: assetRow } = await (supabase.from('assets') as any)
@@ -419,7 +406,8 @@ export async function deleteAsset(assetId: string) {
  */
 export async function duplicateAsset(assetId: string) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const original = await getAsset(assetId);
     if (!original) throw new Error('Original asset not found');
