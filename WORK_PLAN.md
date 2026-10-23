@@ -9,11 +9,11 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-23 (coordinator 22:55 UTC: **#20 batches 3, 4, 5, 7, 8 merged** (#304–#308, on the coordinator's review per Cameron 10-23); only batch 6 (`gig`) left, with the Equipment Lead. #299 + #303 await Cameron's frontend deploy)
+- **Last updated:** 2026-10-23 (coordinator 23:05 UTC: **#299 + #303 in prod** (Cameron's deploy, verified); #302 (phone/desktop Maintenance guide) ready, awaiting Cameron's merge OK; #20 batch 6 (`gig`) with the Equipment Lead)
 
 ---
 
-- **Cameron 10-18: finish and close #162, #183, #186. All three are closed:** #183 on 10-18, and #186 and #162 on 10-23. #186 Maintenance shipped in 4 steps: #296 (database, migration `20261022000000`, in prod 10-22), #298 (web list, in prod 10-22), #299 (phone) and #303 (desktop override, the Locations/Item page/packing-list lines, #300). **#299 and #303 await Cameron's frontend deploy.** The Docs Lead holds #302 (phone) plus the step 4 guide until that deploy. The Equipment Lead is standing by for its next item (Cameron to choose). **#20 goes to the Equipment Lead (Cameron, 10-23): finish all of it ASAP,** batches 3–8, pipelined. Triage doesn't build #20.
+- **Cameron 10-18: finish and close #162, #183, #186. All three are closed:** #183 on 10-18, and #186 and #162 on 10-23. #186 Maintenance shipped in 4 steps: #296 (database, migration `20261022000000`, in prod 10-22), #298 (web list, in prod 10-22), #299 (phone) and #303 (desktop override, the Locations/Item page/packing-list lines, #300). **#299 and #303 are in prod (10-23).** The Docs Lead holds #302 (phone) plus the step 4 guide until that deploy. The Equipment Lead is standing by for its next item (Cameron to choose). **#20 goes to the Equipment Lead (Cameron, 10-23): finish all of it ASAP,** batches 3–8, pipelined. Triage doesn't build #20.
 
 ## 1. Open issues
 

@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 10-23** (Cameron): #299 and #303 (#186 steps 3–4, phone and desktop Maintenance), plus #20 batches 3–5, 7 and 8 (#304–#308, no visible change). Coordinator verified read-only: build `index-Z2NDBOsm.js` (built 22:46 UTC) carries the phone's MAINTENANCE_SEND and the override's "Send to maintenance"; migrations unchanged at `20261022000000`; `/sw.js` no-cache.
+
 - **#20 batches 3, 4, 5, 7, 8** (Equipment Lead; merged 10-23 by the coordinator under Cameron's 10-23 OK for pure-refactor batches): #304 `gigStaff`/`asset`/`kit` (shared `computeFieldChanges` in `src/utils/fieldChanges.ts`), #305 `organization`/`conflictDetection`/`googleCalendar`, #306 `inventoryManagement`/`gigFinancial`/`taxReport`, #307 `purchase`, #308 `equipmentItem`/`equipmentNeeds`/`writeOff`/`maintenance`. No behaviour change; tested combined: 2337 tests, tsc, eslint.
 
 - **PR #303** (Equipment Lead, merged 10-23 with Cameron's OK): #186 step 4. The desktop override's Mark for Maintenance now sends (with gig: flagged until home); Locations, the where-is-it card, the Item page and the web packing list show "in maintenance · <location>" and "flagged to maintenance"; old "Maintenance" tracking rows are ignored; #300 (Maintenance table too wide) fixed. No migration. **#186, #300 and #162 closed 10-23.** #20 unpaused.
