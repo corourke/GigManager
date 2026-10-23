@@ -1,4 +1,4 @@
-import { createClient } from '../utils/supabase/client';
+import { getSupabase } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
 import { isNoonUTC } from '../utils/dateUtils';
 import type { OrganizationRole } from '../utils/supabase/types';
@@ -6,8 +6,6 @@ import { assetLabel } from './kit.service';
 import { recordKind } from '../utils/equipmentItems';
 import { loadEquipmentNeeds, needsOf, type ExtraNeeds } from './equipmentNeeds.service';
 import { containersIn, itemNeedRows, lotShortfalls, type GigNeeds, type ItemNeed, type ItemNeedRow, type KitLine, type NeedsContext, type ShortMoment } from '../utils/equipmentNeeds';
-
-const getSupabase = () => createClient();
 
 const WARNING_BUFFER_MS = 4 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
