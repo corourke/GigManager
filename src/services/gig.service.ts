@@ -1,4 +1,4 @@
-import { getSupabase } from './gigService.shared';
+import { getSupabase, getCurrentUser } from './base/dataAccess';
 import {
   GigStatus,
   GigAccountingSummary,
@@ -6,7 +6,6 @@ import {
   OrganizationRole,
 } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
 import { deleteCalendarEvent } from './googleCalendar.service';
 // createGig calls createGigFinancial internally (financial record on import).
 import { createGigFinancial } from './gigFinancial.service';
@@ -402,7 +401,7 @@ export async function createGig(gigData: any, options?: { skipActivityLog?: bool
 
     if (!options?.skipActivityLog) {
       try {
-        const { user } = await requireAuth();
+        const user = await getCurrentUser();
         const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
         
         const { data: orgRow } = await supabase.from('organizations').select('name').eq('id', primary_organization_id).single();
@@ -492,7 +491,8 @@ export async function updateGig(gigId: string, gigData: {
   }>;
 }) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const { data: gigParticipants } = await supabase
       .from('gig_participants')
@@ -679,7 +679,8 @@ export async function deleteGig(gigId: string) {
  */
 export async function duplicateGig(gigId: string, newTitle?: string) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const originalGig = await getGig(gigId);
 
