@@ -36,7 +36,7 @@ A gig's **Equipment** tab shows **Equipment needed on {day}**: one row for each 
 
 - **This gig** and **Overlapping:** how many this gig needs, and the most the overlapping gigs need at any one moment.
 - **Needed:** the two together.
-- **Owned**, **In maintenance** and **Free:** what you have. Free leaves out units in maintenance, retired ones, and any packed in a container kit.
+- **Owned**, **In maintenance** and **Free:** what you have. Free leaves out pieces in [maintenance](/equipment/inventory-reports/#maintenance), retired ones, and any packed in a container kit.
 - A status: **Enough**, **none spare** (needed equals free), or **{n} short** in red. **none spare · {n} are in container kits** means some of the item is packed in a container kit, so it isn't counted as free.
 
 If a kit asks a specific lot for more pieces than the lot holds, the status says so in

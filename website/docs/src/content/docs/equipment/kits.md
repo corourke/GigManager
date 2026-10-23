@@ -62,7 +62,7 @@ Use an "any" line when any unit of a model will do. Most kits are built this way
 
 In **Kit Contents**, the line shows the item name with "any unit" under it, and the **Kind** is **Any**. The **Availability** column shows the count again, such as "4 units owned · 4 available". For an item kept in lots, it counts pieces instead, such as "12 pieces owned · 10 available". You can change **Quantity** at any time.
 
-*Available* means in working order and not packed in a container kit. Units in maintenance, inactive units and pieces inside a container kit don't count. It doesn't look at other gigs. To check a gig's dates for clashes, see [Assigning equipment to a gig](/equipment/assigning-to-a-gig/).
+*Available* means in working order and not packed in a container kit. Units and lots in [maintenance](/equipment/inventory-reports/#maintenance), inactive ones and pieces inside a container kit don't count. It doesn't look at other gigs. To check a gig's dates for clashes, see [Assigning equipment to a gig](/equipment/assigning-to-a-gig/).
 
 ### Asking for more than you have
 

@@ -69,7 +69,10 @@ without being scanned.
 1. Select the pencil button at the end of the item's line, or of the case's line.
 2. In **Manual Tracking Override**, choose the **Gig**, the **Status** and the
    **Location**, and add **Notes** if you like.
-3. For a single item, you can also tick **Mark for Maintenance**.
+3. Leave **Mark for Maintenance** unticked. For now it only changes this record: the
+   item drops out of Locations and doesn't go on the
+   [Maintenance](/equipment/inventory-reports/#maintenance) list. To send something for
+   repair, set its **Status** to **Maintenance** on its own page instead.
 4. Select **Save Override**.
 
 The correction is a new record, so the item moves to its new place right away, and
