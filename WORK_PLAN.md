@@ -203,6 +203,16 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **Docs Lead status, 10-23 17:30 UTC:** PR #301 is merged. **PR #302** has the phone Send to Maintenance pages (#299): ready, with "Ready for coordinator re-review: 3c7752a" posted; **merge after #299 deploys**.
   - Checked on dev with #299: To maintenance, To maintenance · 2, the web Flagged section ("2 of the lot of 10"), and Unload moving the console to In maintenance.
 - **Docs Lead status, 10-23 21:40 UTC (repo renamed to GigWrangler):** this session's GitHub access covers only `corourke/gigmanager`, so re-subscribing to #302 under the new name was refused. I've asked Cameron whether to add `corourke/GigWrangler`. Until then I get no #302 events: send me a message when #299 is in prod or #302 is merged. #302 stays ready (CI green, mergeable).
+- **Docs Lead status, 10-23 21:45 UTC:** PR #302 now also covers #186 step 4 (#303) and has been retitled; "Ready for coordinator re-review: af8d7e4" is posted.
+  - **Covers:**
+    - Locations' Mark for Maintenance as a real send (Send N of M, location, expected back);
+    - the In maintenance and Flagged to maintenance tags;
+    - the card text;
+    - the packing-list tag and "· 2 in maintenance";
+    - the full-width Maintenance shot.
+  - Checked on dev at main f1f3d08.
+  - **Merge after #299 and #303 deploy.**
+  - Comments and edits on #302 still work under the old repo name, but events don't reach me: message me when it's time to merge.
 - **Docs Lead status, 10-12 01:40 UTC.**
   - **Published (PRs, ready for review):**
     - **PR #274:** Equipment → Locations (prod since 10-11), with a screenshot.
@@ -329,9 +339,9 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/assigning-to-a-gig.md` | published (PRs #250, #259, #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | kit assignment, equipment table, Not returned, write-offs, Undo write-off on the equipment page (#270), Added at pack-out label |
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | published (PR #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Importing equipment from a spreadsheet (#276): example/template, invoice rows, units vs lots, kits by name, fix and retry |
-| `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come; Maintenance section (#186 steps 1–2) published in PR #301 (merged 10-23); shot cropped before actions until #300; phone step 3 text in PR #302 (ready; merge after #299 deploys) |
+| `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come; Maintenance section (#186 steps 1–2) published in PR #301 (merged 10-23); shot cropped before actions until #300; phone step 3 and desktop step 4 text in PR #302 (ready; merge after #299 and #303 deploy); full-width shot retaken (#300 fixed) |
 | `equipment/kits.md` | published (PRs #280, #288) | 2026-10-13 (Docs Lead; matches prod 10-13) | kit page (#273), editor, any lines, nesting, containers; Tracking Status "6 of 29" and tooltip (#282); full editor shot with Kit Contents (#283) |
-| `equipment/location-explorer.md` | published (PRs #274, #287) | 2026-10-13 (Docs Lead; matches prod 10-13) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 update (Item filter and card, N of M, pieces, Move N, leave-the-case) published in PR #287 (merged 10-13), overview shot retaken; Mark for Maintenance: "leave unticked" until #186 step 4 (PR #301, merged) |
+| `equipment/location-explorer.md` | published (PRs #274, #287) | 2026-10-13 (Docs Lead; matches prod 10-13) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 update (Item filter and card, N of M, pieces, Move N, leave-the-case) published in PR #287 (merged 10-13), overview shot retaken; Mark for Maintenance → Sending to maintenance, In maintenance / Flagged tags, card text (#303) in PR #302 |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages; Maintenance tab row (PR #301) |
 | `financials/cost-allocation.md` | published | 2026-10-06 (coordinator, PR #136) | — |
 | `financials/gig-accounting.md` | published | 2026-10-08 (Docs Lead, PR #207) | Owed to you: Completed or Settled; held: money-type rework (was #125) |
