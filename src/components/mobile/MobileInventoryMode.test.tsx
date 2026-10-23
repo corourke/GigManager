@@ -1347,6 +1347,26 @@ describe('MobileInventoryMode', () => {
       expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ notes: '' }))
     })
 
+    it('a lot flagged at another gig: no Add more, says where it is flagged; details stay editable', async () => {
+      const user = await openFor(lotAsset({ maintenance_pending: true, maintenance_pending_quantity: 2, maintenance_pending_gig_id: 'gig-2' }), [here('lot-1', 4)])
+      expect(screen.queryByLabelText('Add more')).not.toBeInTheDocument()
+      expect(screen.getByText('Flagged at another gig: 2 of 10')).toBeInTheDocument()
+      const location = screen.getByLabelText('Maintenance location')
+      await user.type(location, 'Shop')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.sendToMaintenance).not.toHaveBeenCalled()
+      expect(inventoryTrackingService.updateMaintenanceDetails).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'lot-1', location: 'Shop' }))
+    })
+
+    it('none of the lot home: saving sends nothing and adds nothing to the note', async () => {
+      const user = await openFor(lotAsset(), [], { lot_places: { 'lot-1': { at_home: 0, at_gig: 0 } } })
+      await user.click(screen.getByLabelText('Send to Maintenance'))
+      expect(screen.getByText(/none of this lot is home/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(inventoryTrackingService.sendToMaintenance).not.toHaveBeenCalled()
+      expect(inventoryTrackingService.saveNote).toHaveBeenCalledWith(expect.objectContaining({ notes: '' }))
+    })
+
     it('a flagged record with changed details and nothing added saves the details', async () => {
       const user = await openFor(unitAsset({ maintenance_pending: true, maintenance_pending_gig_id: 'gig-1', maintenance_location: 'Bench' }))
       const location = screen.getByLabelText('Maintenance location')
