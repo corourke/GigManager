@@ -1,12 +1,10 @@
-import { createClient } from '../utils/supabase/client';
+import { getSupabase } from './base/dataAccess';
 import { 
   Organization, 
   OrganizationRole, 
   UserRole
 } from '../utils/supabase/types';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
-
-const getSupabase = () => createClient();
 
 /**
  * Search for organizations
