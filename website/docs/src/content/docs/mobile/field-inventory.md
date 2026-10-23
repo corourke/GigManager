@@ -68,7 +68,8 @@ An "any" line asks for a number of any units of an item, such as
 
 - **Tagged units:** scan any of your units. Each one fills the line by one.
 - **Items with no tags:** tap the line. GigWrangler takes the pieces from what's at
-  home and fills the line. If there aren't enough, a message says how many are short.
+  home and fills the line, skipping lots that are in maintenance or inactive. If there
+  aren't enough, a message says how many are short.
 
 ## Before you pack
 
@@ -104,10 +105,38 @@ Location**, the gig, and that record's notes if it has any. Enter your note and 
 A note is a record of its own: it never checks anything off or changes a count. A
 note on a kit is about the kit as a whole and doesn't touch what's inside it.
 
-To take a unit or lot out of service, turn on **Send to Maintenance** and tap **Save**.
-The whole unit or lot goes onto the
-[Maintenance](/equipment/inventory-reports/#maintenance) list, and the note ends with "Sent to Maintenance." Admins, Managers
-and Staff see this switch.
+### Sending to maintenance
+
+Admins, Managers and Staff can take a unit or lot out of service from its note. Turn
+on **Send to Maintenance**, then fill in what you know:
+
+- **Maintenance location**, such as "Repair Bench";
+- **Expected back**, the date it should be fixed;
+- **How many**, for a lot: 1 to start with, for the one bad cable. With some of the lot
+  out at this gig you can flag up to the whole lot; otherwise, up to what's at home.
+
+Your note becomes its condition notes. Tap **Save**. The note ends with "Sent to
+Maintenance."
+
+What happens next depends on where it is:
+
+- **Still out**, like a wedge that cracked at the venue: the line is marked **To
+  maintenance** (**To maintenance · 2** for part of a lot). It stays on the gig and
+  goes into maintenance when you **Unload** it.
+- **Home:** it goes into maintenance now, and the line is marked **Maintenance**. Part
+  of a lot splits off into its own entry.
+
+Either way it's on the [Maintenance](/equipment/inventory-reports/#maintenance) list.
+
+**A lot that's already flagged** shows "Flagged: 2 of 10". Enter **Add more** to flag
+more of it. To change the location or date, edit them and tap **Save**.
+
+**To undo it,** turn **Send to Maintenance** off and tap **Save**. A flag is cancelled;
+something already in maintenance goes back into service with the status it had
+before. Pieces split off a lot go back into their lot from the
+[Maintenance](/equipment/inventory-reports/#maintenance) list.
+
+This works offline too, and syncs when you're back online.
 
 **Clear note** empties the box; tap **Save** to keep it empty. **Cancel** closes without
 saving.

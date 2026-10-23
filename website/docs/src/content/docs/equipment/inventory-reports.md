@@ -143,10 +143,12 @@ it without buttons.
 
 - **On a computer:** open the unit or lot, choose **Edit**, set **Status** to
   **Maintenance** and save. Then add its details from the list.
-- **On a phone, while scanning:** turn on **Send to Maintenance** in a line's note. See
-  [Notes and Maintenance](/mobile/field-inventory/#notes-and-maintenance).
+- **On a phone, while scanning:** turn on **Send to Maintenance** in a line's note, with
+  a location, an expected-back date and, for a lot, how many. Something still out at
+  the gig is flagged and goes in when it's unloaded. See
+  [Sending to maintenance](/mobile/field-inventory/#sending-to-maintenance).
 
-Either way, the whole unit or lot goes in at once.
+From the equipment page, the whole unit or lot goes in at once.
 
 Equipment in maintenance isn't counted as available in a kit's **Availability**, and a
 gig's [Equipment needed](/gigs/conflict-detection/#equipment-needed) table counts it
@@ -169,8 +171,8 @@ Each row shows:
 - **Flagged:** when it was sent to maintenance, and by whom.
 - **Last gig:** the gig it was last used on.
 
-**Flagged, not home yet** appears below when equipment has been marked to go into
-maintenance when it comes back from a gig. It shows the gig in **Coming home from**.
+**Flagged, not home yet** appears below when equipment has been marked on a phone to go
+into maintenance when it comes back from a gig. It shows the gig in **Coming home from**.
 Until it's back, it stays available and at the gig; when it's unloaded, it moves to
 **In maintenance**.
 
