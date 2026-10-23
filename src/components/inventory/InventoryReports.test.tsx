@@ -227,6 +227,19 @@ describe('PackingList: any lines, counted lines and pieces (#185)', () => {
     expect(within(row).getByText('DSL-0101')).toBeInTheDocument();
   });
 
+  // #186 step 4: what maintenance takes from a line.
+  it('a line whose record is in maintenance says so; a short "any" line counts its item in maintenance', async () => {
+    (getPackingListReport as any).mockResolvedValue(ROWS.map((r) =>
+      r.asset_id === 'stands' ? { ...r, in_maintenance: 6 } : r.item_id === 'item-xlr' ? { ...r, in_maintenance: 2 } : r));
+    await renderPackingListTab();
+    const stands = (await screen.findByText('Speaker Stand')).closest('tr')!;
+    expect(within(stands).getByText('In maintenance')).toBeInTheDocument();
+    const xlr = screen.getByText('XLR Cable, 50 ft').closest('tr')!;
+    expect(within(xlr).getByText('7 counted · 3 short · 2 in maintenance')).toBeInTheDocument();
+    const k12 = screen.getByText('QSC K12.2').closest('tr')!;
+    expect(within(k12).queryByText(/in maintenance/i)).not.toBeInTheDocument();
+  });
+
   it('a counted line says how many were counted and how many are short', async () => {
     (getPackingListReport as any).mockResolvedValue(ROWS);
     await renderPackingListTab();

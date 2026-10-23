@@ -59,6 +59,17 @@ describe('MaintenanceList', () => {
     expect(within(flagged).getByText('Harvest Gala')).toBeInTheDocument();
   });
 
+  // #300: long columns wrap so the actions are never pushed past the card's edge.
+  it('keeps the actions on one line and lets the long columns wrap', async () => {
+    renderList();
+    await screen.findByText('DSL-0104');
+    const actions = screen.getAllByRole('button', { name: /return to service/i })[0].closest('td')!;
+    expect(actions.className).toMatch(/whitespace-nowrap/);
+    for (const text of ['QSC K12.2', 'Fall Fest']) {
+      expect(screen.getAllByText(text)[0].closest('td')!.className).toMatch(/whitespace-normal/);
+    }
+  });
+
   it('marks an expected-back date that has passed', async () => {
     renderList();
     await screen.findByText('DSL-0104');

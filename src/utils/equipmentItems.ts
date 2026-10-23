@@ -12,6 +12,12 @@ export interface ItemRecord {
   replacement_value?: number | string | null;
   /** Set when the equipment is retired: gone, like Disposed (Cameron, 10-09). */
   retired_on?: string | null;
+  /** Maintenance (#186): where it is, and a flag waiting for it to come home from a gig. */
+  maintenance_location?: string | null;
+  maintenance_pending?: boolean | null;
+  maintenance_pending_gig_id?: string | null;
+  maintenance_pending_quantity?: number | null;
+  maintenance_from?: string | null;
 }
 
 export type RecordKind = 'unit' | 'lot';

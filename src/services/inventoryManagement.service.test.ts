@@ -907,6 +907,26 @@ describe('inventoryManagement.service', () => {
       expect(rows.find((r) => r.asset_id === 'stands')).toMatchObject({ kind: 'lot', lot_of: 6, quantity: 2, packed: 2 });
     });
 
+    // #186 step 4: a line it can't fill because of maintenance says so: a unit or lot line whose
+    // record is in maintenance, and an "any" line with the item's pieces in maintenance.
+    it('says what is in maintenance: a line\'s own record, and an "any" line\'s item', async () => {
+      const { getPackingListReport } = await import('./inventoryManagement.service');
+      anyKit({
+        ...base,
+        assets: { data: [
+          { id: 'k1', equipment_item_id: 'item-k12', tag_number: 'DSL-0101', quantity: 1, status: 'Active', retired_on: null },
+          { id: 'stands', equipment_item_id: 'item-stand', tag_number: null, quantity: 6, status: 'Maintenance', retired_on: null },
+          { id: 'xlr-piece', equipment_item_id: 'item-xlr', tag_number: null, quantity: 2, status: 'Maintenance', retired_on: null },
+          { id: 'xlr-gone', equipment_item_id: 'item-xlr', tag_number: null, quantity: 1, status: 'Maintenance', retired_on: '2026-01-01' },
+        ], error: null },
+        inventory_tracking: { data: [scan('cables', 'item-xlr', { quantity: 7 })], error: null },
+      });
+      const rows = await getPackingListReport('org-1', 'gig-1');
+      expect(rows.find((r) => r.asset_id === 'stands')).toMatchObject({ kind: 'lot', in_maintenance: 6 });
+      expect(rows.find((r) => r.item_id === 'item-xlr')).toMatchObject({ kind: 'any', in_maintenance: 2 });
+      expect(rows.find((r) => r.item_id === 'item-k12')?.in_maintenance ?? 0).toBe(0);
+    });
+
     // #185 PR 2: what was added at pack-out. A kit added there is flagged; units and lots added
     // on their own (no-kit rows) are one group, "Added at pack-out", after the kits.
     it('lists what was added at pack-out', async () => {
@@ -1454,6 +1474,27 @@ describe('inventoryManagement.service', () => {
         ? { data: units.map((u) => ({ id: u, manufacturer_model: `Mic ${u}`, tag_number: `T-${u}`, serial_number: null })), error: null }
         : { data: rows, error: null }));
     }
+
+    // #186 step 4: each unit or lot line says if its record is in maintenance (and where) or
+    // flagged, from the record itself: an old "Maintenance" tracking row doesn't make it so.
+    it('marks lines in maintenance or flagged, from the record, not an old Maintenance row', async () => {
+      const { getItemsByLocation } = await import('./inventoryManagement.service');
+      const line = (id: string, asset_id: string, status = 'On Site') => ({
+        id, gig_id: 'g1', kit_id: 'k1', asset_id, status, location: 'Stage', quantity: 1, scanned_at: '2026-10-01T10:00:00Z',
+        created_at: null, scanned_by_user: null, kit: { name: 'Lights', is_container: false }, gig: { title: 'Gala' } });
+      mockSupabase.from.mockImplementation((table: string) => makeQueryChain(table === 'assets'
+        ? { data: [
+          { id: 'in', manufacturer_model: 'Amp', tag_number: 'A-1', quantity: 1, status: 'Maintenance', maintenance_location: 'Repair Bench' },
+          { id: 'flag', manufacturer_model: 'Amp', tag_number: 'A-2', quantity: 1, status: 'Active', maintenance_pending: true },
+          { id: 'old', manufacturer_model: 'Amp', tag_number: 'A-3', quantity: 1, status: 'Active' },
+        ], error: null }
+        : { data: [line('r1', 'in'), line('r2', 'flag'), line('r3', 'old', 'Maintenance')], error: null }));
+      const items = await getItemsByLocation('org-1', { gigId: 'g1' });
+      const by = Object.fromEntries(items.map((i) => [i.asset_id, i]));
+      expect(by.in).toMatchObject({ maintenance: 'in', maintenance_location: 'Repair Bench' });
+      expect(by.flag).toMatchObject({ maintenance: 'flagged' });
+      expect(by.old.maintenance ?? null).toBeNull();
+    });
 
     // #186 (Cameron, 10-11): an Item filter, and each line's pieces ("2 of 10" for a lot).
     it('filters by item, on its own too, and gives each line its pieces and lot size', async () => {

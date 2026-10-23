@@ -23,6 +23,7 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { LocationCombobox } from './LocationCombobox';
 import { createManualTrackingRecord, moveLotPieces } from '../../services/inventoryManagement.service';
+import { sendToMaintenance } from '../../services/maintenance.service';
 import { RETURNED_STATUS } from '../../config/inventoryWorkflow';
 import { TRACKING_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { UserRole } from '../../utils/supabase/types';
@@ -51,6 +52,10 @@ interface ManualTrackingOverrideDialogProps {
     /** The lot's pieces are in a case: its name and where the case itself is. */
     inCase?: { name: string; gigId: string; gigTitle: string } | null;
   };
+  /** A unit's row is a return (it's home): Mark for Maintenance sends it with no gig (#186 step 4). */
+  atHome?: boolean;
+  /** The record is already in maintenance, or flagged (#186 step 4): said instead of the box. */
+  maintenance?: { state: 'in' | 'flagged'; location?: string | null } | null;
 }
 
 export function ManualTrackingOverrideDialog({
@@ -68,6 +73,8 @@ export function ManualTrackingOverrideDialog({
   targetLabel,
   gigs,
   lot,
+  atHome,
+  maintenance,
 }: ManualTrackingOverrideDialogProps) {
   const [selectedGigId, setSelectedGigId] = useState<string>(gigId);
   const [status, setStatus] = useState<string>('');
@@ -76,11 +83,15 @@ export function ManualTrackingOverrideDialog({
   const [markForMaintenance, setMarkForMaintenance] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [moveCount, setMoveCount] = useState<number>(lot?.here ?? 1);
+  // Mark for Maintenance (#186 step 4): a send, with how many for a lot, where and when back.
+  const [sendCount, setSendCount] = useState<number>(1);
+  const [maintenanceLocation, setMaintenanceLocation] = useState<string>('');
+  const [expectedBack, setExpectedBack] = useState<string>('');
+  const sending = markForMaintenance && !!assetId && !maintenance;
 
-  // A lot (#186): how many go, unless it's a new status for all of it at the same gig. Decided
-  // by the status written: Mark for Maintenance keeps the pieces at the gig, in Maintenance.
+  // A lot (#186): how many go, unless it's a new status for all of it at the same gig.
   // From home, `here` is the pieces home, so no more than those go.
-  const written = markForMaintenance && assetId ? 'Maintenance' : status;
+  const written = status;
   const fromHome = lot?.status === RETURNED_STATUS;
   const goingHome = written === RETURNED_STATUS;
   const wholeBucket = !!lot && !!status && !goingHome && !fromHome && selectedGigId === gigId;
@@ -100,7 +111,47 @@ export function ManualTrackingOverrideDialog({
     if (open) setSelectedGigId(gigId);
   }, [open, gigId]);
 
+  const reset = () => {
+    setStatus('');
+    setLocation('');
+    setNotes('');
+    setMarkForMaintenance(false);
+    setSendCount(1);
+    setMaintenanceLocation('');
+    setExpectedBack('');
+  };
+
+  // Sends to maintenance with the row's gig (still out: flagged until it comes home), or with
+  // none from home, where the shared wrapper applies the Locations home count (#186 step 4).
+  const handleSend = async () => {
+    if (!assetId) return;
+    setSubmitting(true);
+    try {
+      const home = lot ? lot.status === RETURNED_STATUS : !!atHome;
+      await sendToMaintenance({
+        assetId,
+        quantity: lot ? Math.max(1, Math.min(Math.floor(sendCount) || 1, lot.here)) : 1,
+        notes: notes || null,
+        location: maintenanceLocation || null,
+        expectedBack: expectedBack || null,
+        gigId: home ? null : gigId,
+      });
+      toast.success('Sent to maintenance');
+      onOpenChange(false);
+      reset();
+      onSuccess();
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : 'Not sent to maintenance');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async () => {
+    if (sending) {
+      await handleSend();
+      return;
+    }
     if (!status) {
       toast.error('Please select a status');
       return;
@@ -141,7 +192,7 @@ export function ManualTrackingOverrideDialog({
         gigId: selectedGigId,
         kitId,
         assetId,
-        status: markForMaintenance && assetId ? 'Maintenance' : status,
+        status,
         location: location || null,
         notes: notes || null,
         createdBy: userId,
@@ -164,12 +215,7 @@ export function ManualTrackingOverrideDialog({
   };
 
   const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      setStatus('');
-      setLocation('');
-      setNotes('');
-      setMarkForMaintenance(false);
-    }
+    if (!open) reset();
     onOpenChange(open);
   };
 
@@ -181,7 +227,7 @@ export function ManualTrackingOverrideDialog({
           {targetLabel && <DialogDescription>{targetLabel}</DialogDescription>}
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
-          {gigs && (
+          {gigs && !sending && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="override-gig">Gig</Label>
               <Select value={selectedGigId} onValueChange={setSelectedGigId}>
@@ -198,6 +244,7 @@ export function ManualTrackingOverrideDialog({
               </Select>
             </div>
           )}
+          {!sending && (<>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="override-status">Status</Label>
             <Select value={status} onValueChange={setStatus}>
@@ -222,6 +269,44 @@ export function ManualTrackingOverrideDialog({
               placeholder="Enter or select location..."
             />
           </div>
+          </>)}
+          {sending && (
+            <div className="flex flex-col gap-3">
+              {lot && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span>Send</span>
+                  <Input
+                    type="number"
+                    aria-label="How many to send"
+                    className="h-9 w-20"
+                    min={1}
+                    max={lot.here}
+                    value={sendCount}
+                    onChange={(e) => setSendCount(Number(e.target.value))}
+                  />
+                  <span>{`of the ${lot.here} at ${lot.place}`}</span>
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="override-maintenance-location">Maintenance location</Label>
+                <Input
+                  id="override-maintenance-location"
+                  value={maintenanceLocation}
+                  onChange={(e) => setMaintenanceLocation(e.target.value)}
+                  placeholder="e.g. Repair Bench"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="override-expected-back">Expected back</Label>
+                <Input
+                  id="override-expected-back"
+                  type="date"
+                  value={expectedBack}
+                  onChange={(e) => setExpectedBack(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="override-notes">Notes</Label>
             <Textarea
@@ -231,7 +316,7 @@ export function ManualTrackingOverrideDialog({
               placeholder="Optional notes..."
             />
           </div>
-          {choosesCount && lot && (
+          {!sending && choosesCount && lot && (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2 text-sm">
                 <span>Move</span>
@@ -254,7 +339,15 @@ export function ManualTrackingOverrideDialog({
               )}
             </div>
           )}
-          {assetId && (
+          {assetId && maintenance && (
+            <p className="text-sm text-muted-foreground">
+              {maintenance.state === 'in'
+                ? `In maintenance${maintenance.location ? ` · ${maintenance.location}` : ''}.`
+                : 'Flagged to maintenance: it goes in when it comes home.'}
+              {' '}Edit it, or return it to service, on the Maintenance list.
+            </p>
+          )}
+          {assetId && !maintenance && (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="override-maintenance"
@@ -271,9 +364,9 @@ export function ManualTrackingOverrideDialog({
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting || !status}>
+          <Button onClick={handleSubmit} disabled={submitting || (!sending && !status)}>
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {choosesCount && status ? `Move ${n}` : 'Save Override'}
+            {sending ? 'Send to maintenance' : choosesCount && status ? `Move ${n}` : 'Save Override'}
           </Button>
         </DialogFooter>
       </DialogContent>

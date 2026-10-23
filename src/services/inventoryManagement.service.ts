@@ -70,6 +70,10 @@ export interface LocationItem {
   /** A lot line in a container: where the case itself is, by its own newest row (Cameron, 10-12). */
   case_gig_id?: string | null;
   case_gig_title?: string | null;
+  /** #186 step 4: the record is in maintenance (at `maintenance_location`) or flagged to go when
+   *  it comes home. From the record itself, never an old "Maintenance" tracking row. */
+  maintenance?: 'in' | 'flagged' | null;
+  maintenance_location?: string | null;
 }
 
 export interface ManifestRow {
@@ -110,6 +114,9 @@ export interface PackingListRow {
   }[];
   /** An "any" line of an item with no tags: its pieces are counted, not scanned. */
   counted?: boolean;
+  /** #186 step 4: pieces in maintenance the line can't use: a unit or lot line's own record,
+   *  or an "any" line's item. */
+  in_maintenance?: number;
   asset_id?: string | null;
   asset_name?: string | null;
   tag_number?: string | null;
@@ -433,7 +440,7 @@ export async function getItemsByLocation(
 
     const { data: assets, error: assetsError } = await supabase
       .from('assets')
-      .select('id, manufacturer_model, tag_number, serial_number, quantity, equipment_item_id')
+      .select('id, manufacturer_model, tag_number, serial_number, quantity, equipment_item_id, status, maintenance_location, maintenance_pending')
       .in('id', [...new Set(records.filter((r) => r.asset_id).map((r) => r.asset_id as string))]);
 
     if (assetsError) throw assetsError;
@@ -485,6 +492,8 @@ export async function getItemsByLocation(
         quantity: piecesOf.get(record) ?? Math.max(1, Number(record.quantity ?? 1) || 1),
         lot_of: asset && recordKind(asset) === 'lot' ? Number(asset.quantity ?? 1) : null,
         equipment_item_id: asset?.equipment_item_id ?? null,
+        maintenance: asset?.status === 'Maintenance' ? 'in' : asset?.maintenance_pending ? 'flagged' : null,
+        maintenance_location: asset?.status === 'Maintenance' ? asset.maintenance_location ?? null : null,
         ...(asset && recordKind(asset) === 'lot' && record.kit_id && caseRow.has(record.kit_id) ? {
           case_gig_id: caseRow.get(record.kit_id)!.gig_id,
           case_gig_title: (records.find((r) => r.id === caseRow.get(record.kit_id!)!.id) as any)?.gig?.title ?? null,
@@ -943,6 +952,26 @@ export async function getPackingListReport(organizationId: string, gigId: string
         has_conflict: false,
         group_kit_id: looseId, group_kit_name: LOOSE_GROUP_NAME, group_is_container: false, group_tag_number: null, group_is_loose: true,
       });
+    }
+
+    // What's in maintenance (#186 step 4): a unit or lot line's own record, and an "any" line's
+    // item, so a line short because of it says so.
+    const { data: inShop, error: inShopError } = await (supabase.from('assets') as any)
+      .select('id, equipment_item_id, quantity, status, retired_on')
+      .eq('organization_id', organizationId)
+      .eq('status', 'Maintenance');
+    if (inShopError) throw inShopError;
+    const shopById = new Map<string, number>();
+    const shopByItem = new Map<string, number>();
+    for (const a of (inShop ?? []) as { id: string; equipment_item_id: string | null; quantity: number | null; status: string | null; retired_on: string | null }[]) {
+      if (a.status !== 'Maintenance' || isRetired(a)) continue;
+      const n = Math.max(1, Number(a.quantity ?? 1) || 1);
+      shopById.set(a.id, n);
+      if (a.equipment_item_id) shopByItem.set(a.equipment_item_id, (shopByItem.get(a.equipment_item_id) ?? 0) + n);
+    }
+    for (const row of rows) {
+      const n = row.kind === 'any' ? shopByItem.get(row.item_id ?? '') : row.asset_id ? shopById.get(row.asset_id) : undefined;
+      if (n) row.in_maintenance = n;
     }
 
     // A container reachable both directly (its own gig_kit_assignments row)

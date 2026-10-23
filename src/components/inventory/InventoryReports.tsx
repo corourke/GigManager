@@ -422,9 +422,11 @@ interface PackingLine {
 /** An "any" line's progress (#185): "1 of 2" when scanned, "7 counted · 3 short" when counted. */
 function anyProgress(row: PackingListRow): string {
   const packed = row.packed ?? 0;
-  if (!row.counted) return `${packed} of ${row.quantity}`;
   const short = Math.max(0, row.quantity - packed);
-  return short ? `${packed} counted · ${short} short` : `${packed} counted`;
+  // A short line says how many of the item are in maintenance (#186 step 4).
+  const shop = short && row.in_maintenance ? ` · ${row.in_maintenance} in maintenance` : '';
+  if (!row.counted) return `${packed} of ${row.quantity}${shop}`;
+  return short ? `${packed} counted · ${short} short${shop}` : `${packed} counted`;
 }
 
 /** Under a line's name (#185): the units packed for an "any" line, a lot's size, a container's
@@ -699,6 +701,9 @@ function PackingListTab({
                           {(line.depth === 0 || isContainer) && !line.loose && <KitTypeBadge isContainer={line.depth === 0 ? !line.kitId : true} />}
                           {line.addedAtPackOut && <span className="rounded border border-amber-300 bg-amber-50 px-1.5 text-[11px] font-medium text-amber-800">Added at pack-out</span>}
                           {row?.kind === 'any' && <span className="rounded border border-sky-300 bg-sky-50 px-1.5 text-[11px] font-medium text-sky-800">Any</span>}
+                          {row && row.kind !== 'any' && !!row.in_maintenance && (
+                            <span className="rounded border border-orange-200 bg-orange-50 px-1.5 text-[11px] font-medium text-orange-700">In maintenance</span>
+                          )}
                           {conflict && <ConflictBadge />}
                         </div>
                         {row && <PackingLineDetail row={row} />}
