@@ -1,13 +1,10 @@
-import { createClient } from '../utils/supabase/client';
+import { getSupabase, getCurrentUser } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
 import type { DbAsset, DbEquipmentItem } from '../utils/supabase/types';
 import { containerPiecesByItem, recordItemMaps, type ContainerPieces, type ItemRecord } from '../utils/equipmentItems';
 
 // Equipment items (#162, #182): what a piece of equipment is. Its units and
 // lots are rows in `assets`, each pointing at its item (migration 20261014000000).
-
-const getSupabase = () => createClient();
 
 export type EquipmentItemWithRecords = DbEquipmentItem & { records: DbAsset[] };
 
@@ -54,7 +51,8 @@ export async function getItem(itemId: string): Promise<EquipmentItemWithRecords>
  */
 export async function updateItem(itemId: string, fields: ItemFields): Promise<DbEquipmentItem> {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
     // Trimmed; a cleared optional field (type, description, insurance class) is null.
     const shared = Object.fromEntries(ITEM_FIELDS.filter((f) => f in fields).map((f) => {
       const value = typeof fields[f] === 'string' ? (fields[f] as string).trim() : fields[f];

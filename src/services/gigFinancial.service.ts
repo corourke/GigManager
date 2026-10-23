@@ -1,7 +1,6 @@
 import { FinCategory, FinDirection, FinStage, DbGigFinancial, FieldChange } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
-import { getSupabase } from './gigService.shared';
+import { getSupabase, getCurrentUser } from './base/dataAccess';
 import { logActivity } from './activityLog.service';
 import type { ActivityEventType } from '../utils/activityLog.events';
 import { expectedAmount, summarizeMoney, type MoneyRow, type MoneySummary } from '../utils/moneyFlow';
@@ -344,7 +343,8 @@ async function logFinancialEvent(
   fieldChanges?: FieldChange[],
 ): Promise<void> {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
     const actor_display_name =
       `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() ||
       user.email ||
@@ -382,7 +382,8 @@ async function logFinancialEvent(
  */
 export async function createGigFinancial(finData: GigFinancialInput): Promise<DbGigFinancial> {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
     const insert = withSettlement(clean({ ...finData }));
     const { data, error } = await supabase
       .from('gig_financials')
@@ -402,7 +403,8 @@ export async function createGigFinancial(finData: GigFinancialInput): Promise<Db
  */
 export async function updateGigFinancial(finId: string, finData: GigFinancialPatch): Promise<DbGigFinancial> {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
     const { data: before, error: readError } = await supabase
       .from('gig_financials')
       .select('*')

@@ -1,11 +1,9 @@
-import { createClient } from '../utils/supabase/client';
+import { getSupabase } from './base/dataAccess';
 import type { Json } from '../utils/supabase/database.types';
 import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
 import { handleApiError, handleFunctionsError, unwrapFunctionsError } from '../utils/api-error-utils';
 import { buildCalendarEvent } from '../../supabase/functions/server/lib/pure/calendarEvent';
 import type { CalendarVenue } from '../../supabase/functions/server/lib/pure/calendarEvent';
-
-const getSupabase = () => createClient();
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
