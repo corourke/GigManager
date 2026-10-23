@@ -897,13 +897,12 @@ export const shots = [
       }
       await page.locator('[data-sonner-toast]').first().waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
     },
-    // The In maintenance table, Item through Last gig. It stops before the action buttons,
-    // which the table pushes past its card's edge (#300); retake the full width once that's fixed.
+    // From the count and Print through the In maintenance table, actions included (they
+    // fit the card since #300).
     clip: async (page) => {
-      const region = page.getByRole('region', { name: 'In maintenance' });
-      const table = await box(region);
-      const edit = await box(region.getByRole('button', { name: /^Edit/ }).first());
-      return { x: table.x - 8, y: table.y - 8, width: edit.x - 8 - (table.x - 8), height: table.height + 16 };
+      const count = await box(page.getByText(/\d+ in maintenance/).first());
+      const table = await box(page.getByRole('region', { name: 'In maintenance' }));
+      return { x: 0, y: count.y - 16, width: 1200, height: table.y + table.height + 16 - (count.y - 16) };
     },
   },
   // Supplied by hand (Cameron, 10-08): these screens open only from a link in an

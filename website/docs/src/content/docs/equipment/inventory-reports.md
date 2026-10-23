@@ -71,6 +71,8 @@ under **Qty**, and the size of the lot you're taking them from underneath, such 
 "XLR Cable, 50 ft", **Qty** 2, "from a lot of 10". While a lot is partly packed,
 **Status** shows how many are packed so far, such as "4 of 6".
 
+A unit or lot that's in [maintenance](#maintenance) has an **In maintenance** tag.
+
 ### "Any" lines
 
 An "any" line asks for a number of whatever units of an item you own. It shows the
@@ -81,6 +83,8 @@ Its **Status** shows how many are packed so far: for an item whose units have ta
 how many are scanned, such as "1 of 4", with the tags of those units under the name.
 For an item with no tags, it shows how many were counted and how many are still
 missing, such as "7 counted · 3 short", and then "10 counted" once they're all there.
+When a line is short and some of the item is in maintenance, it says so, such as
+"7 counted · 3 short · 2 in maintenance".
 
 A unit that's on its own line elsewhere in the same kit doesn't fill an "any" line.
 
@@ -137,18 +141,22 @@ it is, what's wrong with it, where it is and when it's due back. Everyone in the
 organization can see the list. Admins, Managers and Staff can update it; Viewers see
 it without buttons.
 
-![The In maintenance table: two Fennimore Wash Bar 8 units, with their tags and serials, condition notes, Repair Bench, expected-back dates (one marked Overdue) and their last gig](../../../assets/screenshots/equipment/inventory-reports-maintenance.png)
+![The In maintenance table: two Fennimore Wash Bar 8 units, with their tags and serials, condition notes, Repair Bench, expected-back dates (one marked Overdue), their last gig, and Edit and Return to service](../../../assets/screenshots/equipment/inventory-reports-maintenance.png)
 
 ### Sending equipment to maintenance
 
-- **On a computer:** open the unit or lot, choose **Edit**, set **Status** to
-  **Maintenance** and save. Then add its details from the list.
+- **On a computer, from Locations:** open the line's correction and tick **Mark for
+  Maintenance**, with how many for a lot, a location and an expected-back date. See
+  [Sending to maintenance](/equipment/location-explorer/#sending-to-maintenance).
+- **On a computer, from the equipment page:** choose **Edit**, set **Status** to
+  **Maintenance** and save. The whole unit or lot goes in; add its details from the list.
 - **On a phone, while scanning:** turn on **Send to Maintenance** in a line's note, with
   a location, an expected-back date and, for a lot, how many. Something still out at
   the gig is flagged and goes in when it's unloaded. See
   [Sending to maintenance](/mobile/field-inventory/#sending-to-maintenance).
 
-From the equipment page, the whole unit or lot goes in at once.
+From Locations or a phone, something still out at a gig is flagged and goes in when it
+comes home.
 
 Equipment in maintenance isn't counted as available in a kit's **Availability**, and a
 gig's [Equipment needed](/gigs/conflict-detection/#equipment-needed) table counts it
@@ -172,8 +180,8 @@ Each row shows:
 - **Flagged:** when it was sent to maintenance, and by whom.
 - **Last gig:** the gig it was last used on.
 
-**Flagged, not home yet** appears below when equipment has been marked on a phone to go
-into maintenance when it comes back from a gig. It shows the gig in **Coming home from**.
+**Flagged, not home yet** appears below when equipment has been marked, on a phone or
+from Locations, to go into maintenance when it comes back from a gig. It shows the gig in **Coming home from**.
 Until it's back, it stays available and at the gig; when it's unloaded, it moves to
 **In maintenance**.
 
