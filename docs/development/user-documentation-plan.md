@@ -1,15 +1,16 @@
 # GigWrangler User Documentation Plan
 
-**Last Updated**: 2026-09-09
+**Last Updated**: 2026-10-22 (status block refreshed; the backlog tables below are a 2026-09 snapshot)
 **Status**: **The docs site is live — [docs.gigwrangler.com](https://docs.gigwrangler.com)** —
 Astro + Starlight in [`website/docs/`](../../website/docs/), deployed by Cloudflare
 Workers Builds (push to `main` → deploy; other branches/PRs → preview URL). See
 [`website/docs/README.md`](../../website/docs/README.md) for the edit/build/deploy
-workflow. **Getting Started is drafted** (What is GigWrangler / Signing up / Getting
-into an organization / The dashboard), plus Gigs overview + Change history, Google
-Calendar, and Roles & access. Remaining sections are stubs — see the backlog below.
-The two dry runs ([2026-09-06](dry-run-findings-2026-09-06.md),
-[2026-09-08](dry-run-findings-2026-09-08.md)) drove issues #22–#33 and #53–#55; most are fixed.
+workflow. The site now has pages for getting-started, gigs, team, equipment, financials,
+mobile, settings and reference; the Docs Lead owns them and what is current lives in
+`WORK_PLAN.md` (§3d, §4). **Treat everything below this block as the original outline and a
+2026-09 backlog snapshot, not as current status.** The two dry runs
+([2026-09-06](dry-run-findings-2026-09-06.md), [2026-09-08](dry-run-findings-2026-09-08.md))
+drove issues #22–#33 and #53–#55; #22 (Google Places key) is closed.
 
 > The product was renamed **GigManager → GigWrangler** (gigwrangler.com) in May 2026.
 > The git repository is still named `GigManager`. Use "GigWrangler" in all user-facing copy.
