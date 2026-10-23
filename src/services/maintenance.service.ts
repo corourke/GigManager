@@ -2,12 +2,11 @@
 // to service, and list what's in maintenance or flagged to go when it comes home. The database
 // functions (20261022000000) do the work and check who may; sending without a gig first applies
 // the Locations rule's home count, which the database leaves to the screens.
-import { createClient } from '../utils/supabase/client';
+import { getSupabase } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
 import { piecesHome, type TrackingRow } from '../utils/locations';
 import { recordKind } from '../utils/equipmentItems';
 
-const getSupabase = () => createClient();
 const TRACKING_PAGE = 1000;
 
 /** A refusal from the database, with its message as written there and its code (42501, 22023). */
