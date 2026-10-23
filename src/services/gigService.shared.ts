@@ -1,11 +1,7 @@
-import { createClient } from '../utils/supabase/client';
-
 /**
- * Shared internal helper for the gig service modules (Phase 7, Step 4 split).
- * The gig.service.ts file was split into focused modules
- * (gigParticipant/gigStaff/gigKit/gigFinancial); they share this client getter.
+ * Shared internal helpers for the gig service modules (Phase 7, Step 4 split).
+ * The client and signed-in user come from `./base/dataAccess` (#20).
  */
-export const getSupabase = () => createClient();
 
 /** Who did it and to which gig, as the gig services log it in activity_log. */
 export interface GigActivityCtx {
