@@ -31,6 +31,17 @@
     "taken": "2026-10-10",
     "appCommit": "0122c92"
   },
+  "equipment/inventory-reports-maintenance": {
+    "page": "equipment/inventory-reports.md",
+    "user": "admin",
+    "sources": [
+      "src/components/inventory/MaintenanceList.tsx",
+      "src/services/maintenance.service.ts"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-23",
+    "appCommit": "14f678d"
+  },
   "equipment/inventory-reports-packing-list": {
     "page": "equipment/inventory-reports.md",
     "user": "admin",

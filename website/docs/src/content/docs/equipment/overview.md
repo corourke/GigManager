@@ -18,7 +18,7 @@ gear, and can nest inside other kits.
 | **Kits** | Logical vs. container kits, and nested kits. |
 | **Out on gigs** | Each active gig with kits assigned, how many of its items are tracked, and each kit's status (Checked Out, In Transit, On Site, In Warehouse). **Track** on a gig, or **Track a gig** at the top, opens the scanner for it. |
 | **Locations** | Where gear is, filtered by location, gig and status. **Print manifest** opens the manifest for one location: check items off on screen as you walk it, or print it. |
-| **Maintenance** | The maintenance queue: what needs service. |
+| **Maintenance** | What's out of service for repair, and what's flagged to go in when it comes home from a gig: notes, location, expected-back date, and Return to service. See [Maintenance](/equipment/inventory-reports/#maintenance). |
 
 A gig's **packing list** is on the gig itself: open the gig's **Equipment** tab,
 or choose **Print → Packing list** on the gig.
@@ -26,7 +26,7 @@ or choose **Print → Packing list** on the gig.
 - **Items** — your items, with their units and lots: search, filter, add, edit.
 - **[Kits](/equipment/kits/)** — building kits, "any" lines, nesting and containers, and the kit page.
 - **[Locations](/equipment/location-explorer/)** — where gear is right now, and correcting a record.
-- **[Inventory reports](/equipment/inventory-reports/)** — the packing list.
+- **[Inventory reports](/equipment/inventory-reports/)** — the packing list and the Maintenance list.
 - **Barcode & QR scanning** — tags and the mobile
   scanner.
 - **[Assigning equipment to a gig](/equipment/assigning-to-a-gig/)** — kit

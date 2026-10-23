@@ -867,6 +867,45 @@ export const shots = [
       return { x: card.x - 6, y: card.y - 6, width: card.width + 12, height: mic.y + mic.height + 6 - (card.y - 6) };
     },
   },
+  // Equipment › Maintenance (#186): the seed's two Wash Bars, with details filled in through
+  // the list's own Edit dialog (only the maintenance details change; nothing else moves).
+  {
+    id: 'equipment/inventory-reports-maintenance',
+    page: 'equipment/inventory-reports.md',
+    user: 'admin',
+    sources: ['src/components/inventory/MaintenanceList.tsx', 'src/services/maintenance.service.ts'],
+    viewport: { width: 1200, height: 1200 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/equipment/maintenance`);
+      await page.getByRole('heading', { name: 'In maintenance' }).waitFor();
+      const details = [
+        ['DSL-0153', 'Fan noisy at full output; replace the fan.', 'Repair Bench', '2026-10-01'],
+        ['DSL-0154', 'Cracked lens. New lens on order.', 'Repair Bench', '2026-10-20'],
+      ];
+      for (const [tag, notes, location, back] of details) {
+        const row = page.getByRole('row').filter({ hasText: tag });
+        await row.waitFor();
+        if ((await row.innerText()).includes(location)) continue;
+        await row.getByRole('button', { name: /^Edit/ }).click();
+        const d = page.getByRole('dialog');
+        await d.getByLabel('Condition notes').fill(notes);
+        await d.getByLabel('Location').fill(location);
+        await d.getByLabel('Expected back').fill(back);
+        await d.getByRole('button', { name: 'Save' }).click();
+        await d.waitFor({ state: 'hidden' });
+        await page.getByRole('row').filter({ hasText: tag }).getByText(location).waitFor();
+      }
+      await page.locator('[data-sonner-toast]').first().waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+    },
+    // The In maintenance table, Item through Last gig. It stops before the action buttons,
+    // which the table pushes past its card's edge (#300); retake the full width once that's fixed.
+    clip: async (page) => {
+      const region = page.getByRole('region', { name: 'In maintenance' });
+      const table = await box(region);
+      const edit = await box(region.getByRole('button', { name: /^Edit/ }).first());
+      return { x: table.x - 8, y: table.y - 8, width: edit.x - 8 - (table.x - 8), height: table.height + 16 };
+    },
+  },
   // Supplied by hand (Cameron, 10-08): these screens open only from a link in an
   // email, which the script can't follow, so they aren't taken here. Retake them by
   // hand from a dev email (Mailtrap) when the screen changes.

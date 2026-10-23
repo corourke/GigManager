@@ -1,17 +1,17 @@
 ---
 title: Inventory reports
-description: "A gig's packing list: what to take, what's been packed, and a printable checklist."
+description: "A gig's packing list, and the Maintenance list of equipment out of service for repair."
 sidebar:
   order: 6
 ---
 
-A gig's **packing list** shows what the gig needs and what's been packed for it.
+A gig's **packing list** shows what the gig needs and what's been packed for it. The
+[**Maintenance**](#maintenance) list shows what's out of service for repair.
 
-<!-- TODO: write the Manifest and Maintenance queue sections. Still to cover:
+<!-- TODO: write the Manifest section. Still to cover:
 - **Manifest**: **Equipment → Locations → Print manifest**. Dedupes assets across kit
   levels; interactive checkboxes on screen.
-- **Maintenance queue**: **Equipment → Maintenance**. What needs service.
-- When a field tech reaches for each.
+- When a field tech reaches for it.
 Screenshots: Manifest with checkboxes.
 Source: Plan §4, Prompt 7. Commits `Inventory reports` (2026-05-31) + 2026-08-26 fixes. -->
 
@@ -128,6 +128,67 @@ To fill in by hand:
 - **A counted "any" line** gets a box and a blank: "☐ count ______". Write the number
   you counted.
 - **Every line** has an empty box in the **✓** column to tick.
+
+
+## Maintenance
+
+**Equipment → Maintenance** lists the equipment that's out of service for repair: what
+it is, what's wrong with it, where it is and when it's due back. Everyone in the
+organization can see the list. Admins, Managers and Staff can update it; Viewers see
+it without buttons.
+
+![The In maintenance table: two Fennimore Wash Bar 8 units, with their tags and serials, condition notes, Repair Bench, expected-back dates (one marked Overdue) and their last gig](../../../assets/screenshots/equipment/inventory-reports-maintenance.png)
+
+### Sending equipment to maintenance
+
+- **On a computer:** open the unit or lot, choose **Edit**, set **Status** to
+  **Maintenance** and save. Then add its details from the list.
+- **On a phone, while scanning:** turn on **Send to Maintenance** in a line's note. See
+  [Notes and Maintenance](/mobile/field-inventory/#notes-and-maintenance).
+
+Either way, the whole unit or lot goes in at once.
+
+Equipment in maintenance isn't counted as available in a kit's **Availability**, and a
+gig's [Equipment needed](/gigs/conflict-detection/#equipment-needed) table counts it
+under **In maintenance**, not **Free**. Pack-Out on the phone asks before packing it.
+
+### Reading the list
+
+The line above the list counts the pieces, such as "2 in maintenance". **Print** prints
+the list.
+
+Each row shows:
+
+- **Item** and **Which:** a unit's tag and serial, such as "DSL-0153 · S/N DSL015-24558",
+  or for a lot "Whole lot of 6". Pieces split off a lot read "2 split from the lot (now 8)".
+- **Condition notes:** what's wrong with it.
+- **Location:** where it is while it's being fixed, such as "Repair Bench". This is the
+  list's own field; [Locations](/equipment/location-explorer/) shows where its last scan
+  put it.
+- **Expected back:** the date it should be ready, marked **Overdue** once it's passed.
+- **Flagged:** when it was sent to maintenance, and by whom.
+- **Last gig:** the gig it was last used on.
+
+**Flagged, not home yet** appears below when equipment has been marked to go into
+maintenance when it comes back from a gig. It shows the gig in **Coming home from**.
+Until it's back, it stays available and at the gig; when it's unloaded, it moves to
+**In maintenance**.
+
+### Updating an entry
+
+- **Edit** opens **Maintenance details**: **Condition notes**, **Location** and
+  **Expected back**. Select **Save**.
+- **Return to service** puts it back in use. GigWrangler asks first, and says what will
+  happen:
+  - a unit or whole lot "goes back to the status it had before", Active or Inactive;
+  - pieces split off a lot go back into their lot, "goes back into its lot (now 8)";
+  - if the lot can't take them back, for example because it's been disposed of, they
+    come back as a lot of their own.
+- **Cancel flag**, on **Flagged, not home yet**, means it won't go into maintenance when
+  it comes home.
+
+To get rid of something that isn't worth fixing, an Admin or Manager sets its **Status**
+to **Disposed** on the equipment's own page.
 
 ## Related
 

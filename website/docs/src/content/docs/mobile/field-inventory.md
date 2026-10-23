@@ -105,7 +105,8 @@ A note is a record of its own: it never checks anything off or changes a count. 
 note on a kit is about the kit as a whole and doesn't touch what's inside it.
 
 To take a unit or lot out of service, turn on **Send to Maintenance** and tap **Save**.
-It goes to Maintenance, and the note ends with "Sent to Maintenance." Admins, Managers
+The whole unit or lot goes onto the
+[Maintenance](/equipment/inventory-reports/#maintenance) list, and the note ends with "Sent to Maintenance." Admins, Managers
 and Staff see this switch.
 
 **Clear note** empties the box; tap **Save** to keep it empty. **Cancel** closes without
