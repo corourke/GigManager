@@ -602,6 +602,24 @@ describe('inventoryTrackingService', () => {
         .toEqual({ fills: [{ asset_id: 'lot-b', quantity: 2 }, { asset_id: 'di-7', quantity: 1 }], short: 0 })
     })
 
+    // #186 step 3 (Cameron, 10-22): a lot in Maintenance or Inactive isn't picked; one only flagged
+    // to maintenance still is (it stays available until it comes home).
+    it('skips a lot in Maintenance or Inactive, but not one only flagged', () => {
+      const records = (status: string, pending = false) => ({
+        item_records: { 'item-di': [
+          { id: 'lot-a', quantity: 4, at_home: 4, at_gig: 0, status: 'Active' },
+          { id: 'lot-b', quantity: 5, at_home: 5, at_gig: 0, status, maintenance_pending: pending },
+        ] },
+        tracking: [],
+      })
+      expect(inventoryTrackingService.getAnySlotFills(records('Maintenance'), slot, 'Checked Out', 'gig-1'))
+        .toEqual({ fills: [{ asset_id: 'lot-a', quantity: 3 }], short: 0 })
+      expect(inventoryTrackingService.getAnySlotFills(records('Inactive'), slot, 'Checked Out', 'gig-1'))
+        .toEqual({ fills: [{ asset_id: 'lot-a', quantity: 3 }], short: 0 })
+      expect(inventoryTrackingService.getAnySlotFills(records('Active', true), slot, 'Checked Out', 'gig-1'))
+        .toEqual({ fills: [{ asset_id: 'lot-b', quantity: 3 }], short: 0 })
+    })
+
     it('Unload never picks from home', () => {
       expect(inventoryTrackingService.getAnySlotFills(list([at('lot-b', 'On Site', 1)]), slot, 'In Warehouse', 'gig-1'))
         .toEqual({ fills: [{ asset_id: 'lot-b', quantity: 1 }], short: 2 })
@@ -779,5 +797,93 @@ describe('inventoryTrackingService', () => {
       { kit_id: null, asset_id: 'u9', quantity: 1 },
       { kit_id: null, asset_id: 'lot-1', quantity: 6 },
     ])
+  })
+
+  // #186 step 3: Send to Maintenance from the phone. The send goes with this gig; the database
+  // decides whether it's only flagged (still out) or goes in now (home). The cached list follows
+  // the same rule so the row's mark shows offline.
+  describe('maintenance from the phone', () => {
+    const lot = { id: 'lot-1', manufacturer_model: 'XLR Cable', quantity: 10, status: 'Active' }
+    const unit = { id: 'u-1', manufacturer_model: 'QSC K12.2', tag_number: 'DSL-1', quantity: 1, status: 'Inactive' }
+    const cached = (tracking: any[] = [], over: Record<string, unknown> = {}) => ({
+      gig_id: 'gig-1',
+      kits: [{ kit: { id: 'kit-1', name: 'Case', assets: [{ asset_id: 'lot-1', quantity: 4, asset: { ...lot } }, { asset_id: 'u-1', quantity: 1, asset: { ...unit } }] } }],
+      tracking,
+      ...over,
+    })
+    const row = (asset_id: string, status: string, quantity = 1) =>
+      ({ gig_id: 'gig-1', kit_id: 'kit-1', asset_id, status, quantity, scanned_at: '2026-10-22T10:00:00.000Z', scanned_by: 'u' })
+    const saved = () => vi.mocked(idbStore.putPackingList).mock.calls.at(-1)?.[1] as any
+    const assetIn = (list: any, id: string) => list.kits[0].kit.assets.find((a: any) => a.asset_id === id).asset
+
+    it('queues MAINTENANCE_SEND with this gig and the details', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(cached([row('lot-1', 'On Site', 4)]))
+      await inventoryTrackingService.sendToMaintenance({
+        gigId: 'gig-1', assetId: 'lot-1', quantity: 2, notes: 'Frayed', location: 'Repair Bench', expectedBack: '2026-11-03',
+      })
+      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledWith({
+        asset_id: 'lot-1', quantity: 2, notes: 'Frayed', location: 'Repair Bench', expected_back: '2026-11-03', gig_id: 'gig-1',
+      }, 'MAINTENANCE_SEND')
+    })
+
+    it('a lot out here is only flagged in the cached list, and adding more adds to the flag', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(cached([row('lot-1', 'On Site', 4)]))
+      await inventoryTrackingService.sendToMaintenance({ gigId: 'gig-1', assetId: 'lot-1', quantity: 2, location: 'Bench' })
+      expect(assetIn(saved(), 'lot-1')).toMatchObject({
+        status: 'Active', maintenance_pending: true, maintenance_pending_quantity: 2, maintenance_pending_gig_id: 'gig-1', maintenance_location: 'Bench',
+      })
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(saved())
+      await inventoryTrackingService.sendToMaintenance({ gigId: 'gig-1', assetId: 'lot-1', quantity: 9 })
+      expect(assetIn(saved(), 'lot-1')).toMatchObject({ maintenance_pending: true, maintenance_pending_quantity: null, maintenance_location: 'Bench' })
+    })
+
+    it('a unit home goes into Maintenance at once in the cached list, keeping the status it had', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(cached())
+      await inventoryTrackingService.sendToMaintenance({ gigId: 'gig-1', assetId: 'u-1', quantity: 1 })
+      expect(assetIn(saved(), 'u-1')).toMatchObject({ status: 'Maintenance', status_before_maintenance: 'Inactive', maintenance_pending: false })
+    })
+
+    it('a unit out at another gig is only flagged', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(cached([], { elsewhere: { 'u-1': { gig_id: 'gig-2', gig_title: 'Fri', status: 'On Site' } } }))
+      await inventoryTrackingService.sendToMaintenance({ gigId: 'gig-1', assetId: 'u-1', quantity: 1 })
+      expect(assetIn(saved(), 'u-1')).toMatchObject({ status: 'Inactive', maintenance_pending: true })
+    })
+
+    it('part of a lot that is home splits off: the cached lot is smaller', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(cached())
+      await inventoryTrackingService.sendToMaintenance({ gigId: 'gig-1', assetId: 'lot-1', quantity: 3 })
+      expect(assetIn(saved(), 'lot-1')).toMatchObject({ status: 'Active', quantity: 7, maintenance_pending: false })
+    })
+
+    it('returnFromMaintenance queues MAINTENANCE_RETURN and restores the cached record', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(cached())
+      await inventoryTrackingService.sendToMaintenance({ gigId: 'gig-1', assetId: 'u-1', quantity: 1 })
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(saved())
+      await inventoryTrackingService.returnFromMaintenance({ gigId: 'gig-1', assetId: 'u-1' })
+      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenLastCalledWith({ asset_id: 'u-1' }, 'MAINTENANCE_RETURN')
+      expect(assetIn(saved(), 'u-1')).toMatchObject({ status: 'Inactive', maintenance_pending: false, maintenance_location: null })
+    })
+
+    it('returnFromMaintenance on a flagged record clears the flag', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(cached([row('lot-1', 'On Site', 4)]))
+      await inventoryTrackingService.sendToMaintenance({ gigId: 'gig-1', assetId: 'lot-1', quantity: 2 })
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(saved())
+      await inventoryTrackingService.returnFromMaintenance({ gigId: 'gig-1', assetId: 'lot-1' })
+      expect(assetIn(saved(), 'lot-1')).toMatchObject({ status: 'Active', maintenance_pending: false, maintenance_pending_quantity: null })
+    })
+
+    it('updateMaintenanceDetails queues MAINTENANCE_UPDATE', async () => {
+      vi.mocked(idbStore.getPackingList).mockResolvedValue(cached())
+      await inventoryTrackingService.updateMaintenanceDetails({ gigId: 'gig-1', assetId: 'u-1', notes: 'x', location: 'Shop', expectedBack: null })
+      expect(offlineSyncService.queueTrackingUpdate).toHaveBeenCalledWith(
+        { asset_id: 'u-1', notes: 'x', location: 'Shop', expected_back: null }, 'MAINTENANCE_UPDATE')
+      expect(assetIn(saved(), 'u-1')).toMatchObject({ maintenance_location: 'Shop' })
+    })
+
+    it('lotHomeNow: the pieces home, as fetched, less what this gig took since', () => {
+      const list = cached([row('lot-1', 'Checked Out', 5)], { lot_places: { 'lot-1': { at_home: 7, at_gig: 3 } } })
+      expect(inventoryTrackingService.lotHomeNow(list, 'lot-1', 'gig-1')).toBe(5)
+      expect(inventoryTrackingService.lotHomeNow(cached(), 'lot-1', 'gig-1')).toBeNull()
+    })
   })
 })

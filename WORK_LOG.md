@@ -5,6 +5,9 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #299** (Equipment Lead, merged 10-23 with Cameron's OK): #186 step 3, the phone. Send to Maintenance takes a location, an expected-back date and How many for a lot. A flagged item shows "To maintenance"; Add more works at the flag's own gig. Unticking cancels the flag or returns the item to service. Three new queued types (MAINTENANCE_SEND/RETURN/UPDATE); older phones' ASSET_STATUS_UPDATE is unchanged. "Any" lines skip lots in Maintenance and Inactive lots (Cameron, 10-22). No migration.
+- **PR #301** (Docs Lead, merged 10-23): the user guide's Equipment › Maintenance section and fixes on 6 related pages, matching prod after steps 1–2. **PR #297** (triage): the user-documentation plan's status block refreshed.
+
 - **Prod deploy, 10-22** (Cameron): #296 and #298 (#186 Maintenance steps 1–2). Coordinator verified read-only: migration level `20261022000000`; the maintenance functions and `assets_status_known` are present; prod statuses are unchanged (Active 209, Inactive 6, Returned 6, Disposed 1, none pending); build `index-B177xxiD.js` carries the new Maintenance list (InventoryTabScreen chunk); `/sw.js` serves no-cache.
 
 - **PR #298** (Equipment Lead, merged 10-22 with Cameron's OK): #186 step 2, the services and the web Maintenance list. In maintenance and Flagged, not home yet sections; Staff+ can edit, return to service and cancel a flag; the send checks the Locations home count. No migration. One review round: the merge prediction now matches the database, a failed load shows an error, undated records sort last.
