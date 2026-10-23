@@ -30,7 +30,8 @@ import type { LocationItem, GigWithTracking, ItemWhereabout } from '../../servic
 import { getItems } from '../../services/equipmentItem.service';
 import type { EquipmentItemWithRecords } from '../../services/equipmentItem.service';
 import { ManualTrackingOverrideDialog } from './ManualTrackingOverrideDialog';
-import { SCANNING_MODES } from '../../config/inventoryWorkflow';
+import { whereCardText } from '../../utils/whereaboutText';
+import { RETURNED_STATUS, SCANNING_MODES } from '../../config/inventoryWorkflow';
 import { TRACKING_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { UserRole } from '../../utils/supabase/types';
 
@@ -52,7 +53,16 @@ interface OverrideTarget {
   label: string;
   /** Part of a lot at this place (#186): move N of its pieces. */
   lot?: ReturnType<typeof lotOf>;
+  /** #186 step 4: a unit at home (sent with no gig), and the record's maintenance. */
+  atHome?: boolean;
+  maintenance?: { state: 'in' | 'flagged'; location?: string | null } | null;
 }
+
+/** A unit or lot line's maintenance details for the override (#186 step 4). */
+const maintenanceOf = (item: LocationItem) => ({
+  atHome: item.status === RETURNED_STATUS,
+  maintenance: item.maintenance ? { state: item.maintenance, location: item.maintenance_location ?? null } : null,
+});
 
 /** A lot line's override details (#186); none for a unit. A lot in a case says where the case is. */
 const lotOf = (item: LocationItem) => (item.lot_of != null
@@ -93,15 +103,17 @@ function lineName(item: LocationItem) {
     <span className="inline-flex items-center gap-2">
       {item.asset_name ?? '—'}
       {item.lot_of != null && <span className="text-xs text-muted-foreground whitespace-nowrap">{`${piecesOf(item)} of ${item.lot_of}`}</span>}
+      {/* #186 step 4: from the record itself, never an old "Maintenance" row. */}
+      {item.maintenance === 'in' && (
+        <span className="rounded border border-orange-200 bg-orange-50 px-1.5 text-[11px] text-orange-700 whitespace-nowrap">
+          {item.maintenance_location ? `In maintenance · ${item.maintenance_location}` : 'In maintenance'}
+        </span>
+      )}
+      {item.maintenance === 'flagged' && (
+        <span className="rounded border border-amber-200 bg-amber-50 px-1.5 text-[11px] text-amber-700 whitespace-nowrap">Flagged to maintenance</span>
+      )}
     </span>
   );
-}
-
-/** The "where is it" card's text (#186): each place's pieces, home ones last. */
-function whereText(places: readonly ItemWhereabout[]) {
-  return places.map((p) => (p.gig_id
-    ? `${p.quantity} at ${p.gig_title ?? 'a gig'}${p.location ? ` (${p.location})` : ''}`
-    : p.location ? `${p.quantity} at ${p.location}` : `${p.quantity} not checked out`)).join(' · ');
 }
 
 function groupByKit(items: LocationItem[]): KitGroup[] {
@@ -307,7 +319,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
 
       {selectedItem && places && places.length > 0 && (
         <div data-testid="where-is-it" className="bg-white p-4 rounded-lg border shadow-sm text-sm">
-          <span className="font-semibold">{selectedItem.manufacturer_model}:</span> {whereText(places)}
+          <span className="font-semibold">{selectedItem.manufacturer_model}:</span> {whereCardText(places)}
         </div>
       )}
 
@@ -437,6 +449,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                                 assetId: child.asset_id ?? undefined,
                                                 label: `${group.kitName} — ${child.asset_name ?? 'Item'}`,
                                                 lot: lotOf(child),
+                                                ...maintenanceOf(child),
                                               })}
                                             >
                                               <Pencil className="h-3.5 w-3.5" />
@@ -479,6 +492,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                               assetId: child.asset_id ?? undefined,
                                               label: `${group.kitName} — ${child.asset_name ?? 'Item'}`,
                                               lot: lotOf(child),
+                                              ...maintenanceOf(child),
                                             })}
                                           >
                                             <Pencil className="h-3.5 w-3.5" />
@@ -549,6 +563,8 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
           userRole={userRole}
           targetLabel={overrideTarget.label}
           lot={overrideTarget.lot}
+          atHome={overrideTarget.atHome}
+          maintenance={overrideTarget.maintenance}
           onSuccess={() => { setOverrideTarget(null); fetchItems(); }}
         />
       )}

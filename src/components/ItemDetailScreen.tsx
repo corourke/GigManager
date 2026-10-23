@@ -18,6 +18,7 @@ import {
   type EquipmentItemWithRecords, type ItemFields, type ItemKitLine,
 } from '../services/equipmentItem.service';
 import { getAssetTrackingSummary, getItemWhereabouts, type ItemWhereabout } from '../services/inventoryManagement.service';
+import { whereTheyAreLines } from '../utils/whereaboutText';
 import { recordKind, summarizeItem } from '../utils/equipmentItems';
 import { useAutoSave } from '../utils/hooks/useAutoSave';
 import { canManage } from '../utils/permissions';
@@ -169,10 +170,8 @@ export default function ItemDetailScreen({
 
   // Where the pieces are, place by place (#186, Cameron 10-11): a lot split across places
   // shows each; home pieces are "Not checked out" unless all came back on a return scan.
-  const whereTheyAre = useMemo(() => places.map((p): [string, number] => [
-    p.gig_id ? `${p.gig_title ?? 'A gig'}${p.location ? ` (${p.location})` : ''}` : p.location ?? 'Not checked out',
-    p.quantity,
-  ]), [places]);
+  // In maintenance, at its maintenance location; flagged pieces say so (#186 step 4).
+  const whereTheyAre = useMemo(() => whereTheyAreLines(places), [places]);
 
   const header = (
     <AppHeader
@@ -304,7 +303,7 @@ export default function ItemDetailScreen({
                 <div className="flex justify-between gap-4">
                   <span className="text-gray-600">Where they are</span>
                   <span className="text-right text-xs leading-5">
-                    {whereTheyAre.map(([place, n], i) => <div key={i}>{`${n} · ${place}`}</div>)}
+                    {whereTheyAre.map((line, i) => <div key={i}>{line}</div>)}
                   </span>
                 </div>
               )}

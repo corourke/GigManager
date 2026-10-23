@@ -263,9 +263,14 @@ export function lotNow<R extends TrackingRow>(rows: readonly R[], lotSize: numbe
 /** An item's pieces at one place: a gig (and location there), or home (gig_id null). */
 export interface Whereabout {
   gig_id: string | null;
-  /** At a gig: its newest row's location. At home: a return scan's location, else null ("Not checked out"). */
+  /** At a gig: its newest row's location. At home: a return scan's location, else null ("Not checked out").
+   *  In maintenance: its maintenance location. */
   location: string | null;
   quantity: number;
+  /** #186 step 4: 'in' maintenance (home pieces, at its maintenance location); 'flagged' to go
+   *  when they come home from this gig, with how many (`flagged`). From the record, never a row. */
+  maintenance?: 'in' | 'flagged';
+  flagged?: number;
 }
 
 /**
@@ -282,21 +287,34 @@ export function whereabouts(
   isContainer?: (kitId: string) => boolean,
 ): Whereabout[] {
   const places = new Map<string, Whereabout>();
-  const add = (gig_id: string | null, location: string | null, quantity: number) => {
+  const add = (gig_id: string | null, location: string | null, quantity: number, mark?: { maintenance: 'in' | 'flagged'; flagged?: number }) => {
     if (quantity <= 0) return;
-    const key = `${gig_id ?? ''}|${location ?? ''}`;
+    const key = `${gig_id ?? ''}|${location ?? ''}|${mark?.maintenance ?? ''}`;
     const at = places.get(key);
-    if (at) at.quantity += quantity;
-    else places.set(key, { gig_id, location, quantity });
+    if (at) {
+      at.quantity += quantity;
+      if (mark?.flagged) at.flagged = (at.flagged ?? 0) + mark.flagged;
+    } else {
+      places.set(key, { gig_id, location, quantity, ...(mark ? { maintenance: mark.maintenance } : {}), ...(mark?.flagged ? { flagged: mark.flagged } : {}) });
+    }
   };
   for (const record of records) {
     if (isRetired(record)) continue;
     const mine = rows.filter((r) => r.asset_id != null && r.asset_id === record.id);
+    // In maintenance: what's home is at its maintenance location. Flagged: what's out at the
+    // flag's gig is flagged (up to the pieces flagged). Out pieces of a record in maintenance
+    // (an older send that skipped the flag) stay where they are.
+    const inShop = record.status === 'Maintenance';
+    const homeAt = (location: string | null) => (inShop ? record.maintenance_location ?? null : location);
+    const homeMark = inShop ? { maintenance: 'in' as const } : undefined;
+    const outMark = (gigId: string, n: number) => (record.maintenance_pending && record.maintenance_pending_gig_id === gigId
+      ? { maintenance: 'flagged' as const, flagged: Math.min(n, Number(record.maintenance_pending_quantity ?? n)) }
+      : undefined);
     if (recordKind(record) === 'unit') {
       const [latest] = currentRows(mine);
-      if (!latest) add(null, null, 1);
-      else if (latest.status === RETURNED_STATUS) add(null, latest.location ?? null, 1);
-      else add(latest.gig_id, latest.location ?? null, 1);
+      if (!latest) add(null, homeAt(null), 1, homeMark);
+      else if (latest.status === RETURNED_STATUS) add(null, homeAt(latest.location ?? null), 1, homeMark);
+      else add(latest.gig_id, latest.location ?? null, 1, outMark(latest.gig_id, 1));
       continue;
     }
     const { pieces, home, homeRow } = lotNow(mine, Number(record.quantity ?? 1), isContainer);
@@ -304,11 +322,12 @@ export function whereabouts(
     for (const [r, n] of pieces) {
       if (r.status === RETURNED_STATUS) continue;
       if (n > 0) someOut = true;
-      add(r.gig_id, r.location ?? null, n);
+      add(r.gig_id, r.location ?? null, n, outMark(r.gig_id, n));
     }
-    add(null, !someOut && homeRow ? homeRow.location ?? null : null, home);
+    add(null, homeAt(!someOut && homeRow ? homeRow.location ?? null : null), home, homeMark);
   }
-  return [...places.values()].sort((a, b) => Number(a.gig_id === null) - Number(b.gig_id === null) || b.quantity - a.quantity);
+  return [...places.values()].sort((a, b) => Number(a.gig_id === null) - Number(b.gig_id === null)
+    || Number(a.maintenance === 'in') - Number(b.maintenance === 'in') || b.quantity - a.quantity);
 }
 
 /**
