@@ -1,7 +1,7 @@
 import { createClient } from '../../utils/supabase/client';
 import { idbStore } from '../../utils/idb/store';
 import { isRetired, recordKind } from '../../utils/equipmentItems';
-import { compareNewestFirst, placementOf, type TrackingRow } from '../../utils/locations';
+import { compareNewestFirst, piecesHome, placementOf, type TrackingRow } from '../../utils/locations';
 
 /** Tracking rows per request: PostgREST's default most. */
 const PLACEMENT_PAGE = 1000;
@@ -257,6 +257,18 @@ export const packingListService = {
       if (last) lastRecords.kits[kitId] = last;
     }));
 
+    // Each lot's pieces at home (the Locations rule: a case counts once) and at this gig, as of
+    // the fetch: Send to Maintenance never sends more of a lot than are home (#186 step 3).
+    const containerSet = new Set(containerIds);
+    const lotPlaces: Record<string, { at_home: number; at_gig: number }> = {};
+    for (const asset of assetMap.values()) {
+      if (recordKind(asset) !== 'lot' || isRetired(asset)) continue;
+      lotPlaces[asset.id] = {
+        at_home: piecesHome(placed as TrackingRow[], asset, (id) => containerSet.has(id)),
+        at_gig: placementOf(placed as TrackingRow[], asset).find((p) => p.gig_id === gigId)?.quantity ?? 0,
+      };
+    }
+
     const lasts = [...Object.values(lastRecords.assets), ...Object.values(lastRecords.kits)];
     const awayGigIds = [...new Set([...Object.values(elsewhere), ...lasts].map((e) => e.gig_id))];
     if (awayGigIds.length > 0) {
@@ -355,6 +367,7 @@ export const packingListService = {
       top_level_kit_ids: [...topLevelIds],
       item_records: itemRecords,
       elsewhere,
+      lot_places: lotPlaces,
       last_records: lastRecords,
       extra_assets: extraAssets,
       tracking: mergedTracking,

@@ -141,6 +141,40 @@ registerSyncHandler('ASSET_STATUS_UPDATE', async (payload: any) => {
   }
 });
 
+// Maintenance from the phone (#186 step 3): send (with the gig: still out, it's only flagged until
+// it comes home), return to service (or cancel a flag), and edit the details. Older phones still
+// queue ASSET_STATUS_UPDATE, above, which the database routes too. A refusal won't change on a
+// retry, so say why and drop it.
+const maintenanceCall = (fn: string, args: (payload: any) => Record<string, unknown>, what: string) =>
+  async (payload: any) => {
+    const { error } = await supabase.rpc(fn as any, args(payload) as any);
+    if ((error as any)?.code === '42501' || (error as any)?.code === '22023') {
+      toast.error(`${what}: ${(error as any).message}`);
+      return;
+    }
+    if (error) throw error;
+  };
+
+registerSyncHandler('MAINTENANCE_SEND', maintenanceCall('send_to_maintenance', (p) => ({
+  p_asset_id: p.asset_id,
+  p_quantity: p.quantity,
+  p_notes: p.notes ?? null,
+  p_location: p.location ?? null,
+  p_expected_back: p.expected_back ?? null,
+  p_gig_id: p.gig_id ?? null,
+}), 'Not sent to maintenance'));
+
+registerSyncHandler('MAINTENANCE_RETURN', maintenanceCall('return_to_service', (p) => ({
+  p_asset_id: p.asset_id,
+}), 'Not returned to service'));
+
+registerSyncHandler('MAINTENANCE_UPDATE', maintenanceCall('update_maintenance', (p) => ({
+  p_asset_id: p.asset_id,
+  p_notes: p.notes ?? null,
+  p_location: p.location ?? null,
+  p_expected_back: p.expected_back ?? null,
+}), 'Maintenance details not saved'));
+
 // A kit added at pack-out (#185): a flagged assignment. Already there (a retry) counts as done;
 // refused (not allowed, or the kit is gone) won't change on a retry, so say why and drop it.
 registerSyncHandler('KIT_ASSIGNMENT_ADD', async (payload: any) => {

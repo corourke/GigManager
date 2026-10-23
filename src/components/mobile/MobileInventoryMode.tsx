@@ -22,6 +22,7 @@ import { canManage, isStaffOrAbove } from '../../utils/permissions';
 import { packingListService } from '../../services/mobile/packingList.service';
 import { inventoryTrackingService } from '../../services/mobile/inventoryTracking.service';
 import { idbStore } from '../../utils/idb/store';
+import { recordKind } from '../../utils/equipmentItems';
 import { MobileBarcodeScanner } from './MobileBarcodeScanner';
 import { toast } from 'sonner';
 import { Badge } from '../ui/badge';
@@ -34,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
+import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { cn } from '../ui/utils';
@@ -82,6 +84,23 @@ type NoteDialogState = {
   lastNotes?: string | null;
   maintenanceRequired: boolean;
   assetStatus?: string | null;
+  /** Maintenance (#186 step 3): flagged to maintenance (pending), and for a lot its size and the
+   *  pieces flagged; where, and expected back; how many to send (or add); the most it can take. */
+  pending?: boolean;
+  /** Flagged at this gig: only then can more be added (the database refuses a flag from another gig). */
+  pendingHere?: boolean;
+  pendingGigTitle?: string | null;
+  isLot?: boolean;
+  lotSize?: number;
+  pendingQuantity?: number;
+  maintenanceLocation?: string;
+  expectedBack?: string;
+  initialLocation?: string;
+  initialExpectedBack?: string;
+  maintenanceNotes?: string | null;
+  howMany?: string;
+  addMore?: string;
+  maxSend?: number;
 };
 
 
@@ -303,6 +322,39 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     });
   };
 
+  // What the note popup's Send to Maintenance needs (#186 step 3): a lot's size and what's flagged,
+  // the details, and the most it can send: the whole lot while some are out here (they'll go in
+  // when they come home), else no more than are home (the Locations rule, as fetched).
+  const maintenanceFieldsFor = useCallback((asset: any, assetId?: string) => {
+    if (!asset || !assetId) return {};
+    const isLot = recordKind(asset) === 'lot';
+    const lotSize = Math.max(1, Number(asset.quantity ?? 1));
+    const outHere = inventoryTrackingService.piecesAtGigNow(packingList, assetId, gigId ?? '') > 0;
+    const home = isLot ? inventoryTrackingService.lotHomeNow(packingList, assetId, gigId ?? '') : null;
+    const location = asset.maintenance_location ?? '';
+    const expectedBack = asset.maintenance_expected_back ?? '';
+    return {
+      pending: !!asset.maintenance_pending,
+      pendingHere: !!asset.maintenance_pending && asset.maintenance_pending_gig_id === gigId,
+      pendingGigTitle: asset.maintenance_pending_gig_id === gigId
+        ? packingList?.gig_title ?? null
+        : packingList?.elsewhere?.[assetId]?.gig_id === asset.maintenance_pending_gig_id
+          ? packingList?.elsewhere?.[assetId]?.gig_title ?? null
+          : null,
+      isLot,
+      lotSize,
+      pendingQuantity: asset.maintenance_pending ? Number(asset.maintenance_pending_quantity ?? lotSize) : 0,
+      maintenanceLocation: location,
+      expectedBack,
+      initialLocation: location,
+      initialExpectedBack: expectedBack,
+      maintenanceNotes: asset.maintenance_notes ?? null,
+      howMany: '1',
+      addMore: '0',
+      maxSend: !isLot ? 1 : home == null || outHere ? lotSize : Math.max(0, Math.min(lotSize, home)),
+    };
+  }, [gigId, packingList]);
+
   const openNoteDialog = useCallback((params: {
     kitId: string;
     itemName: string;
@@ -339,10 +391,11 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
         lastGigTitle: trackingRecord ? packingList?.gig_title ?? null : null,
         lastNotes: trackingRecord?.notes,
       }),
-      maintenanceRequired: asset?.status === 'Maintenance',
+      maintenanceRequired: asset?.status === 'Maintenance' || !!asset?.maintenance_pending,
       assetStatus: asset?.status || null,
+      ...maintenanceFieldsFor(asset, assetId),
     });
-  }, [packingList]);
+  }, [packingList, maintenanceFieldsFor]);
 
   const closeNoteDialog = () => {
     setNoteDialog({ open: false, note: '', maintenanceRequired: false });
@@ -757,7 +810,9 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     const isMaintenance = noteDialog.assetStatus === 'Maintenance';
     // Newly sent to Maintenance: the note says so, in the same row (Cameron, 10-10).
     const typed = noteDialog.note.trim();
-    const notes = wantsMaintenance && !isMaintenance ? [typed, SENT_TO_MAINTENANCE].filter(Boolean).join(' ') : noteDialog.note;
+    // Only when a send is queued: none of a lot home sends nothing.
+    const newlySent = wantsMaintenance && !isMaintenance && !noteDialog.pending && (noteDialog.maxSend ?? 1) >= 1;
+    const notes = newlySent ? [typed, SENT_TO_MAINTENANCE].filter(Boolean).join(' ') : noteDialog.note;
 
     // A new row carrying the item's state forward: a note is never a scan (#246).
     await inventoryTrackingService.saveNote({
@@ -770,20 +825,34 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     });
 
     if (noteDialog.assetId) {
-      if (wantsMaintenance && !isMaintenance) {
-        await inventoryTrackingService.updateAssetStatus({
-          gigId,
-          kitId: noteDialog.kitId,
-          assetId: noteDialog.assetId,
-          status: 'Maintenance',
+      // #186 step 3: sent with this gig (the database flags it if it's still out), and more of a
+      // flagged lot adds to the flag. Unticking cancels a flag or returns it to service.
+      const details = {
+        location: noteDialog.maintenanceLocation ?? null,
+        expectedBack: noteDialog.expectedBack || null,
+      };
+      const whole = (v: string | undefined, min: number) => Math.max(min, Math.floor(Number(v) || 0));
+      const inOrFlagged = isMaintenance || !!noteDialog.pending;
+      if (wantsMaintenance && !inOrFlagged) {
+        const max = noteDialog.maxSend ?? 1;
+        if (max >= 1) {
+          await inventoryTrackingService.sendToMaintenance({
+            gigId, assetId: noteDialog.assetId, quantity: Math.min(max, whole(noteDialog.howMany, 1)), notes: typed || null, ...details,
+          });
+        }
+      } else if (wantsMaintenance && noteDialog.pendingHere && noteDialog.isLot && whole(noteDialog.addMore, 0) > 0) {
+        const room = Math.max(0, (noteDialog.lotSize ?? 1) - (noteDialog.pendingQuantity ?? 0));
+        await inventoryTrackingService.sendToMaintenance({
+          gigId, assetId: noteDialog.assetId, quantity: Math.min(Math.max(1, room), whole(noteDialog.addMore, 1)), notes: typed || null, ...details,
         });
-      } else if (!wantsMaintenance && isMaintenance) {
-        await inventoryTrackingService.updateAssetStatus({
-          gigId,
-          kitId: noteDialog.kitId,
-          assetId: noteDialog.assetId,
-          status: 'Active',
+      } else if (wantsMaintenance && inOrFlagged
+        && ((noteDialog.maintenanceLocation ?? '') !== (noteDialog.initialLocation ?? '')
+          || (noteDialog.expectedBack ?? '') !== (noteDialog.initialExpectedBack ?? ''))) {
+        await inventoryTrackingService.updateMaintenanceDetails({
+          gigId, assetId: noteDialog.assetId, notes: typed || noteDialog.maintenanceNotes || null, ...details,
         });
+      } else if (!wantsMaintenance && inOrFlagged) {
+        await inventoryTrackingService.returnFromMaintenance({ gigId, assetId: noteDialog.assetId });
       }
     }
 
@@ -1380,6 +1449,11 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                                       <Wrench className="w-3 h-3" />
                                       Maintenance
                                     </Badge>
+                                  ) : asset?.maintenance_pending ? (
+                                    <Badge variant="outline" className="text-[10px] py-0 h-4 px-1.5 font-normal border-amber-200 bg-amber-50 text-amber-700 gap-1">
+                                      <Wrench className="w-3 h-3" />
+                                      {asset.maintenance_pending_quantity ? `To maintenance · ${asset.maintenance_pending_quantity}` : 'To maintenance'}
+                                    </Badge>
                                   ) : null}
                                   {assetNoTag ? (
                                     <span className="text-[10px] text-destructive flex items-center gap-1 font-medium">
@@ -1752,6 +1826,60 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                   checked={noteDialog.maintenanceRequired}
                   onCheckedChange={(checked) => setNoteDialog((current) => ({ ...current, maintenanceRequired: checked === true }))}
                 />
+              </div>
+            ) : null}
+
+            {/* Where, when back and, for a lot, how many (#186 step 3). */}
+            {noteDialog.assetId && isStaffOrAbove(userRole) && noteDialog.maintenanceRequired ? (
+              <div className="space-y-3 rounded-lg border border-border/70 px-3 py-3">
+                {noteDialog.isLot && noteDialog.assetStatus !== 'Maintenance' ? (
+                  noteDialog.pending ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm">{noteDialog.pendingHere
+                        ? `Flagged: ${noteDialog.pendingQuantity} of ${noteDialog.lotSize}`
+                        : `Flagged at ${noteDialog.pendingGigTitle || 'another gig'}: ${noteDialog.pendingQuantity} of ${noteDialog.lotSize}`}</span>
+                      {noteDialog.pendingHere && (noteDialog.pendingQuantity ?? 0) < (noteDialog.lotSize ?? 1) ? (
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="maintenance-add" className="text-sm">Add more</Label>
+                          <Input
+                            id="maintenance-add" type="number" inputMode="numeric" className="h-9 w-20"
+                            min={0} max={(noteDialog.lotSize ?? 1) - (noteDialog.pendingQuantity ?? 0)}
+                            value={noteDialog.addMore ?? '0'}
+                            onChange={(e) => setNoteDialog((current) => ({ ...current, addMore: e.target.value }))}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (noteDialog.maxSend ?? 1) < 1 ? (
+                    <p className="text-sm text-muted-foreground">None of this lot is home; flag it from the gig it's out at.</p>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="maintenance-how-many" className="text-sm">How many</Label>
+                      <Input
+                        id="maintenance-how-many" type="number" inputMode="numeric" className="h-9 w-20"
+                        min={1} max={noteDialog.maxSend ?? 1}
+                        value={noteDialog.howMany ?? '1'}
+                        onChange={(e) => setNoteDialog((current) => ({ ...current, howMany: e.target.value }))}
+                      />
+                    </div>
+                  )
+                ) : null}
+                <div className="space-y-1">
+                  <Label htmlFor="maintenance-location" className="text-sm">Maintenance location</Label>
+                  <Input
+                    id="maintenance-location" placeholder="e.g. Repair Bench"
+                    value={noteDialog.maintenanceLocation ?? ''}
+                    onChange={(e) => setNoteDialog((current) => ({ ...current, maintenanceLocation: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="maintenance-expected-back" className="text-sm">Expected back</Label>
+                  <Input
+                    id="maintenance-expected-back" type="date"
+                    value={noteDialog.expectedBack ?? ''}
+                    onChange={(e) => setNoteDialog((current) => ({ ...current, expectedBack: e.target.value }))}
+                  />
+                </div>
               </div>
             ) : null}
 
