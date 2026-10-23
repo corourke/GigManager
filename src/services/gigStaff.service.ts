@@ -1,6 +1,5 @@
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
-import { getSupabase } from './gigService.shared';
+import { getCurrentUser, getSupabase } from './base/dataAccess';
 import { logActivity } from './activityLog.service';
 import { StaffingChange } from '../utils/supabase/types';
 import { toDateInTimeZone } from '../utils/dateUtils';
@@ -50,7 +49,8 @@ export async function updateGigStaffSlots(
   loadedIds: string[] = []
 ) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     const { data: gigParticipants } = await supabase
       .from('gig_participants')
@@ -250,7 +250,8 @@ export async function updateGigStaffSlots(
  */
 export async function completeStaffAssignment(assignmentId: string, unitsCompleted?: number) {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
 
     // 1. Get assignment details
     const { data: assignment, error: fetchError } = await supabase
@@ -311,7 +312,8 @@ export async function completeStaffAssignment(assignmentId: string, unitsComplet
  */
 export async function unfinalizeStaffAssignment(assignmentId: string) {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
 
     // 1. Get assignment details
     const { data: assignment, error: fetchError } = await supabase
@@ -356,7 +358,8 @@ export async function unfinalizeStaffAssignment(assignmentId: string) {
  */
 export async function completeAllStaffAssignments(gigId: string, organizationId: string) {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
 
     // 1. Get all confirmed fee-based assignments for this gig/org that aren't completed
     const { data: validAssignments, error: joinError } = await supabase

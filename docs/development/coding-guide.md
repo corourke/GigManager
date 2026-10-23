@@ -61,7 +61,7 @@
 
 ### 3. API & Error Handling
 - **Location**: API functions belong in `src/services/*.service.ts`, with shared error handling in `src/utils/api-error-utils.ts`.
-- **Data-access base**: `src/services/base/dataAccess.ts` holds generic CRUD and the auth lookup (issue #20). `user`, `attachment`, `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory`, `activityLog`, `gigKit`, `gigParticipant`, `gigParticipantContacts`, `gigSchedule`, `equipmentItem`, `equipmentNeeds`, `writeOff` and `maintenance` services use it; the others move one at a time, when released, not opportunistically.
+- **Data-access base**: `src/services/base/dataAccess.ts` holds generic CRUD and the auth lookup (issue #20). `user`, `attachment`, `notification`, `taxYear`, `accessRequest`, `purchaseScanQueue`, `purchaseCategory`, `activityLog`, `gigKit`, `gigParticipant`, `gigParticipantContacts`, `gigSchedule`, `gigStaff`, `asset`, `kit` (asset and kit share `computeFieldChanges` in `src/utils/fieldChanges.ts`), `organization`, `conflictDetection`, `googleCalendar`, `inventoryManagement`, `gigFinancial`, `taxReport`, `purchase`, `equipmentItem`, `equipmentNeeds`, `writeOff` and `maintenance` services use it; the others move one at a time, when released, not opportunistically.
 - **Error Pattern**: Catch errors, log to console, and throw user-friendly messages for the UI to display via `toast`.
 - **Timestamps**: Always update `updated_at` on records during updates.
 

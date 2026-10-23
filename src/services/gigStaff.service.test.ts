@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { updateGigStaffSlots } from './gigStaff.service';
 import { requireAuth } from '../utils/supabase/auth-utils';
+import { createClient } from '../utils/supabase/client';
 
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
@@ -36,6 +37,7 @@ describe('updateGigStaffSlots (issue #55 — logs adds even without an explicit 
   beforeEach(() => {
     vi.clearAllMocks();
     mockSupabase = { from: vi.fn() };
+    (createClient as any).mockReturnValue(mockSupabase);
     (requireAuth as any).mockResolvedValue({
       supabase: mockSupabase,
       user: { id: 'user-1', email: 'jane@example.com', user_metadata: { first_name: 'Jane', last_name: 'Doe' } },
@@ -69,6 +71,13 @@ describe('updateGigStaffSlots (issue #55 — logs adds even without an explicit 
     }));
   });
 
+  // #20 batch 3: the client and user come from the shared base; signed out, nothing is written.
+  it('rejects when no one is signed in, and touches nothing', async () => {
+    (requireAuth as any).mockRejectedValue(new Error('Not authenticated'));
+    await expect(updateGigStaffSlots('gig-1', [{ organization_id: 'org-1', role: 'FOH Engineer' }])).rejects.toThrow();
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+  });
+
   it('does not log when no slots actually change', async () => {
     await updateGigStaffSlots('gig-1', []);
     expect(logActivity).not.toHaveBeenCalled();
@@ -91,6 +100,7 @@ describe('updateGigStaffSlots (#61 — only touches slots owned by orgs the call
         return makeChain({ data: [] });
       }),
     };
+    (createClient as any).mockReturnValue(mockSupabase);
     (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
 
     await updateGigStaffSlots('gig-1', [], { organization_id: 'org-a', actor_display_name: 'x', actor_org_name: 'A', gig_title: 'g' });
@@ -125,6 +135,7 @@ describe('updateGigStaffSlots deletes only rows the caller loaded and removed (i
         return makeChain({ data: [] });
       }),
     };
+    (createClient as any).mockReturnValue(mockSupabase);
     (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
   };
   const deleted = (chains: any[]) => chains
