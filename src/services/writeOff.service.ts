@@ -1,7 +1,6 @@
 import { format } from 'date-fns';
-import { createClient } from '../utils/supabase/client';
+import { getSupabase, getCurrentUser } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
 import { RETURNED_STATUS, SCANNING_MODES } from '../config/inventoryWorkflow';
 import { bucketsAt, type TrackingRow } from '../utils/locations';
 import { WRITE_OFF_LOCKED_MESSAGE, isLockedYearUndoError } from '../utils/writeOffMessages';
@@ -9,8 +8,6 @@ import { WRITE_OFF_LOCKED_MESSAGE, isLockedYearUndoError } from '../utils/writeO
 // #185: what is still out at a gig, and writing missing pieces off (Cameron, 10-09).
 // Writing off and undoing go through the write_off_pieces / undo_write_off RPCs
 // (migration 20261018000000), which allow only Admins and Managers.
-
-const getSupabase = () => createClient();
 
 export interface ReturnRecord {
   id: string;
@@ -154,7 +151,8 @@ export async function markReturned(params: {
   quantity: number;
 }): Promise<void> {
   try {
-    const { supabase, user } = await requireAuth();
+    const user = await getCurrentUser();
+    const supabase = getSupabase();
     const { error } = await (supabase.from('inventory_tracking') as any).insert({
       organization_id: params.organizationId,
       gig_id: params.gigId,

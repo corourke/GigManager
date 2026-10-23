@@ -1,8 +1,6 @@
-import { createClient } from '../utils/supabase/client';
+import { getSupabase } from './base/dataAccess';
 import { containerPiecesByItem, isRetired, recordItemMaps, recordKind, summarizeItem } from '../utils/equipmentItems';
 import { gigNeeds, type ItemCounts, type ItemNeed, type KitLine, type KitMeta, type NeedsContext } from '../utils/equipmentNeeds';
-
-const getSupabase = () => createClient();
 
 /** Nested kits are followed this many levels deep at most (the editor warns past 6). */
 const MAX_DEPTH = 12;
