@@ -1,6 +1,5 @@
-import { createClient } from '../utils/supabase/client';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { getSupabase, getCurrentUser } from './base/dataAccess';
 import type { DbPurchase, PurchaseWithItems, DbGigFinancial, DbAsset } from '../utils/supabase/types';
 import type { LineUnitInput } from '../utils/lineUnits';
 import type { PurchaseToSave } from '../utils/csvAssetImportPlan';
@@ -15,8 +14,6 @@ import {
   getGigFinancialsByPurchaseId,
 } from './gigFinancial.service';
 import { getKitOptions, createKit, addKitAssetLines } from './kit.service';
-
-const getSupabase = () => createClient();
 
 /**
  * Fetch purchases for an organization
@@ -110,7 +107,8 @@ export async function getPurchaseWithDetails(purchaseId: string): Promise<Purcha
  */
 export async function createPurchase(purchaseData: Partial<DbPurchase>) {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
 
     const { data, error } = await (supabase.from('purchases') as any)
       .insert(purchaseData)
@@ -129,7 +127,8 @@ export async function createPurchase(purchaseData: Partial<DbPurchase>) {
  */
 export async function updatePurchase(purchaseId: string, purchaseData: Partial<DbPurchase>) {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
 
     const { data, error } = await (supabase.from('purchases') as any)
       .update({
@@ -192,7 +191,7 @@ export async function importPurchases(
   let errorCount = 0;
 
   try {
-    await requireAuth();
+    await getCurrentUser();
 
     // Kits by name (matched like items), loaded once and filled in as kits are created.
     let kitIds: Map<string, string> | null = null;
@@ -260,7 +259,8 @@ export async function importPurchases(
  */
 export async function trackPurchaseLineAsEquipment(lineId: string): Promise<string> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data: line, error } = await (supabase.from('purchases') as any)
       .select('id, organization_id, quantity, description, category, asset_id')
       .eq('id', lineId)
@@ -294,7 +294,8 @@ export async function createPurchaseWithUnits(
   units: LineUnitInput[],
 ): Promise<{ id: string; line_ids: string[]; unit_ids: string[] }> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.rpc as any)('create_purchase_transaction_v2', {
       p_header: header,
       p_items: items,
@@ -315,7 +316,8 @@ export async function createPurchaseWithUnits(
  */
 export async function addLineUnits(lineId: string, units: Omit<LineUnitInput, 'line_index'>[]): Promise<string[]> {
   try {
-    const { supabase } = await requireAuth();
+    await getCurrentUser();
+    const supabase = getSupabase();
     const { data, error } = await (supabase.rpc as any)('add_purchase_line_units', { p_line_id: lineId, p_units: units });
     if (error) throw error;
     return (data ?? []) as string[];
