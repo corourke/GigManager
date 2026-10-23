@@ -162,7 +162,8 @@ the list.
 Each row shows:
 
 - **Item** and **Which:** a unit's tag and serial, such as "DSL-0153 · S/N DSL015-24558",
-  or for a lot "Whole lot of 6". Pieces split off a lot read "2 split from the lot (now 8)".
+  or for a lot "Whole lot of 6". Pieces split off a lot read "2 split from the lot (now 8)",
+  and part of a lot that's flagged reads "2 of the lot of 10".
 - **Condition notes:** what's wrong with it.
 - **Location:** where it is while it's being fixed, such as "Repair Bench". This is the
   list's own field; [Locations](/equipment/location-explorer/) shows where its last scan

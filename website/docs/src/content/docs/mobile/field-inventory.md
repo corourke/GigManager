@@ -129,7 +129,10 @@ What happens next depends on where it is:
 Either way it's on the [Maintenance](/equipment/inventory-reports/#maintenance) list.
 
 **A lot that's already flagged** shows "Flagged: 2 of 10". Enter **Add more** to flag
-more of it. To change the location or date, edit them and tap **Save**.
+more of it. To change the location or date, edit them and tap **Save**. If it was
+flagged at another gig, the note names that gig, and more can only be added there. If
+none of a lot is home and none is out at this gig, the note says to flag it from the
+gig it's out at.
 
 **To undo it,** turn **Send to Maintenance** off and tap **Save**. A flag is cancelled;
 something already in maintenance goes back into service with the status it had
