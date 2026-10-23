@@ -3,7 +3,7 @@
  * an organization has (purchase lines of every year, paid gig money), so one load
  * serves every year and report; utils/taxReports does the counting.
  */
-import { requireAuth } from '../utils/supabase/auth-utils';
+import { getSupabase, getCurrentUser } from './base/dataAccess';
 import type {
   ReportPurchaseLine, ReportGigRow, ReportExpenseCategory, ScheduleCLineLabel,
 } from '../utils/taxReports';
@@ -36,7 +36,8 @@ async function all<T>(query: (from: number, to: number) => PromiseLike<{ data: T
 }
 
 export async function getTaxReportData(organizationId: string): Promise<TaxReportData> {
-  const { supabase } = await requireAuth();
+  await getCurrentUser();
+  const supabase = getSupabase();
   const [lines, gigRows, categories, scheduleC, equipmentCategories, assets, invoices] = await Promise.all([
     all<ReportPurchaseLine>((from, to) => (supabase.from('purchases') as any)
       .select('id, purchase_date, vendor, description, category, quantity, item_cost, line_cost, tax_treatment, asset_id, parent_id, '
