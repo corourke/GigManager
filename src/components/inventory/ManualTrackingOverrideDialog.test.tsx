@@ -6,6 +6,12 @@ vi.mock('../../services/inventoryManagement.service', () => ({
   moveLotPieces: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../services/maintenance.service', () => ({
+  sendToMaintenance: vi.fn().mockResolvedValue('x'),
+}));
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
 vi.mock('./LocationCombobox', () => ({
   LocationCombobox: ({ value, onChange }: any) => (
     <input aria-label="Location" value={value} onChange={(e) => onChange(e.target.value)} />
@@ -30,6 +36,8 @@ vi.mock('../ui/select', async () => {
 
 import { ManualTrackingOverrideDialog } from './ManualTrackingOverrideDialog';
 import { createManualTrackingRecord, moveLotPieces } from '../../services/inventoryManagement.service';
+import { sendToMaintenance } from '../../services/maintenance.service';
+import { toast } from 'sonner';
 
 const baseProps = {
   open: true,
@@ -98,19 +106,6 @@ describe('ManualTrackingOverrideDialog', () => {
       expect(screen.getByRole('button', { name: 'Save Override' })).toBeInTheDocument();
     });
 
-    // Coordinator review (10-12): what's written is Maintenance at this gig, not a trip home.
-    it('Mark for Maintenance with In Warehouse is the whole lot here, in Maintenance: no count', async () => {
-      render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={lot} />);
-      fireEvent.click(screen.getByRole('option', { name: 'In Warehouse' }));
-      fireEvent.click(screen.getByLabelText('Mark for Maintenance'));
-      expect(screen.queryByLabelText('How many to move')).not.toBeInTheDocument();
-      expect(screen.queryByText(/back home/)).not.toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Save Override' }));
-      await waitFor(() => expect(moveLotPieces).toHaveBeenCalledWith(expect.objectContaining({
-        here: 6, n: 6, toGigId: 'gig-1', toStatus: 'Maintenance',
-      })));
-    });
-
     // Cameron (10-12): part of a lot in a case may go to another gig, with a warning. Those
     // pieces leave the case and show loose at the new gig.
     describe('pieces in a case', () => {
@@ -152,5 +147,82 @@ describe('ManualTrackingOverrideDialog', () => {
   it('a unit has no count to move', () => {
     render(<ManualTrackingOverrideDialog {...baseProps} assetId="unit-1" />);
     expect(screen.queryByLabelText('How many to move')).not.toBeInTheDocument();
+  });
+
+  // #186 step 4: Mark for Maintenance sends the record to maintenance (the Maintenance list's
+  // rules), with how many for a lot, a location and an expected-back date. At a gig it goes with
+  // that gig, so it's flagged until it comes home; at home it goes with none. No tracking row.
+  describe('Mark for Maintenance (#186 step 4)', () => {
+    const lot = { here: 6, of: 10, status: 'On Site', location: 'Stage', place: 'Summer Festival (Stage)' };
+
+    it('ticking it swaps the move for the maintenance fields', () => {
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={lot} />);
+      fireEvent.click(screen.getByLabelText('Mark for Maintenance'));
+      expect(screen.queryByText('Status')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('How many to move')).not.toBeInTheDocument();
+      const howMany = screen.getByLabelText('How many to send') as HTMLInputElement;
+      expect(howMany.value).toBe('1');
+      expect(howMany.max).toBe('6');
+      expect(screen.getByLabelText('Maintenance location')).toBeInTheDocument();
+      expect(screen.getByLabelText('Expected back')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send to maintenance' })).toBeEnabled();
+    });
+
+    it('a lot at a gig is sent with that gig, and no tracking row is written', async () => {
+      const onSuccess = vi.fn();
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={lot} onSuccess={onSuccess} />);
+      fireEvent.click(screen.getByLabelText('Mark for Maintenance'));
+      fireEvent.change(screen.getByLabelText('How many to send'), { target: { value: '2' } });
+      fireEvent.change(screen.getByLabelText('Maintenance location'), { target: { value: 'Repair Bench' } });
+      fireEvent.change(screen.getByLabelText('Expected back'), { target: { value: '2026-11-03' } });
+      fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Frayed' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Send to maintenance' }));
+      await waitFor(() => expect(sendToMaintenance).toHaveBeenCalledWith({
+        assetId: 'lot-1', quantity: 2, notes: 'Frayed', location: 'Repair Bench', expectedBack: '2026-11-03', gigId: 'gig-1',
+      }));
+      expect(moveLotPieces).not.toHaveBeenCalledWith(expect.objectContaining({ toStatus: 'Maintenance' }));
+      expect(createManualTrackingRecord).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'Maintenance' }));
+      await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    });
+
+    it('a lot at home is sent with no gig', async () => {
+      const home = { here: 4, of: 10, status: 'In Warehouse', location: 'Bay 2', place: 'Bay 2' };
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="lot-1" lot={home} />);
+      fireEvent.click(screen.getByLabelText('Mark for Maintenance'));
+      fireEvent.click(screen.getByRole('button', { name: 'Send to maintenance' }));
+      await waitFor(() => expect(sendToMaintenance).toHaveBeenCalledWith(expect.objectContaining({ assetId: 'lot-1', quantity: 1, gigId: null })));
+    });
+
+    it('a unit: no count; at a gig it goes with the gig, at home with none', async () => {
+      const { unmount } = render(<ManualTrackingOverrideDialog {...baseProps} assetId="unit-1" />);
+      fireEvent.click(screen.getByLabelText('Mark for Maintenance'));
+      expect(screen.queryByLabelText('How many to send')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Send to maintenance' }));
+      await waitFor(() => expect(sendToMaintenance).toHaveBeenLastCalledWith(expect.objectContaining({ assetId: 'unit-1', quantity: 1, gigId: 'gig-1' })));
+      unmount();
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="unit-1" atHome />);
+      fireEvent.click(screen.getByLabelText('Mark for Maintenance'));
+      fireEvent.click(screen.getByRole('button', { name: 'Send to maintenance' }));
+      await waitFor(() => expect(sendToMaintenance).toHaveBeenLastCalledWith(expect.objectContaining({ assetId: 'unit-1', gigId: null })));
+    });
+
+    it("shows the database's refusal", async () => {
+      vi.mocked(sendToMaintenance).mockRejectedValueOnce(new Error('Only 4 of them are home; flag the rest from the gig they\'re out at.'));
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="unit-1" />);
+      fireEvent.click(screen.getByLabelText('Mark for Maintenance'));
+      fireEvent.click(screen.getByRole('button', { name: 'Send to maintenance' }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Only 4 of them are home')));
+    });
+
+    it('a record already in maintenance or flagged says so, instead of the box', () => {
+      const { unmount } = render(<ManualTrackingOverrideDialog {...baseProps} assetId="unit-1" maintenance={{ state: 'in', location: 'Repair Bench' }} />);
+      expect(screen.queryByLabelText('Mark for Maintenance')).not.toBeInTheDocument();
+      expect(screen.getByText(/in maintenance · repair bench/i)).toBeInTheDocument();
+      expect(screen.getByText(/maintenance list/i)).toBeInTheDocument();
+      unmount();
+      render(<ManualTrackingOverrideDialog {...baseProps} assetId="unit-1" maintenance={{ state: 'flagged' }} />);
+      expect(screen.queryByLabelText('Mark for Maintenance')).not.toBeInTheDocument();
+      expect(screen.getByText(/flagged to maintenance/i)).toBeInTheDocument();
+    });
   });
 });

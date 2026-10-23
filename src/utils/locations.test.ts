@@ -463,3 +463,39 @@ describe('piecesHome (#186)', () => {
     expect(piecesHome([], { ...lot, retired_on: '2026-09-01' })).toBe(0);
   });
 });
+
+// #186 step 4: a record's maintenance shows where it is. In maintenance, its pieces at home are
+// at its maintenance location; flagged, its pieces out at the flag's gig say so. The mark comes
+// from the record itself, never from an old "Maintenance" tracking row.
+describe('whereabouts: maintenance (#186 step 4)', () => {
+  it('a record in maintenance at home is at its maintenance location', () => {
+    const inShop = { id: 'u1', quantity: 1, tag_number: 'T1', status: 'Maintenance', maintenance_location: 'Repair Bench' }
+    const noPlace = { id: 'u2', quantity: 1, tag_number: 'T2', status: 'Maintenance' }
+    expect(whereabouts([], [inShop, noPlace])).toEqual([
+      { gig_id: null, location: 'Repair Bench', quantity: 1, maintenance: 'in' },
+      { gig_id: null, location: null, quantity: 1, maintenance: 'in' },
+    ])
+  })
+
+  it('a piece split off a lot (no rows of its own) is in maintenance, apart from the lot at home', () => {
+    const piece = { id: 'p1', quantity: 2, status: 'Maintenance', maintenance_from: 'lot', maintenance_location: 'Shop' }
+    expect(whereabouts([], [lot, piece])).toEqual([
+      { gig_id: null, location: null, quantity: 10 },
+      { gig_id: null, location: 'Shop', quantity: 2, maintenance: 'in' },
+    ])
+  })
+
+  it('a lot flagged at a gig: its pieces there say how many are flagged', () => {
+    const flagged = { ...lot, maintenance_pending: true, maintenance_pending_gig_id: 'g1', maintenance_pending_quantity: 2 }
+    const rows = [row({ asset_id: 'lot', gig_id: 'g1', kit_id: 'k1', status: 'On Site', location: 'Stage', quantity: 4 })]
+    expect(whereabouts(rows, [flagged])).toEqual([
+      { gig_id: 'g1', location: 'Stage', quantity: 4, maintenance: 'flagged', flagged: 2 },
+      { gig_id: null, location: null, quantity: 6 },
+    ])
+  })
+
+  it('an old "Maintenance" tracking row on a record that is not in maintenance is just a place', () => {
+    const rows = [row({ asset_id: 'u1', gig_id: 'g1', kit_id: 'k1', status: 'Maintenance', location: 'Stage' })]
+    expect(whereabouts(rows, [unit])).toEqual([{ gig_id: 'g1', location: 'Stage', quantity: 1 }])
+  })
+})

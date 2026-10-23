@@ -225,23 +225,24 @@ function MaintenanceTable({
             </TableRow>
           ) : rows.map((row) => (
             <TableRow key={row.asset_id}>
-              <TableCell className="font-medium">{row.item_name ?? '—'}</TableCell>
-              <TableCell>{whichLabel(row)}</TableCell>
-              {flagged && <TableCell>{row.pending_gig_title ?? '—'}</TableCell>}
+              {/* #300: the long columns wrap, so the actions always fit the card. */}
+              <TableCell className="font-medium whitespace-normal break-words min-w-[120px] max-w-[200px]">{row.item_name ?? '—'}</TableCell>
+              <TableCell className="whitespace-normal break-words max-w-[180px]">{whichLabel(row)}</TableCell>
+              {flagged && <TableCell className="whitespace-normal break-words max-w-[180px]">{row.pending_gig_title ?? '—'}</TableCell>}
               <TableCell className="text-xs text-muted-foreground max-w-[220px] whitespace-pre-wrap">{row.notes ?? '—'}</TableCell>
-              <TableCell>{row.location ?? '—'}</TableCell>
+              <TableCell className="whitespace-normal break-words max-w-[140px]">{row.location ?? '—'}</TableCell>
               <TableCell className="text-xs">
                 {day(row.expected_back)}
                 {isOverdue(row.expected_back) && (
                   <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Overdue</span>
                 )}
               </TableCell>
-              <TableCell className="text-xs text-muted-foreground">
+              <TableCell className="text-xs text-muted-foreground whitespace-normal min-w-[110px]">
                 {day(row.since)}{row.flagged_by_name ? ` · ${row.flagged_by_name}` : ''}
               </TableCell>
-              <TableCell className="text-xs text-muted-foreground">{row.last_gig_title ?? '—'}</TableCell>
+              <TableCell className="text-xs text-muted-foreground whitespace-normal break-words max-w-[180px]">{row.last_gig_title ?? '—'}</TableCell>
               {canEdit && (
-                <TableCell className="no-print">
+                <TableCell className="no-print whitespace-nowrap">
                   <div className="flex justify-end gap-2">
                     <Button variant="ghost" size="sm" disabled={busy} onClick={() => onEdit(row)}
                       aria-label={`Edit ${row.item_name ?? 'details'}`}>

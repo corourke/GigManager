@@ -250,6 +250,18 @@ describe('LocationExplorer', () => {
     }, { timeout: 3000 });
   });
 
+  // #186 step 4: a line in maintenance says where; a flagged one says so.
+  it('marks a line in maintenance, with its location, and a flagged one', async () => {
+    (getItemsByLocation as any).mockResolvedValue([
+      { ...mockItems[0], maintenance: 'in', maintenance_location: 'Repair Bench' },
+      { ...mockItems[0], asset_id: 'asset-2', asset_name: 'Sub', tag_number: 'SB-1', maintenance: 'flagged' },
+    ]);
+    render(<LocationExplorer organizationId="org-1" />);
+    fireEvent.change(screen.getByPlaceholderText('Filter by location...'), { target: { value: 'Stage Left' } });
+    expect(await screen.findByText('In maintenance · Repair Bench', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText('Flagged to maintenance')).toBeInTheDocument();
+  });
+
   it('renders a non-container kit as a header row with its scanned asset indented beneath', async () => {
     (getItemsByLocation as any).mockResolvedValue(mockItems);
 
