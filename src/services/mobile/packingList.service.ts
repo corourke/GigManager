@@ -1,4 +1,4 @@
-import { createClient } from '../../utils/supabase/client';
+import { getSupabase } from '../base/dataAccess';
 import { idbStore } from '../../utils/idb/store';
 import { isRetired, recordKind } from '../../utils/equipmentItems';
 import { compareNewestFirst, piecesHome, placementOf, type TrackingRow } from '../../utils/locations';
@@ -6,7 +6,7 @@ import { compareNewestFirst, piecesHome, placementOf, type TrackingRow } from '.
 /** Tracking rows per request: PostgREST's default most. */
 const PLACEMENT_PAGE = 1000;
 
-const supabase = createClient();
+const supabase = getSupabase();
 
 export const packingListService = {
   async fetchUpcomingGigs() {

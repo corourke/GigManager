@@ -1,8 +1,8 @@
-import { createClient } from '../../utils/supabase/client';
+import { getSupabase } from '../base/dataAccess';
 import { idbStore } from '../../utils/idb/store';
 import { isRetired } from '../../utils/equipmentItems';
 
-const supabase = createClient();
+const supabase = getSupabase();
 const PAGE = 1000;
 
 export interface IndexKit {

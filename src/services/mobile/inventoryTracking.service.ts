@@ -1,12 +1,12 @@
 import { idbStore } from '../../utils/idb/store';
 import { offlineSyncService } from './offlineSync.service';
-import { createClient } from '../../utils/supabase/client';
+import { getSupabase } from '../base/dataAccess';
 import { NOT_RETURNED_STATUS, RETURNED_STATUS } from '../../config/inventoryWorkflow';
 import { isAvailable, recordKind } from '../../utils/equipmentItems';
 import { placementOf, type TrackingRow } from '../../utils/locations';
 import { pickLots } from '../../utils/pickLots';
 
-const supabase = createClient();
+const supabase = getSupabase();
 
 type TrackingRecord = {
   id?: string;

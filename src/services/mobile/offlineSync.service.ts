@@ -1,8 +1,8 @@
-import { createClient } from '../../utils/supabase/client';
+import { getSupabase } from '../base/dataAccess';
 import { idbStore, OutboxItem } from '../../utils/idb/store';
 import { toast } from 'sonner';
 
-const supabase = createClient();
+const supabase = getSupabase();
 
 type SyncHandler = (payload: any) => Promise<void>;
 
