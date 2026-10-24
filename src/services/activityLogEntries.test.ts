@@ -122,6 +122,18 @@ const assetRow = (over: Record<string, any> = {}) => ({
   ...over,
 });
 
+/**
+ * The row a database update returns: the patch applied, with numeric columns stored as numbers
+ * even when the screen sent text (#20: the change list compares saved rows).
+ */
+const savedRow = (row: Record<string, any>, patch: Record<string, any>) => {
+  const out: Record<string, any> = { ...row };
+  for (const [k, v] of Object.entries(patch)) {
+    out[k] = typeof row[k] === 'number' && typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v)) ? Number(v) : v;
+  }
+  return out;
+};
+
 describe('asset activity entries', () => {
   it('createAssets logs asset.created per saved unit', async () => {
     routes['assets.insert'] = q => ok(q.payload.map((r: any, i: number) => ({ id: `a${i + 1}`, ...r })));
@@ -159,7 +171,7 @@ describe('asset activity entries', () => {
 
   it('updateAsset genuine field change (manufacturer_model A -> B) logs asset.updated', async () => {
     routes['assets.select'] = ok(assetRow({ manufacturer_model: 'A' }));
-    routes['assets.update'] = q => ok({ ...assetRow(), ...q.payload });
+    routes['assets.update'] = q => ok(savedRow(assetRow({ manufacturer_model: 'A' }), q.payload));
     await updateAsset('a1', { manufacturer_model: 'B' } as any);
     expect(logged()).toMatchInlineSnapshot(`
       [
@@ -170,7 +182,7 @@ describe('asset activity entries', () => {
 
   it('updateAsset text field cleared (description null -> "")', async () => {
     routes['assets.select'] = ok(assetRow({ description: null }));
-    routes['assets.update'] = q => ok({ ...assetRow(), ...q.payload });
+    routes['assets.update'] = q => ok(savedRow(assetRow({ description: null }), q.payload));
     await updateAsset('a1', { description: '' } as any);
     expect(logged()).toMatchInlineSnapshot(`
       [
@@ -181,7 +193,7 @@ describe('asset activity entries', () => {
 
   it('updateAsset value re-sent in another form (item_cost 100 -> "100")', async () => {
     routes['assets.select'] = ok(assetRow({ item_cost: 100 }));
-    routes['assets.update'] = q => ok({ ...assetRow(), ...q.payload });
+    routes['assets.update'] = q => ok(savedRow(assetRow({ item_cost: 100 }), q.payload));
     await updateAsset('a1', { item_cost: '100' } as any);
     expect(logged()).toMatchInlineSnapshot(`
       [
@@ -336,7 +348,7 @@ describe('gig financial activity entries', () => {
   /** The row as read before the update, and the update answering with it patched. */
   const before = (over: Record<string, any> = {}) => {
     routes['gig_financials.select'] = ok(finRow(over));
-    routes['gig_financials.update'] = q => ok({ ...finRow(over), ...q.payload });
+    routes['gig_financials.update'] = q => ok(savedRow(finRow(over), q.payload));
   };
 
   it('createGigFinancial logs financial.added', async () => {
@@ -521,7 +533,7 @@ describe('kit activity entries', () => {
   /** kits.select answers k1 with the row, any other id (a sub-kit) with its name. */
   const kits = (over: Record<string, any> = {}) => {
     routes['kits.select'] = q => (filterVal(q, 'id') === 'k1' ? ok(kitRow(over)) : ok({ name: 'Drum Sub-kit' }));
-    routes['kits.update'] = ok(null);
+    routes['kits.update'] = q => ok([savedRow(kitRow(over), q.payload)]);
     routes['assets.select'] = ok({ manufacturer_model: 'Shure SM58' });
     routes['equipment_items.select'] = ok({ manufacturer_model: 'XLR Cable 25ft' });
   };
