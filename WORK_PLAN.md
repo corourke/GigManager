@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-24 (coordinator: #302 merged (Cameron's OK); the guide matches prod for all of #186. Triage prompt updated by Cameron 10-24. #20: the Equipment Lead is writing the plan for the remaining goals; Cameron approves before code)
+- **Last updated:** 2026-10-24 (coordinator 06:45 UTC: **#20 remaining-goals plan approved** (Lead's plan on #20 + Cameron's 10-24 decisions there: skip verifyAsset/KitAccess, drop verifyOrgAccess, one uniform change-tracking rule). The Equipment Lead is building PRs A (error surface + helper additions), B (`writeActivity` + uniform change tracking, the one behaviour change), C (`verifyGigAccess`), then D–F (CRUD moves). Each needs Cameron's merge OK)
 
 ---
 
