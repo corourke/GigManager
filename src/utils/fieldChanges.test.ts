@@ -23,6 +23,14 @@ describe('computeFieldChanges', () => {
     expect(changes({}, { notes: null })).toEqual([]);
   });
 
+  it('an empty list or object is empty too (kit tags null -> [])', () => {
+    expect(changes({ tags: null }, { tags: [] })).toEqual([]);
+    expect(changes({ tags: [] }, { tags: null })).toEqual([]);
+    expect(changes({ tags: {} }, { tags: undefined })).toEqual([]);
+    expect(changes({ tags: [] }, { tags: ['a'] })).toEqual([{ field: 'tags', from: null, to: ['a'] }]);
+    expect(changes({ tags: ['a'] }, { tags: [] })).toEqual([{ field: 'tags', from: ['a'], to: null }]);
+  });
+
   it('from and to read null for empty', () => {
     expect(changes({ notes: '' }, { notes: 'x' })).toEqual([{ field: 'notes', from: null, to: 'x' }]);
     expect(changes({ notes: 'x' }, { notes: '' })).toEqual([{ field: 'notes', from: 'x', to: null }]);

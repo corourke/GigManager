@@ -566,6 +566,12 @@ describe('kit activity entries', () => {
     expect(logged()).toMatchInlineSnapshot(`[]`);
   });
 
+  it('updateKit tags set to an empty list when there were none (null -> [])', async () => {
+    kits({ tags: null });
+    await updateKit('k1', { tags: [] });
+    expect(logged()).toMatchInlineSnapshot(`[]`);
+  });
+
   it('updateKit text field cleared (description null -> "")', async () => {
     kits({ description: null });
     await updateKit('k1', { description: '' });
