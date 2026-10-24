@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#20 batch 6** (#309, Equipment Lead; merged 10-24 by the coordinator on review): `gig` and the mobile staff dashboard onto the data-access base; `gigService.shared` keeps only the activity-context helpers. Characterization tests added first (child-gig count, staff dashboard load).
+
 - **Prod deploy, 10-23** (Cameron): #299 and #303 (#186 steps 3–4, phone and desktop Maintenance), plus #20 batches 3–5, 7 and 8 (#304–#308, no visible change). Coordinator verified read-only: build `index-Z2NDBOsm.js` (built 22:46 UTC) carries the phone's MAINTENANCE_SEND and the override's "Send to maintenance"; migrations unchanged at `20261022000000`; `/sw.js` no-cache.
 
 - **#20 batches 3, 4, 5, 7, 8** (Equipment Lead; merged 10-23 by the coordinator under Cameron's 10-23 OK for pure-refactor batches): #304 `gigStaff`/`asset`/`kit` (shared `computeFieldChanges` in `src/utils/fieldChanges.ts`), #305 `organization`/`conflictDetection`/`googleCalendar`, #306 `inventoryManagement`/`gigFinancial`/`taxReport`, #307 `purchase`, #308 `equipmentItem`/`equipmentNeeds`/`writeOff`/`maintenance`. No behaviour change; tested combined: 2337 tests, tsc, eslint.

@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-23 (coordinator 23:05 UTC: **#299 + #303 in prod** (Cameron's deploy, verified); #302 (phone/desktop Maintenance guide) ready, awaiting Cameron's merge OK; #20 batch 6 (`gig`) with the Equipment Lead)
+- **Last updated:** 2026-10-24 (coordinator 00:45 UTC: **#20 batch 6 merged (#309)**; all planned batches done. Four mobile services (`inventoryTracking`, `offlineSync`, `orgIndex`, `packingList`) still bypass the base; the Equipment Lead decides whether they're batch 9 or out of scope, then #20 closes. #302 awaits Cameron's merge OK)
 
 ---
 
@@ -111,7 +111,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 3. ~~`gigStaff`, `asset`, `kit` (one shared `computeFieldChanges` path)~~ done 10-23
 4. ~~`organization`, `conflictDetection`, `googleCalendar`~~ done 10-23
 5. ~~`inventoryManagement`, `gigFinancial`, `taxReport`~~ done 10-23
-6. `gig` (#92 is fixed, PR #200)
+6. ~~`gig` (#92 is fixed, PR #200)~~ done 10-24 (#309, with `staffDashboard` and `gigService.shared`)
 7. ~~`purchase`~~ done 10-23
 8. ~~`equipmentItem`, `equipmentNeeds`, `writeOff`, `maintenance`~~ done 10-23 (#308); `gigService.shared` goes with batch 6
 
