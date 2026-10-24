@@ -1,4 +1,4 @@
-import { getSupabase } from '../gigService.shared';
+import { getSupabase } from '../base/dataAccess';
 import { handleApiError } from '../../utils/api-error-utils';
 import type { GigStatus, GigScheduleEntry } from '../../utils/supabase/types';
 
