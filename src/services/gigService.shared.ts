@@ -2,6 +2,7 @@
  * Shared internal helpers for the gig service modules (Phase 7, Step 4 split).
  * The client and signed-in user come from `./base/dataAccess` (#20).
  */
+import { actorNameOf } from './writeActivity';
 
 /** Who did it and to which gig, as the gig services log it in activity_log. */
 export interface GigActivityCtx {
@@ -78,7 +79,7 @@ export async function resolveGigActivityCtx(
 
   const actor_display_name =
     given?.actor_display_name ??
-    (`${user?.user_metadata?.first_name ?? ''} ${user?.user_metadata?.last_name ?? ''}`.trim() || user?.email || '');
+    actorNameOf(user ?? {});
 
   return { organization_id, actor_display_name, actor_org_name, gig_title };
 }

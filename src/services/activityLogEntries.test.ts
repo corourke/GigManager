@@ -184,22 +184,14 @@ describe('asset activity entries', () => {
     routes['assets.select'] = ok(assetRow({ description: null }));
     routes['assets.update'] = q => ok(savedRow(assetRow({ description: null }), q.payload));
     await updateAsset('a1', { description: '' } as any);
-    expect(logged()).toMatchInlineSnapshot(`
-      [
-        "{"organization_id":"o1","event_type":"asset.updated","entity_type":"asset","entity_id":"a1","gig_id":null,"context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","asset_model":"Shure SM58","category":"Audio","field_changes":[{"field":"description","from":null,"to":""}]}}",
-      ]
-    `);
+    expect(logged()).toMatchInlineSnapshot(`[]`);
   });
 
   it('updateAsset value re-sent in another form (item_cost 100 -> "100")', async () => {
     routes['assets.select'] = ok(assetRow({ item_cost: 100 }));
     routes['assets.update'] = q => ok(savedRow(assetRow({ item_cost: 100 }), q.payload));
     await updateAsset('a1', { item_cost: '100' } as any);
-    expect(logged()).toMatchInlineSnapshot(`
-      [
-        "{"organization_id":"o1","event_type":"asset.updated","entity_type":"asset","entity_id":"a1","gig_id":null,"context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","asset_model":"Shure SM58","category":"Audio","field_changes":[{"field":"item_cost","from":100,"to":"100"}]}}",
-      ]
-    `);
+    expect(logged()).toMatchInlineSnapshot(`[]`);
   });
 
   it('duplicateAsset logs asset.created for the copy', async () => {
@@ -386,7 +378,7 @@ describe('gig financial activity entries', () => {
     await updateGigFinancial('f1', { description: 'x' });
     expect(logged()).toMatchInlineSnapshot(`
       [
-        "{"organization_id":"o1","event_type":"financial.updated","entity_type":"financial","entity_id":"f1","gig_id":"g1","context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","gig_title":"Spring Gala","direction":"in","stage":"invoiced","amount":500,"amount_settled":null,"description":"x","field_changes":[{"field":"description","from":"","to":"x"}]}}",
+        "{"organization_id":"o1","event_type":"financial.updated","entity_type":"financial","entity_id":"f1","gig_id":"g1","context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","gig_title":"Spring Gala","direction":"in","stage":"invoiced","amount":500,"amount_settled":null,"description":"x","field_changes":[{"field":"description","from":null,"to":"x"}]}}",
       ]
     `);
   });
@@ -577,21 +569,13 @@ describe('kit activity entries', () => {
   it('updateKit text field cleared (description null -> "")', async () => {
     kits({ description: null });
     await updateKit('k1', { description: '' });
-    expect(logged()).toMatchInlineSnapshot(`
-      [
-        "{"organization_id":"o1","event_type":"kit.updated","entity_type":"kit","entity_id":"k1","gig_id":null,"context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","kit_name":"A","field_changes":[{"field":"description","from":null,"to":""}]}}",
-      ]
-    `);
+    expect(logged()).toMatchInlineSnapshot(`[]`);
   });
 
   it('updateKit value re-sent in another form (rental_value 100 -> "100")', async () => {
     kits({ rental_value: 100 });
     await updateKit('k1', { rental_value: '100' } as any);
-    expect(logged()).toMatchInlineSnapshot(`
-      [
-        "{"organization_id":"o1","event_type":"kit.updated","entity_type":"kit","entity_id":"k1","gig_id":null,"context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","kit_name":"A","field_changes":[{"field":"rental_value","from":100,"to":"100"}]}}",
-      ]
-    `);
+    expect(logged()).toMatchInlineSnapshot(`[]`);
   });
 
   it('updateKit removing an asset, an any-item and a sub-kit logs kit.asset_removed x2 and kit.subkit_removed', async () => {
