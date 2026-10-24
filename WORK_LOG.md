@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #302** (Docs Lead, merged 10-24 with Cameron's OK): user guide for #186 steps 3–4, covering the phone's Send to Maintenance (location, expected back, how many, To maintenance, Add more, undo), the Locations override's Sending to maintenance, the In maintenance / Flagged to maintenance tags, the packing-list note, and the full-width Maintenance screenshot.
+
 - **#20 batch 9** (#310, Equipment Lead; merged 10-24 by the coordinator on review): the mobile `inventoryTracking`, `offlineSync`, `orgIndex` and `packingList` services onto the data-access base. With it, no service calls `createClient()`/`requireAuth()` directly. (Its docs-site check failed instantly; the docs site reads none of its files.)
 
 - **#20 batch 6** (#309, Equipment Lead; merged 10-24 by the coordinator on review): `gig` and the mobile staff dashboard onto the data-access base; `gigService.shared` keeps only the activity-context helpers. Characterization tests added first (child-gig count, staff dashboard load).

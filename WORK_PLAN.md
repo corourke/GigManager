@@ -9,11 +9,11 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-24 (coordinator: **Cameron 10-24: finish all of #20's design goals.** The Equipment Lead is writing one plan on #20 for goals 1, 3–5 (broad CRUD-helper use, shared `writeActivity`, `verify*Access`, one error surface); Cameron approves before code. #302 awaits Cameron's merge OK)
+- **Last updated:** 2026-10-24 (coordinator: #302 merged (Cameron's OK); the guide matches prod for all of #186. Triage prompt updated by Cameron 10-24. #20: the Equipment Lead is writing the plan for the remaining goals; Cameron approves before code)
 
 ---
 
-- **Cameron 10-18: finish and close #162, #183, #186. All three are closed:** #183 on 10-18, and #186 and #162 on 10-23. #186 Maintenance shipped in 4 steps: #296 (database, migration `20261022000000`, in prod 10-22), #298 (web list, in prod 10-22), #299 (phone) and #303 (desktop override, the Locations/Item page/packing-list lines, #300). **#299 and #303 are in prod (10-23).** The Docs Lead holds #302 (phone) plus the step 4 guide until that deploy. The Equipment Lead is standing by for its next item (Cameron to choose). **#20 goes to the Equipment Lead (Cameron, 10-23): finish all of it ASAP,** batches 3–8, pipelined. Triage doesn't build #20.
+- **Cameron 10-18: finish and close #162, #183, #186. All three are closed:** #183 on 10-18, and #186 and #162 on 10-23. #186 Maintenance shipped in 4 steps: #296 (database, migration `20261022000000`, in prod 10-22), #298 (web list, in prod 10-22), #299 (phone) and #303 (desktop override, the Locations/Item page/packing-list lines, #300). **#299 and #303 are in prod (10-23).** The guide for all of #186 is published (#301, #302). The Equipment Lead is standing by for its next item (Cameron to choose). **#20 goes to the Equipment Lead (Cameron, 10-23): finish all of it ASAP,** batches 3–8, pipelined. Triage doesn't build #20.
 
 ## 1. Open issues
 
