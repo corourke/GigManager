@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-24 (coordinator 02:50 UTC: **#20 batch 9 merged (#310); every service now goes through the data-access base.** #20 stays open: Cameron to decide whether its goals 1, 3–5 (broad CRUD-helper use, shared `writeActivity`, `verify*Access`, one error wrapper) are follow-ups. #302 awaits Cameron's merge OK)
+- **Last updated:** 2026-10-24 (coordinator: **Cameron 10-24: finish all of #20's design goals.** The Equipment Lead is writing one plan on #20 for goals 1, 3–5 (broad CRUD-helper use, shared `writeActivity`, `verify*Access`, one error surface); Cameron approves before code. #302 awaits Cameron's merge OK)
 
 ---
 
